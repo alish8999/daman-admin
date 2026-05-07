@@ -1,0 +1,42 @@
+body {
+  background-color: #f8f9fa;
+}
+
+.color-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.upload-preview-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  overflow: hidden;
+}
+
+.upload-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.upload-placeholder {
+  font-size: 0.8rem;
+}
+
+.color-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  input[type="color"] {
+    width: 40px;
+    height: 38px;
+    padding: 2px;
+    cursor: pointer;
+  }
+}

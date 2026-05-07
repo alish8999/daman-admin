@@ -1,0 +1,389 @@
+<div class="page-scroll-container">
+  <div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h4 class="mb-0">Clients</h4>
+      <a routerLink="/clients/new" class="btn btn-primary btn-sm">+ New Client</a>
+    </div>
+
+    @if (clients.length === 0) {
+      <div class="text-center text-muted py-5">
+        <p>No clients yet.</p>
+        <a routerLink="/clients/new" class="btn btn-outline-primary btn-sm">Create your first client</a>
+      </div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle bg-white rounded shadow-sm">
+          <thead class="table-light">
+            <tr>
+              <th>Code</th>
+              <th>App Name</th>
+              <th>Tagline</th>
+              <th>License</th>
+              <th>Features</th>
+              <th>Colors</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (client of clients; track client.clientCode) {
+              <tr>
+                <td><code>{{ client.clientCode }}</code></td>
+                <td>{{ client.appName }}</td>
+                <td class="text-muted">{{ client.tagline }}</td>
+
+                <!-- License status -->
+                <td>
+                  @if (licenseOf(client.clientCode); as lic) {
+                    <span class="badge" [ngClass]="{
+                      'bg-success': lic.status === 'ACTIVE',
+                      'bg-danger':  lic.status === 'REVOKED'
+                    }">{{ lic.status }}</span>
+                  } @else {
+                    <span class="badge bg-secondary">NONE</span>
+                  }
+                </td>
+
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    @for (b of featureBadges(client); track b.label) {
+                      @if (b.on) {
+                        <span class="badge rounded-pill bg-success feature-badge" [title]="b.label">
+                          {{ b.icon }} {{ b.label }}
+                        </span>
+                      }
+                    }
+                    @if (!hasAnyFeature(client)) {
+                      <span class="text-muted small">—</span>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <div class="d-flex gap-1">
+                    @for (color of colorSwatches(client); track color) {
+                      <span class="color-swatch" [style.background-color]="color" [title]="color"></span>
+                    }
+                  </div>
+                </td>
+                <td class="text-end">
+                  <a [routerLink]="['/clients', client.clientCode, 'edit']"
+                     class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                  <button (click)="exportJson(client.clientCode)"
+                          class="btn btn-sm btn-outline-success me-1">Export JSON</button>
+                  <button (click)="prepareDevConfig(client.clientCode)"
+                          class="btn btn-sm btn-outline-info me-1"
+                          [disabled]="preparingDevConfig[client.clientCode]"
+                          title="Write config to daman-backend and daman-frontend">
+                    @if (preparingDevConfig[client.clientCode]) {
+                      <span class="spinner-border spinner-border-sm me-1"></span>Preparing...
+                    } @else {
+                      Prepare Dev
+                    }
+                  </button>
+
+                  <!-- License actions -->
+                  @if (licenseOf(client.clientCode)?.status === 'ACTIVE') {
+                    <button class="btn btn-sm btn-outline-danger me-1"
+                            (click)="openRevokeConfirm(client.clientCode)"
+                            title="Revoke license">Revoke</button>
+                  }
+                  @if (licenseOf(client.clientCode)) {
+                    <button class="btn btn-sm btn-outline-success me-1"
+                            (click)="openRenewConfirm(client.clientCode)"
+                            title="Renew license">Renew</button>
+                  }
+
+                  <!-- Build split button -->
+                  <div class="btn-group me-1">
+                    <button (click)="requestBuild(client.clientCode, client.defaultBuildTarget || 'win')"
+                            class="btn btn-sm btn-outline-warning"
+                            [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'">
+                      @if (buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING') {
+                        <span class="spinner-border spinner-border-sm me-1"></span>Building...
+                      } @else {
+                        Build
+                      }
+                    </button>
+                    <button type="button" #dropdownBtn
+                            class="btn btn-sm btn-outline-warning dropdown-toggle dropdown-toggle-split"
+                            [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'"
+                            (click)="toggleDropdown(client.clientCode, $event, dropdownBtn)">
+                    </button>
+                  </div>
+
+                  <button (click)="delete(client.clientCode)"
+                          class="btn btn-sm btn-outline-danger">Delete</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Floating dropdown -->
+@if (openDropdown) {
+  <ul class="dropdown-menu show shadow"
+      [style.position]="'fixed'"
+      [style.top.px]="dropdownPos.top"
+      [style.left.px]="dropdownPos.left"
+      [style.z-index]="1080">
+    <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'win'); closeDropdown()">Windows (.exe)</button></li>
+    <li>
+      <button class="dropdown-item d-flex align-items-center gap-2" (click)="requestBuild(openDropdown!, 'win7'); closeDropdown()">
+        Windows 7/8 (.exe)
+        <span class="badge bg-secondary" style="font-size:0.65rem">Electron 22</span>
+      </button>
+    </li>
+    <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'mac'); closeDropdown()">macOS (.dmg)</button></li>
+    <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'linux'); closeDropdown()">Linux (.AppImage)</button></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><button class="dropdown-item" (click)="showHistory(openDropdown!); closeDropdown()">Build History</button></li>
+  </ul>
+}
+
+<!-- Build Confirmation Modal (with version selector) -->
+@if (buildConfirmation) {
+  <div class="modal-backdrop fade show"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm Build</h5>
+          <button type="button" class="btn-close" (click)="cancelBuildConfirmation()"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted mb-3">Review the build configuration before starting.</p>
+
+          <!-- Version selector -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Version *</label>
+            @if (versions.length === 0) {
+              <div class="alert alert-warning py-2 small mb-0">
+                No versions configured.
+                <a routerLink="/versions" (click)="cancelBuildConfirmation()">Go to Versions</a> to create one first.
+              </div>
+            } @else {
+              <select class="form-select" [(ngModel)]="buildConfirmation.versionNumber">
+                @for (v of versions; track v.id) {
+                  <option [value]="v.versionNumber">{{ v.versionNumber }} — {{ v.releaseDate | date:'mediumDate' }}</option>
+                }
+              </select>
+            }
+          </div>
+
+          <table class="table table-sm table-borderless mb-0">
+            <tbody>
+              <tr>
+                <td class="text-muted fw-semibold" style="width:40%">Client</td>
+                <td><code>{{ buildConfirmation.clientCode }}</code></td>
+              </tr>
+              <tr>
+                <td class="text-muted fw-semibold">Platform</td>
+                <td>{{ buildConfirmation.label }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted fw-semibold">Electron</td>
+                <td>
+                  {{ buildConfirmation.electronVersion }}
+                  @if (buildConfirmation.platform === 'win7') {
+                    <span class="badge bg-warning text-dark ms-1">Win 7/8 compatible</span>
+                  }
+                </td>
+              </tr>
+              <tr>
+                <td class="text-muted fw-semibold">Output</td>
+                <td>{{ buildConfirmation.outputExt }}</td>
+              </tr>
+              @if (buildConfirmation.versionNumber) {
+                <tr>
+                  <td class="text-muted fw-semibold">Artifact name</td>
+                  <td class="font-monospace small text-break">
+                    {{ buildConfirmation.clientCode }}_v{{ buildConfirmation.versionNumber }}_...
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          @if (buildConfirmation.platform === 'win7') {
+            <div class="alert alert-warning mt-3 mb-0 py-2 small">
+              <strong>Note:</strong> This build uses Electron 22 to support Windows 7 and Windows 8.
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cancelBuildConfirmation()">Cancel</button>
+          <button type="button" class="btn btn-warning" (click)="confirmBuild()">
+            Start Build
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Build Log Modal -->
+@if (showBuildModal) {
+  <div class="modal-backdrop fade show" (click)="closeBuildModal()"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            Build: {{ buildStatus?.clientCode }}
+            <span class="badge ms-2" [ngClass]="{
+              'bg-warning text-dark': buildStatus?.status === 'BUILDING',
+              'bg-success': buildStatus?.status === 'SUCCESS',
+              'bg-danger': buildStatus?.status === 'FAILED',
+              'bg-secondary': buildStatus?.status === 'IDLE'
+            }">{{ buildStatus?.status }}</span>
+          </h5>
+          <button type="button" class="btn-close" (click)="closeBuildModal()"></button>
+        </div>
+        <div class="modal-body p-0">
+          <pre class="build-log m-0 p-3" #buildLogContainer>{{ buildStatus?.logs?.join('\n') || 'Waiting for logs...' }}</pre>
+        </div>
+        <div class="modal-footer">
+          @if (buildStatus?.status === 'SUCCESS' && buildStatus?.artifactName) {
+            <a [href]="clientService.getBuildDownloadUrl(buildStatus!.clientCode)"
+               class="btn btn-success" download>
+              Download {{ buildStatus?.artifactName }}
+            </a>
+          }
+          <button type="button" class="btn btn-secondary" (click)="closeBuildModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Prepare Dev Config Result Modal -->
+@if (prepareDevConfigResult) {
+  <div class="modal-backdrop fade show" (click)="closePrepareConfigResult()"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Dev Config Ready: <code>{{ prepareDevConfigResult.code }}</code></h5>
+          <button type="button" class="btn-close" (click)="closePrepareConfigResult()"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-success fw-semibold mb-3">Config written. You can now run <code>ng serve</code>.</p>
+          <div class="mb-2">
+            <small class="text-muted d-block mb-1">Backend</small>
+            <code class="small">{{ prepareDevConfigResult.backendPath }}</code>
+          </div>
+          <div>
+            <small class="text-muted d-block mb-1">Frontend</small>
+            <code class="small">{{ prepareDevConfigResult.frontendPath }}</code>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" (click)="closePrepareConfigResult()">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Build History Modal -->
+@if (showHistoryModal) {
+  <div class="modal-backdrop fade show" (click)="closeHistoryModal()"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Build History: {{ historyClientCode }}</h5>
+          <button type="button" class="btn-close" (click)="closeHistoryModal()"></button>
+        </div>
+        <div class="modal-body p-0">
+          @if (buildHistory.length === 0) {
+            <div class="text-center text-muted py-4">No builds yet.</div>
+          } @else {
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th><th>Platform</th><th>Status</th>
+                  <th>Started</th><th>Duration</th><th>Artifact</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (entry of buildHistory; track entry.id) {
+                  <tr>
+                    <td>{{ entry.id }}</td>
+                    <td>{{ entry.platform }}</td>
+                    <td>
+                      <span class="badge" [ngClass]="{
+                        'bg-success': entry.status === 'SUCCESS',
+                        'bg-danger': entry.status === 'FAILED',
+                        'bg-warning text-dark': entry.status === 'BUILDING',
+                        'bg-secondary': entry.status === 'IDLE'
+                      }">{{ entry.status }}</span>
+                    </td>
+                    <td>{{ entry.startedAt | date:'short' }}</td>
+                    <td>{{ formatDuration(entry.durationSeconds) }}</td>
+                    <td>{{ entry.artifactName || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeHistoryModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Revoke Confirmation Modal -->
+@if (revokeConfirm) {
+  <div class="modal-backdrop fade show"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger">Revoke License</h5>
+          <button type="button" class="btn-close" (click)="cancelRevoke()"></button>
+        </div>
+        <div class="modal-body">
+          <p>Revoke the license for <strong><code>{{ revokeConfirm.clientCode }}</code></strong>?</p>
+          <p class="text-muted small mb-0">The client's application will stop working until the license is renewed.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary btn-sm" (click)="cancelRevoke()">Cancel</button>
+          <button class="btn btn-danger btn-sm" (click)="confirmRevoke()">Revoke</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Renew Confirmation Modal -->
+@if (renewConfirm) {
+  <div class="modal-backdrop fade show"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-success">Renew License</h5>
+          <button type="button" class="btn-close" (click)="cancelRenew()"></button>
+        </div>
+        <div class="modal-body">
+          <p>Renewing the license for <strong><code>{{ renewConfirm.clientCode }}</code></strong> will generate a new license key and reactivate it.</p>
+          <div class="mb-0">
+            <label class="form-label fw-semibold">New Expiration Date (optional)</label>
+            <input type="date" class="form-control" [(ngModel)]="renewConfirm.expiresAt">
+            <div class="form-text">Leave empty for a perpetual license.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="cancelRenew()">Cancel</button>
+          <button class="btn btn-success" (click)="confirmRenew()">Renew License</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

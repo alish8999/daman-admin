@@ -1,0 +1,95 @@
+<div class="container-fluid p-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="mb-1">App Versions</h4>
+      <p class="text-muted mb-0 small">Manage release versions and changelogs used during builds.</p>
+    </div>
+    <button class="btn btn-primary btn-sm" (click)="openCreate()">+ New Version</button>
+  </div>
+
+  @if (versions.length === 0) {
+    <div class="text-center text-muted py-5">
+      <p>No versions yet. Create your first version to enable versioned builds.</p>
+      <button class="btn btn-outline-primary btn-sm" (click)="openCreate()">Create Version</button>
+    </div>
+  } @else {
+    <div class="table-responsive">
+      <table class="table table-hover align-middle bg-white rounded shadow-sm">
+        <thead class="table-light">
+          <tr>
+            <th style="width:140px">Version</th>
+            <th style="width:130px">Release Date</th>
+            <th>Changelog</th>
+            <th style="width:130px">Created</th>
+            <th class="text-end" style="width:120px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (v of versions; track v.id) {
+            <tr>
+              <td><span class="badge bg-primary font-monospace fs-6">{{ v.versionNumber }}</span></td>
+              <td>{{ v.releaseDate | date:'mediumDate' }}</td>
+              <td>
+                <span class="text-muted small" style="white-space: pre-line">
+                  {{ v.changelogText ? (v.changelogText.length > 120 ? v.changelogText.substring(0, 120) + '…' : v.changelogText) : '—' }}
+                </span>
+              </td>
+              <td class="text-muted small">{{ v.createdAt | date:'short' }}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-primary me-1" (click)="openEdit(v)">Edit</button>
+                <button class="btn btn-sm btn-outline-danger" (click)="delete(v)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- Add / Edit Modal -->
+@if (showModal) {
+  <div class="modal-backdrop fade show" (click)="closeModal()"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ editingId ? 'Edit Version' : 'New Version' }}</h5>
+          <button type="button" class="btn-close" (click)="closeModal()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Version Number *</label>
+            <input type="text" class="form-control font-monospace"
+                   [(ngModel)]="form.versionNumber"
+                   placeholder="e.g. 1.0.0 or 2.3.1">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Release Date *</label>
+            <input type="date" class="form-control" [(ngModel)]="form.releaseDate">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Changelog</label>
+            <textarea class="form-control font-monospace" rows="6"
+                      [(ngModel)]="form.changelogText"
+                      placeholder="Describe what changed in this release..."></textarea>
+            <div class="form-text">This text is written to changelog.txt alongside each build artifact.</div>
+          </div>
+          @if (error) {
+            <div class="alert alert-danger py-2">{{ error }}</div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+          <button class="btn btn-primary" (click)="save()" [disabled]="saving">
+            @if (saving) {
+              <span class="spinner-border spinner-border-sm me-1"></span>Saving...
+            } @else {
+              Save
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

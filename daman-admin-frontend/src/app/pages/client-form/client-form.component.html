@@ -1,0 +1,346 @@
+<div class="container py-4" style="max-width: 720px">
+  <div class="d-flex align-items-center mb-4 gap-3">
+    <a routerLink="/clients" class="btn btn-sm btn-outline-secondary">&larr; Back</a>
+    <h4 class="mb-0">{{ isEditMode ? 'Edit Client' : 'New Client' }}</h4>
+  </div>
+
+  @if (error) {
+    <div class="alert alert-warning">{{ error }}</div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="save()" class="bg-white rounded shadow-sm p-4">
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Client Code</label>
+        <input formControlName="clientCode" class="form-control font-monospace"
+               placeholder="freshmart" [class.bg-light]="isEditMode">
+        <div class="form-text">Unique identifier. Cannot be changed after creation.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">App Name</label>
+        <input formControlName="appName" class="form-control" placeholder="FreshMart">
+      </div>
+      <div class="col-12">
+        <label class="form-label fw-semibold">Tagline</label>
+        <input formControlName="tagline" class="form-control" placeholder="salesManagement">
+      </div>
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">Branding</h6>
+
+    <div class="row g-3 mb-4">
+
+      <!-- Logo Dark -->
+      <div class="col-md-6">
+        <label class="form-label">Logo (Dark background)</label>
+        <div class="upload-preview-box bg-dark rounded mb-2">
+          @if (isDataUrl(form.get('logoDark')?.value)) {
+            <img [src]="form.get('logoDark')?.value" alt="Logo Dark" class="upload-preview-img">
+          } @else {
+            <span class="upload-placeholder text-secondary">No image uploaded</span>
+          }
+        </div>
+        <div class="d-flex gap-2">
+          <label class="btn btn-sm btn-outline-secondary mb-0">
+            Upload
+            <input type="file" accept="image/*" hidden (change)="onImageUpload('logoDark', $event)">
+          </label>
+          <input formControlName="logoDark" class="form-control form-control-sm font-monospace"
+                 placeholder="assets/brand/logo.png">
+        </div>
+      </div>
+
+      <!-- Logo Light -->
+      <div class="col-md-6">
+        <label class="form-label">Logo (Light background)</label>
+        <div class="upload-preview-box bg-light border rounded mb-2">
+          @if (isDataUrl(form.get('logoLight')?.value)) {
+            <img [src]="form.get('logoLight')?.value" alt="Logo Light" class="upload-preview-img">
+          } @else {
+            <span class="upload-placeholder text-secondary">No image uploaded</span>
+          }
+        </div>
+        <div class="d-flex gap-2">
+          <label class="btn btn-sm btn-outline-secondary mb-0">
+            Upload
+            <input type="file" accept="image/*" hidden (change)="onImageUpload('logoLight', $event)">
+          </label>
+          <input formControlName="logoLight" class="form-control form-control-sm font-monospace"
+                 placeholder="assets/brand/logo-light.png">
+        </div>
+      </div>
+
+      <!-- Favicon -->
+      <div class="col-md-6">
+        <label class="form-label">Favicon</label>
+        <div class="upload-preview-box bg-light border rounded mb-2" style="height: 60px">
+          @if (isDataUrl(form.get('favicon')?.value)) {
+            <img [src]="form.get('favicon')?.value" alt="Favicon" style="width:32px;height:32px;object-fit:contain">
+          } @else {
+            <span class="upload-placeholder text-secondary">No image uploaded</span>
+          }
+        </div>
+        <div class="d-flex gap-2">
+          <label class="btn btn-sm btn-outline-secondary mb-0">
+            Upload
+            <input type="file" accept="image/x-icon,image/png,image/svg+xml" hidden (change)="onImageUpload('favicon', $event)">
+          </label>
+          <input formControlName="favicon" class="form-control form-control-sm font-monospace"
+                 placeholder="favicon.ico">
+        </div>
+      </div>
+
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">Theme Colors</h6>
+
+    <div class="row g-3 mb-4">
+      @for (field of [
+        { key: 'colorPrimary', label: 'Primary' },
+        { key: 'colorSecondary', label: 'Secondary' },
+        { key: 'colorSuccess', label: 'Success' },
+        { key: 'colorDanger', label: 'Danger' },
+        { key: 'colorWarning', label: 'Warning' },
+        { key: 'colorInfo', label: 'Info' }
+      ]; track field.key) {
+        <div class="col-md-4">
+          <label class="form-label">{{ field.label }}</label>
+          <div class="color-input-group">
+            <input type="color" [formControlName]="field.key" class="form-control form-control-color">
+            <input type="text" [formControlName]="field.key" class="form-control font-monospace"
+                   placeholder="#667eea">
+          </div>
+        </div>
+      }
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">Dashboard</h6>
+
+    <div class="row g-3 mb-4">
+      <div class="col-12">
+        <label class="form-label fw-semibold">Dashboard Header Background Image</label>
+        <p class="text-muted small mb-2">
+          Shown as the header background in the main app dashboard. If left blank the default gradient colour is used.
+          The header height is fixed — the image is cropped to fit.
+        </p>
+
+        <!-- Preview -->
+        @if (form.get('dashboardHeaderImage')?.value) {
+          <div class="dashboard-preview mb-2 rounded overflow-hidden position-relative"
+               style="height: 90px; background: #1e293b;">
+            <img [src]="form.get('dashboardHeaderImage')?.value"
+                 alt="Header preview"
+                 style="width:100%;height:100%;object-fit:cover;opacity:0.85;">
+            <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+                 style="background:rgba(0,0,0,0.28);">
+              <span class="text-white fw-semibold small">Header preview</span>
+            </div>
+          </div>
+        } @else {
+          <div class="dashboard-preview mb-2 rounded d-flex align-items-center justify-content-center text-secondary"
+               style="height: 90px; background: linear-gradient(135deg,#667eea,#764ba2); color:#fff !important;">
+            <span class="fw-semibold small" style="color:#fff">Default gradient (no image set)</span>
+          </div>
+        }
+
+        <div class="d-flex gap-2 align-items-center">
+          <label class="btn btn-sm btn-outline-secondary mb-0">
+            Upload Image
+            <input type="file" accept="image/*" hidden (change)="onImageUpload('dashboardHeaderImage', $event)">
+          </label>
+          <input formControlName="dashboardHeaderImage" class="form-control form-control-sm font-monospace"
+                 placeholder="assets/header.jpg  or leave blank">
+          @if (form.get('dashboardHeaderImage')?.value) {
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    (click)="form.get('dashboardHeaderImage')?.setValue('')">Clear</button>
+          }
+        </div>
+        <div class="form-text">Supports data-URLs (uploaded images) or asset paths. Max recommended: 512 KB.</div>
+      </div>
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">App features</h6>
+    <p class="text-muted small mb-3">These flags are embedded in <code>client.config.json</code> at build time and control the packaged desktop/web app.</p>
+    <div formGroupName="features" class="row g-2 mb-4">
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="multiLanguage" id="featMultiLang">
+          <label class="form-check-label" for="featMultiLang">Multi-language support (English / Arabic)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="barcode" id="barcode">
+          <label class="form-check-label" for="barcode">Barcode reader</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="reports" id="featReports">
+          <label class="form-check-label" for="featReports">Financial reports</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="suppliers" id="featSuppliers">
+          <label class="form-check-label" for="featSuppliers">Suppliers &amp; Purchases management</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="seedDemoData" id="featSeedDemo">
+          <label class="form-check-label" for="featSeedDemo">
+            Seed demo data on first launch
+            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">runs once</span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="multiCurrency" id="featMultiCurrency">
+          <label class="form-check-label" for="featMultiCurrency">
+            Multi-currency support (USD / SYP / SYP_OLD)
+            <span class="badge bg-info text-dark ms-1" style="font-size:0.65rem">default on</span>
+          </label>
+        </div>
+
+        <hr class="my-3">
+        <div class="text-muted small fw-semibold mb-2">Operations</div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="shifts" id="featShifts">
+          <label class="form-check-label" for="featShifts">
+            Shift management (cashier sessions with opening/closing cash)
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+          </label>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="clientLedger" id="featClientLedger">
+          <label class="form-check-label" for="featClientLedger">
+            Client debt ledger (track unpaid sales &amp; record client payments)
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+          </label>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="supplierLedger" id="featSupplierLedger">
+          <label class="form-check-label" for="featSupplierLedger">
+            Supplier balance ledger (track credit purchases &amp; record supplier payments)
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+          </label>
+        </div>
+
+        <hr class="my-3">
+        <div class="text-muted small fw-semibold mb-2">Inventory &amp; Sales Behaviour</div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="fractionalQuantity" id="featFractionalQty">
+          <label class="form-check-label" for="featFractionalQty">
+            Allow fractional quantities
+            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">e.g. 0.5 kg</span>
+          </label>
+          <div class="form-text ms-0 mt-1">
+            Enable for stores selling by weight or bulk (grocery, pharmacy).
+            <strong>Disable</strong> for stores selling whole units only (mobile phones, electronics)
+            — only whole-number quantities will be accepted at the POS and the "Calculate by Total" tool
+            will only allow adjusting the unit price, not the quantity.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Store Type & Base Currency -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Store Type</label>
+        <select formControlName="storeType" class="form-select">
+          <option *ngFor="let t of storeTypes" [value]="t.value">{{ t.label }}</option>
+        </select>
+        <div class="form-text">
+          Used when "Seed demo data" is enabled — picks the matching sample dataset.
+        </div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Base Currency</label>
+        <select formControlName="baseCurrency" class="form-select">
+          <option *ngFor="let c of baseCurrencies" [value]="c.value">{{ c.label }}</option>
+        </select>
+        <div class="form-text">
+          All prices (products, sales, purchases) are stored and reported in this currency.
+          Set to <strong>SYP</strong> for Syrian-market deployments.
+        </div>
+      </div>
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">Admin Credentials</h6>
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label">Username</label>
+        <input formControlName="adminUsername" class="form-control font-monospace" placeholder="admin">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Password</label>
+        <div class="input-group">
+          <input formControlName="adminPassword" class="form-control"
+                 [type]="passwordVisible ? 'text' : 'password'" placeholder="••••••••">
+          <button type="button" class="btn btn-outline-secondary"
+                  (click)="passwordVisible = !passwordVisible">
+            {{ passwordVisible ? 'Hide' : 'Show' }}
+          </button>
+        </div>
+        <div class="form-text">Seeded into the app database on first launch.</div>
+      </div>
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">Contact Information</h6>
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label">Phone</label>
+        <input formControlName="phone" class="form-control" placeholder="+963 912 345 678">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Email</label>
+        <input formControlName="email" class="form-control" type="email" placeholder="contact@client.com">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Point of Contact</label>
+        <input formControlName="pointOfContact" class="form-control" placeholder="Mohammad Al-Ahmad">
+      </div>
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">Build Settings</h6>
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Default Build Target</label>
+        <select formControlName="defaultBuildTarget" class="form-select">
+          <option value="win">Windows 10/11 (.exe)</option>
+          <option value="win7">Windows 7/8 (.exe) — Electron 22</option>
+          <option value="mac">macOS (.dmg)</option>
+          <option value="linux">Linux (.AppImage)</option>
+        </select>
+        <div class="form-text">This is the pre-selected platform when triggering a build for this client.</div>
+      </div>
+    </div>
+
+    <hr>
+    <h6 class="text-muted mb-3">Footer</h6>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label">Developer Name</label>
+        <input formControlName="footerDeveloper" class="form-control" placeholder="Eng. Ali Shaaban">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Developer URL</label>
+        <input formControlName="footerUrl" class="form-control" placeholder="https://linkedin.com/in/...">
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary" [disabled]="form.invalid || saving">
+        {{ saving ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Create Client') }}
+      </button>
+      <a routerLink="/clients" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+
+  </form>
+</div>

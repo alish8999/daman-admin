@@ -1,0 +1,191 @@
+<div class="container-fluid p-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="mb-1">Licenses</h4>
+      <p class="text-muted mb-0 small">
+        {{ activeCount }} active &middot; {{ revokedCount }} revoked &middot; {{ licenses.length }} total
+      </p>
+    </div>
+    <button class="btn btn-primary btn-sm" (click)="openGenerateModal()">
+      + Generate License
+    </button>
+  </div>
+
+  <div class="filter-tabs btn-group mb-3">
+    <button class="btn btn-sm" [class.btn-dark]="filter === 'all'" [class.btn-outline-dark]="filter !== 'all'"
+            (click)="filter = 'all'">All ({{ licenses.length }})</button>
+    <button class="btn btn-sm" [class.btn-success]="filter === 'active'" [class.btn-outline-success]="filter !== 'active'"
+            (click)="filter = 'active'">Active ({{ activeCount }})</button>
+    <button class="btn btn-sm" [class.btn-danger]="filter === 'revoked'" [class.btn-outline-danger]="filter !== 'revoked'"
+            (click)="filter = 'revoked'">Revoked ({{ revokedCount }})</button>
+  </div>
+
+  @if (filteredLicenses.length === 0) {
+    <div class="text-center text-muted py-5">
+      <p>No licenses found.</p>
+    </div>
+  } @else {
+    <div class="table-responsive">
+      <table class="table table-hover align-middle bg-white rounded shadow-sm">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Client</th>
+            <th>Machine ID</th>
+            <th>Status</th>
+            <th>Expires</th>
+            <th>Activated</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (license of filteredLicenses; track license.id) {
+            <tr>
+              <td>{{ license.id }}</td>
+              <td>
+                <div class="fw-semibold">{{ license.clientName || license.clientCode }}</div>
+                <small class="text-muted">{{ license.clientCode }}</small>
+              </td>
+              <td>
+                <span class="machine-id-cell d-inline-block" [title]="license.machineId">
+                  {{ truncateMachineId(license.machineId) }}
+                </span>
+              </td>
+              <td>
+                <span class="badge" [ngClass]="{
+                  'bg-success': license.status === 'ACTIVE',
+                  'bg-danger': license.status === 'REVOKED'
+                }">{{ license.status }}</span>
+              </td>
+              <td>{{ license.expiresAt ? (license.expiresAt | date:'mediumDate') : 'Never' }}</td>
+              <td>{{ license.activatedAt | date:'short' }}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-secondary me-1"
+                        (click)="copyLicenseKey(license.licenseKey)"
+                        title="Copy license key">
+                  Copy Key
+                </button>
+                @if (license.status === 'ACTIVE') {
+                  <button class="btn btn-sm btn-outline-danger me-1"
+                          (click)="revoke(license)">Revoke</button>
+                }
+                @if (license.status === 'REVOKED') {
+                  <button class="btn btn-sm btn-outline-success"
+                          (click)="openRenewModal(license)">Renew</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- Generate License Modal -->
+@if (showGenerateModal) {
+  <div class="modal-backdrop fade show" (click)="closeGenerateModal()"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Generate License</h5>
+          <button type="button" class="btn-close" (click)="closeGenerateModal()"></button>
+        </div>
+        <div class="modal-body">
+          @if (!generateResult) {
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Client *</label>
+              <select class="form-select" [(ngModel)]="generateForm.clientCode">
+                <option value="">Select a client...</option>
+                @for (client of clients; track client.clientCode) {
+                  <option [value]="client.clientCode">{{ client.appName }} ({{ client.clientCode }})</option>
+                }
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Machine ID *</label>
+              <input type="text" class="form-control font-monospace"
+                     [(ngModel)]="generateForm.machineId"
+                     placeholder="Paste the Machine ID from the client's activation screen">
+              <div class="form-text">The SHA-256 hardware fingerprint shown on the client's activation screen.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Expiration Date (optional)</label>
+              <input type="date" class="form-control"
+                     [(ngModel)]="generateForm.expiresAt">
+              <div class="form-text">Leave empty for a perpetual license.</div>
+            </div>
+
+            @if (generateError) {
+              <div class="alert alert-danger py-2">{{ generateError }}</div>
+            }
+          } @else {
+            <div class="alert alert-success">
+              License generated successfully for <strong>{{ generateResult.clientName }}</strong>
+            </div>
+            <label class="form-label fw-semibold">License Key</label>
+            <div class="license-key-display mb-3">{{ generateResult.licenseKey }}</div>
+            <button class="btn btn-sm btn-outline-primary"
+                    (click)="copyLicenseKey(generateResult.licenseKey)">
+              {{ copied ? 'Copied!' : 'Copy to Clipboard' }}
+            </button>
+            <div class="form-text mt-2">Send this license key to the client. They will paste it in the activation screen.</div>
+          }
+        </div>
+        <div class="modal-footer">
+          @if (!generateResult) {
+            <button class="btn btn-primary" (click)="generate()" [disabled]="generating">
+              @if (generating) {
+                <span class="spinner-border spinner-border-sm me-1"></span>Generating...
+              } @else {
+                Generate
+              }
+            </button>
+          }
+          <button class="btn btn-secondary" (click)="closeGenerateModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Renew License Modal -->
+@if (renewModal) {
+  <div class="modal-backdrop fade show"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-success">Renew License</h5>
+          <button type="button" class="btn-close" (click)="closeRenewModal()"></button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Renewing license for <strong>{{ renewModal.license.clientName || renewModal.license.clientCode }}</strong>
+            on machine <code>{{ truncateMachineId(renewModal.license.machineId) }}</code>.
+          </p>
+          <p class="text-muted small">A new license key will be generated and the status will be set to ACTIVE.</p>
+          <div class="mb-0">
+            <label class="form-label fw-semibold">New Expiration Date (optional)</label>
+            <input type="date" class="form-control" [(ngModel)]="renewModal.expiresAt">
+            <div class="form-text">Leave empty for a perpetual license.</div>
+          </div>
+          @if (renewError) {
+            <div class="alert alert-danger mt-3 py-2">{{ renewError }}</div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeRenewModal()">Cancel</button>
+          <button class="btn btn-success" (click)="confirmRenew()" [disabled]="renewing">
+            @if (renewing) {
+              <span class="spinner-border spinner-border-sm me-1"></span>Renewing...
+            } @else {
+              Renew License
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
