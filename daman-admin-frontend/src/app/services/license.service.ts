@@ -58,6 +58,10 @@ export class LicenseService {
     return this.http.put(`${this.apiUrl}/client/${clientCode}/renew`, { expiresAt: expiresAt ?? '' });
   }
 
+  delete(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+
   getPublicKey(): Observable<{ publicKey: string }> {
     return this.http.get<{ publicKey: string }>(`${this.apiUrl}/public-key`);
   }

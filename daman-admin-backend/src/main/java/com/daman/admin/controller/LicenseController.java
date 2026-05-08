@@ -168,6 +168,13 @@ public class LicenseController {
         ));
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteById(@PathVariable Long id) {
+        if (!licenseRepository.existsById(id)) return ResponseEntity.notFound().build();
+        licenseRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/public-key")
     public ResponseEntity<Map<String, String>> getPublicKey() {
         return ResponseEntity.ok(Map.of("publicKey", licenseKeyService.getPublicKeyPem()));

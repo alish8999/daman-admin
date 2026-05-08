@@ -70,9 +70,12 @@
                           (click)="revoke(license)">Revoke</button>
                 }
                 @if (license.status === 'REVOKED') {
-                  <button class="btn btn-sm btn-outline-success"
+                  <button class="btn btn-sm btn-outline-success me-1"
                           (click)="openRenewModal(license)">Renew</button>
                 }
+                <button class="btn btn-sm btn-danger"
+                        (click)="deleteLicense(license)"
+                        title="Permanently delete this license">Delete</button>
               </td>
             </tr>
           }

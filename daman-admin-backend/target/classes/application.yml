@@ -22,4 +22,4 @@ spring:
       path: /h2-console
 
 daman:
-  workspace: ${DAMAN_WORKSPACE:D:/Viora/src}
+  workspace: ${DAMAN_WORKSPACE:D:/Daman/src}

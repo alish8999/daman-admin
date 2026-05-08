@@ -26,13 +26,108 @@ import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-co
       word-break: break-all;
     }
     .feature-badge {
-      font-size: 0.72rem;
-      padding: 0.25em 0.55em;
-      letter-spacing: 0.01em;
+      font-size: 0.7rem;
+      padding: 0.2em 0.5em;
     }
     .page-scroll-container {
       height: calc(100vh - 56px);
       overflow-y: auto;
+    }
+    .clients-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.1rem;
+    }
+    .client-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.18s, transform 0.18s;
+    }
+    .client-card:hover {
+      box-shadow: 0 6px 20px rgba(0,0,0,0.13);
+      transform: translateY(-2px);
+    }
+    .client-card-header {
+      padding: 14px 16px 12px;
+    }
+    .client-app-name {
+      font-size: 1rem;
+      font-weight: 700;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      line-height: 1.2;
+    }
+    .client-tagline {
+      font-size: 0.78rem;
+      opacity: 0.82;
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+    .client-card-body {
+      padding: 10px 16px 8px;
+      flex: 1;
+    }
+    .client-card-footer {
+      padding: 10px 14px;
+      border-top: 1px solid #f0f0f0;
+      background: #fafafa;
+    }
+    .color-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+    .filter-bar {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .stat-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.78rem;
+      backdrop-filter: blur(4px);
+    }
+    .license-row {
+      border-top: 1px dashed #e8e8e8;
+      margin-top: 8px;
+      padding-top: 7px;
+    }
+    .btn-xs {
+      padding: 0.12em 0.5em;
+      font-size: 0.72rem;
+      line-height: 1.5;
+    }
+    .page-hero {
+      background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 1.25rem;
+      color: #fff;
+    }
+    .search-input-wrap {
+      position: relative;
+    }
+    .search-input-wrap .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #aaa;
+      pointer-events: none;
+    }
+    .search-input-wrap input {
+      padding-left: 32px;
     }
   `]
 })
@@ -40,6 +135,75 @@ export class ClientsComponent implements OnInit, OnDestroy {
   clients: ClientConfig[] = [];
   licenseMap: Record<string, License> = {};
   versions: AppVersion[] = [];
+
+  // Search & filter
+  searchQuery = '';
+  licenseFilter: 'all' | 'active' | 'revoked' | 'none' = 'all';
+  expirationFilter: 'all' | 'expiring' | 'expired' | 'never' = 'all';
+
+  get filteredClients(): ClientConfig[] {
+    let list = this.clients;
+    if (this.searchQuery.trim()) {
+      const q = this.searchQuery.toLowerCase().trim();
+      list = list.filter(c =>
+        c.clientCode.toLowerCase().includes(q) ||
+        c.appName.toLowerCase().includes(q) ||
+        (c.tagline ?? '').toLowerCase().includes(q)
+      );
+    }
+    if (this.licenseFilter !== 'all') {
+      list = list.filter(c => {
+        const lic = this.licenseMap[c.clientCode];
+        if (this.licenseFilter === 'none') return !lic;
+        return lic?.status === this.licenseFilter.toUpperCase();
+      });
+    }
+    if (this.expirationFilter !== 'all') {
+      list = list.filter(c => {
+        const lic = this.licenseMap[c.clientCode];
+        if (!lic) return false;
+        if (this.expirationFilter === 'never') return !lic.expiresAt;
+        if (this.expirationFilter === 'expiring') {
+          if (!lic.expiresAt) return false;
+          const days = (new Date(lic.expiresAt).getTime() - Date.now()) / 86400000;
+          return days >= 0 && days <= 30;
+        }
+        if (this.expirationFilter === 'expired') {
+          if (!lic.expiresAt) return false;
+          return new Date(lic.expiresAt).getTime() < Date.now();
+        }
+        return true;
+      });
+    }
+    return list;
+  }
+
+  get licensedActiveCount(): number {
+    return this.clients.filter(c => this.licenseMap[c.clientCode]?.status === 'ACTIVE').length;
+  }
+
+  get expiringSoonCount(): number {
+    return this.clients.filter(c => {
+      const lic = this.licenseMap[c.clientCode];
+      if (!lic?.expiresAt) return false;
+      const days = (new Date(lic.expiresAt).getTime() - Date.now()) / 86400000;
+      return days >= 0 && days <= 30;
+    }).length;
+  }
+
+  // Generic delete confirmation modal
+  deleteConfirm: { title: string; message: string; onConfirm: () => void } | null = null;
+
+  confirmDeleteAction(): void {
+    if (!this.deleteConfirm) return;
+    const action = this.deleteConfirm.onConfirm;
+    this.deleteConfirm = null;
+    action();
+  }
+
+  cancelDeleteAction(): void {
+    this.deleteConfirm = null;
+  }
 
   buildStatus: BuildStatus | null = null;
   showBuildModal = false;
@@ -55,6 +219,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   openDropdown: string | null = null;
   dropdownPos = { top: 0, left: 0 };
+  dropdownFlipped = false;
 
   showHistoryModal = false;
   historyClientCode = '';
@@ -110,8 +275,11 @@ export class ClientsComponent implements OnInit, OnDestroy {
   }
 
   delete(clientCode: string): void {
-    if (!confirm(`Delete client "${clientCode}"? This cannot be undone.`)) return;
-    this.clientService.delete(clientCode).subscribe(() => this.load());
+    this.deleteConfirm = {
+      title: 'Delete Client',
+      message: `Delete "${clientCode}" and all its data permanently?`,
+      onConfirm: () => this.clientService.delete(clientCode).subscribe(() => this.load())
+    };
   }
 
   exportJson(clientCode: string): void {
@@ -213,6 +381,19 @@ export class ClientsComponent implements OnInit, OnDestroy {
     });
   }
 
+  deleteLicense(clientCode: string): void {
+    const lic = this.licenseMap[clientCode];
+    if (!lic) return;
+    this.deleteConfirm = {
+      title: 'Delete License',
+      message: `Permanently delete the license for "${clientCode}"? The client will need a new license to activate.`,
+      onConfirm: () => this.licenseService.delete(lic.id).subscribe({
+        next: () => this.loadLicenses(),
+        error: (err) => alert(`Delete failed: ${err.error?.message || err.message}`)
+      })
+    };
+  }
+
   // -- Dropdown --
 
   toggleDropdown(clientCode: string, event: Event, btnEl: HTMLButtonElement): void {
@@ -222,7 +403,15 @@ export class ClientsComponent implements OnInit, OnDestroy {
       return;
     }
     const rect = btnEl.getBoundingClientRect();
-    this.dropdownPos = { top: rect.bottom + 2, left: rect.right - 180 };
+    const dropdownHeight = 210;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow < dropdownHeight) {
+      this.dropdownFlipped = true;
+      this.dropdownPos = { top: rect.top - dropdownHeight - 2, left: rect.right - 200 };
+    } else {
+      this.dropdownFlipped = false;
+      this.dropdownPos = { top: rect.bottom + 2, left: rect.right - 200 };
+    }
     this.openDropdown = clientCode;
   }
 

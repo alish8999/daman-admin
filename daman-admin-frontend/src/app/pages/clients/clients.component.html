@@ -1,8 +1,64 @@
 <div class="page-scroll-container">
   <div class="container-fluid p-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="mb-0">Clients</h4>
-      <a routerLink="/clients/new" class="btn btn-primary btn-sm">+ New Client</a>
+
+    <!-- Hero header -->
+    <div class="page-hero">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h3 class="mb-1 fw-bold">Clients</h3>
+          <div class="d-flex gap-2 flex-wrap">
+            <span class="stat-chip">{{ clients.length }} total</span>
+            <span class="stat-chip">{{ licensedActiveCount }} active licenses</span>
+            @if (expiringSoonCount > 0) {
+              <span class="stat-chip" style="background:rgba(255,193,7,0.25);color:#ffe082">
+                ⚠ {{ expiringSoonCount }} expiring soon
+              </span>
+            }
+          </div>
+        </div>
+        <a routerLink="/clients/new" class="btn btn-light fw-semibold px-4">
+          + New Client
+        </a>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar mb-4">
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <!-- Search -->
+        <div class="search-input-wrap flex-grow-1" style="min-width:200px;max-width:280px">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="form-control form-control-sm"
+                 [(ngModel)]="searchQuery"
+                 placeholder="Search name, code, tagline…">
+        </div>
+
+        <!-- License status filter -->
+        <div class="btn-group btn-group-sm">
+          <button class="btn" [class.btn-dark]="licenseFilter==='all'" [class.btn-outline-dark]="licenseFilter!=='all'"
+                  (click)="licenseFilter='all'">All</button>
+          <button class="btn" [class.btn-success]="licenseFilter==='active'" [class.btn-outline-success]="licenseFilter!=='active'"
+                  (click)="licenseFilter='active'">Active</button>
+          <button class="btn" [class.btn-danger]="licenseFilter==='revoked'" [class.btn-outline-danger]="licenseFilter!=='revoked'"
+                  (click)="licenseFilter='revoked'">Revoked</button>
+          <button class="btn" [class.btn-secondary]="licenseFilter==='none'" [class.btn-outline-secondary]="licenseFilter!=='none'"
+                  (click)="licenseFilter='none'">No License</button>
+        </div>
+
+        <!-- Expiration filter -->
+        <select class="form-select form-select-sm" style="width:auto;min-width:150px"
+                [(ngModel)]="expirationFilter">
+          <option value="all">All Expiry</option>
+          <option value="expiring">Expiring ≤ 30 days</option>
+          <option value="expired">Expired</option>
+          <option value="never">Perpetual</option>
+        </select>
+
+        <!-- Results count -->
+        @if (filteredClients.length !== clients.length) {
+          <span class="text-muted small">{{ filteredClients.length }} of {{ clients.length }}</span>
+        }
+      </div>
     </div>
 
     @if (clients.length === 0) {
@@ -10,128 +66,148 @@
         <p>No clients yet.</p>
         <a routerLink="/clients/new" class="btn btn-outline-primary btn-sm">Create your first client</a>
       </div>
+    } @else if (filteredClients.length === 0) {
+      <div class="text-center text-muted py-5">
+        <p>No clients match your filters.</p>
+        <button class="btn btn-outline-secondary btn-sm" (click)="searchQuery=''; licenseFilter='all'; expirationFilter='all'">
+          Clear filters
+        </button>
+      </div>
     } @else {
-      <div class="table-responsive">
-        <table class="table table-hover align-middle bg-white rounded shadow-sm">
-          <thead class="table-light">
-            <tr>
-              <th>Code</th>
-              <th>App Name</th>
-              <th>Tagline</th>
-              <th>License</th>
-              <th>Features</th>
-              <th>Colors</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (client of clients; track client.clientCode) {
-              <tr>
-                <td><code>{{ client.clientCode }}</code></td>
-                <td>{{ client.appName }}</td>
-                <td class="text-muted">{{ client.tagline }}</td>
+      <div class="clients-grid">
+        @for (client of filteredClients; track client.clientCode) {
+          <div class="client-card">
 
-                <!-- License status -->
-                <td>
-                  @if (licenseOf(client.clientCode); as lic) {
-                    <span class="badge" [ngClass]="{
-                      'bg-success': lic.status === 'ACTIVE',
-                      'bg-danger':  lic.status === 'REVOKED'
-                    }">{{ lic.status }}</span>
-                  } @else {
-                    <span class="badge bg-secondary">NONE</span>
+            <!-- Gradient header — app identity only -->
+            <div class="client-card-header"
+                 [style.background]="'linear-gradient(135deg, ' + client.colorPrimary + ' 0%, ' + client.colorSecondary + ' 100%)'">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div class="client-app-name text-white">{{ client.appName }}</div>
+                @if (licenseOf(client.clientCode); as lic) {
+                  <span class="badge flex-shrink-0 mt-1" [ngClass]="{
+                    'bg-success': lic.status === 'ACTIVE',
+                    'bg-danger':  lic.status === 'REVOKED'
+                  }" style="font-size:0.65rem">{{ lic.status }}</span>
+                } @else {
+                  <span class="badge bg-dark bg-opacity-50 flex-shrink-0 mt-1" style="font-size:0.65rem">–</span>
+                }
+              </div>
+              <div class="client-tagline text-white">{{ client.tagline }}</div>
+            </div>
+
+            <!-- Card body — identity & features -->
+            <div class="client-card-body">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <code class="text-muted small">{{ client.clientCode }}</code>
+                <div class="d-flex gap-1">
+                  @for (color of colorSwatches(client); track color) {
+                    <span class="color-swatch" [style.background-color]="color" [title]="color"></span>
                   }
-                </td>
+                </div>
+              </div>
 
-                <td>
-                  <div class="d-flex flex-wrap gap-1">
-                    @for (b of featureBadges(client); track b.label) {
-                      @if (b.on) {
-                        <span class="badge rounded-pill bg-success feature-badge" [title]="b.label">
-                          {{ b.icon }} {{ b.label }}
-                        </span>
-                      }
+              @if (hasAnyFeature(client)) {
+                <div class="d-flex flex-wrap gap-1">
+                  @for (b of featureBadges(client); track b.label) {
+                    @if (b.on) {
+                      <span class="badge rounded-pill bg-light text-dark feature-badge border" [title]="b.label">
+                        {{ b.icon }} {{ b.label }}
+                      </span>
                     }
-                    @if (!hasAnyFeature(client)) {
-                      <span class="text-muted small">—</span>
-                    }
+                  }
+                </div>
+              }
+
+              <!-- License expiry hint — subtle, not the focus -->
+              @if (licenseOf(client.clientCode); as lic) {
+                @if (lic.expiresAt) {
+                  <div class="mt-2">
+                    <small class="text-muted">
+                      Expires {{ lic.expiresAt | date:'mediumDate' }}
+                    </small>
                   </div>
-                </td>
-                <td>
-                  <div class="d-flex gap-1">
-                    @for (color of colorSwatches(client); track color) {
-                      <span class="color-swatch" [style.background-color]="color" [title]="color"></span>
-                    }
-                  </div>
-                </td>
-                <td class="text-end">
+                }
+              }
+            </div>
+
+            <!-- Footer: primary actions -->
+            <div class="client-card-footer">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex gap-1">
                   <a [routerLink]="['/clients', client.clientCode, 'edit']"
-                     class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                     class="btn btn-sm btn-outline-primary">Edit</a>
                   <button (click)="exportJson(client.clientCode)"
-                          class="btn btn-sm btn-outline-success me-1">Export JSON</button>
+                          class="btn btn-sm btn-outline-secondary">JSON</button>
                   <button (click)="prepareDevConfig(client.clientCode)"
-                          class="btn btn-sm btn-outline-info me-1"
+                          class="btn btn-sm btn-outline-info"
                           [disabled]="preparingDevConfig[client.clientCode]"
-                          title="Write config to daman-backend and daman-frontend">
+                          title="Write config to dev workspace">
                     @if (preparingDevConfig[client.clientCode]) {
-                      <span class="spinner-border spinner-border-sm me-1"></span>Preparing...
+                      <span class="spinner-border spinner-border-sm"></span>
                     } @else {
-                      Prepare Dev
+                      Dev
                     }
                   </button>
-
-                  <!-- License actions -->
-                  @if (licenseOf(client.clientCode)?.status === 'ACTIVE') {
-                    <button class="btn btn-sm btn-outline-danger me-1"
-                            (click)="openRevokeConfirm(client.clientCode)"
-                            title="Revoke license">Revoke</button>
-                  }
-                  @if (licenseOf(client.clientCode)) {
-                    <button class="btn btn-sm btn-outline-success me-1"
-                            (click)="openRenewConfirm(client.clientCode)"
-                            title="Renew license">Renew</button>
-                  }
-
-                  <!-- Build split button -->
-                  <div class="btn-group me-1">
+                </div>
+                <div class="d-flex gap-1">
+                  <div class="btn-group">
                     <button (click)="requestBuild(client.clientCode, client.defaultBuildTarget || 'win')"
-                            class="btn btn-sm btn-outline-warning"
+                            class="btn btn-sm btn-warning"
                             [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'">
                       @if (buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING') {
-                        <span class="spinner-border spinner-border-sm me-1"></span>Building...
+                        <span class="spinner-border spinner-border-sm"></span>
                       } @else {
                         Build
                       }
                     </button>
                     <button type="button" #dropdownBtn
-                            class="btn btn-sm btn-outline-warning dropdown-toggle dropdown-toggle-split"
+                            class="btn btn-sm btn-warning dropdown-toggle dropdown-toggle-split"
                             [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'"
                             (click)="toggleDropdown(client.clientCode, $event, dropdownBtn)">
                     </button>
                   </div>
-
                   <button (click)="delete(client.clientCode)"
-                          class="btn btn-sm btn-outline-danger">Delete</button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+                          class="btn btn-sm btn-outline-danger"
+                          title="Delete client">✕</button>
+                </div>
+              </div>
+
+              <!-- License actions — secondary, only when license exists -->
+              @if (licenseOf(client.clientCode)) {
+                <div class="license-row d-flex align-items-center gap-1">
+                  <span class="text-muted" style="font-size:0.72rem;margin-right:2px">License:</span>
+                  @if (licenseOf(client.clientCode)?.status === 'ACTIVE') {
+                    <button class="btn btn-xs btn-outline-danger"
+                            (click)="openRevokeConfirm(client.clientCode)">Revoke</button>
+                  }
+                  <button class="btn btn-xs btn-outline-success"
+                          (click)="openRenewConfirm(client.clientCode)">Renew</button>
+                  <button class="btn btn-xs btn-outline-secondary"
+                          (click)="deleteLicense(client.clientCode)"
+                          title="Delete license record">Del</button>
+                </div>
+              }
+            </div>
+
+          </div>
+        }
       </div>
     }
   </div>
 </div>
 
-<!-- Floating dropdown -->
+<!-- Floating build-platform dropdown -->
 @if (openDropdown) {
   <ul class="dropdown-menu show shadow"
       [style.position]="'fixed'"
       [style.top.px]="dropdownPos.top"
       [style.left.px]="dropdownPos.left"
-      [style.z-index]="1080">
+      [style.z-index]="1080"
+      [style.min-width.px]="200">
     <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'win'); closeDropdown()">Windows (.exe)</button></li>
     <li>
-      <button class="dropdown-item d-flex align-items-center gap-2" (click)="requestBuild(openDropdown!, 'win7'); closeDropdown()">
+      <button class="dropdown-item d-flex align-items-center gap-2"
+              (click)="requestBuild(openDropdown!, 'win7'); closeDropdown()">
         Windows 7/8 (.exe)
         <span class="badge bg-secondary" style="font-size:0.65rem">Electron 22</span>
       </button>
@@ -143,7 +219,7 @@
   </ul>
 }
 
-<!-- Build Confirmation Modal (with version selector) -->
+<!-- Build Confirmation Modal -->
 @if (buildConfirmation) {
   <div class="modal-backdrop fade show"></div>
   <div class="modal fade show d-block" tabindex="-1">
@@ -155,8 +231,6 @@
         </div>
         <div class="modal-body">
           <p class="text-muted mb-3">Review the build configuration before starting.</p>
-
-          <!-- Version selector -->
           <div class="mb-3">
             <label class="form-label fw-semibold">Version *</label>
             @if (versions.length === 0) {
@@ -172,7 +246,6 @@
               </select>
             }
           </div>
-
           <table class="table table-sm table-borderless mb-0">
             <tbody>
               <tr>
@@ -198,7 +271,7 @@
               </tr>
               @if (buildConfirmation.versionNumber) {
                 <tr>
-                  <td class="text-muted fw-semibold">Artifact name</td>
+                  <td class="text-muted fw-semibold">Artifact</td>
                   <td class="font-monospace small text-break">
                     {{ buildConfirmation.clientCode }}_v{{ buildConfirmation.versionNumber }}_...
                   </td>
@@ -214,9 +287,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="cancelBuildConfirmation()">Cancel</button>
-          <button type="button" class="btn btn-warning" (click)="confirmBuild()">
-            Start Build
-          </button>
+          <button type="button" class="btn btn-warning" (click)="confirmBuild()">Start Build</button>
         </div>
       </div>
     </div>
@@ -303,10 +374,7 @@
           } @else {
             <table class="table table-sm table-hover mb-0">
               <thead class="table-light">
-                <tr>
-                  <th>#</th><th>Platform</th><th>Status</th>
-                  <th>Started</th><th>Duration</th><th>Artifact</th>
-                </tr>
+                <tr><th>#</th><th>Platform</th><th>Status</th><th>Started</th><th>Duration</th><th>Artifact</th></tr>
               </thead>
               <tbody>
                 @for (entry of buildHistory; track entry.id) {
@@ -344,15 +412,15 @@
   <div class="modal fade show d-block" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-sm">
       <div class="modal-content">
-        <div class="modal-header">
+        <div class="modal-header border-0 pb-0">
           <h5 class="modal-title text-danger">Revoke License</h5>
           <button type="button" class="btn-close" (click)="cancelRevoke()"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body pt-2">
           <p>Revoke the license for <strong><code>{{ revokeConfirm.clientCode }}</code></strong>?</p>
-          <p class="text-muted small mb-0">The client's application will stop working until the license is renewed.</p>
+          <p class="text-muted small mb-0">The app will stop working until renewed.</p>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer border-0">
           <button class="btn btn-secondary btn-sm" (click)="cancelRevoke()">Cancel</button>
           <button class="btn btn-danger btn-sm" (click)="confirmRevoke()">Revoke</button>
         </div>
@@ -367,21 +435,43 @@
   <div class="modal fade show d-block" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
-        <div class="modal-header">
+        <div class="modal-header border-0 pb-0">
           <h5 class="modal-title text-success">Renew License</h5>
           <button type="button" class="btn-close" (click)="cancelRenew()"></button>
         </div>
-        <div class="modal-body">
-          <p>Renewing the license for <strong><code>{{ renewConfirm.clientCode }}</code></strong> will generate a new license key and reactivate it.</p>
+        <div class="modal-body pt-2">
+          <p>Renew the license for <strong><code>{{ renewConfirm.clientCode }}</code></strong>. A new key will be generated.</p>
           <div class="mb-0">
-            <label class="form-label fw-semibold">New Expiration Date (optional)</label>
+            <label class="form-label fw-semibold">New Expiration Date <span class="text-muted fw-normal">(optional)</span></label>
             <input type="date" class="form-control" [(ngModel)]="renewConfirm.expiresAt">
             <div class="form-text">Leave empty for a perpetual license.</div>
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer border-0">
           <button class="btn btn-secondary" (click)="cancelRenew()">Cancel</button>
           <button class="btn btn-success" (click)="confirmRenew()">Renew License</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Generic Delete Confirmation Modal -->
+@if (deleteConfirm) {
+  <div class="modal-backdrop fade show"></div>
+  <div class="modal fade show d-block" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title text-danger">{{ deleteConfirm.title }}</h5>
+          <button type="button" class="btn-close" (click)="cancelDeleteAction()"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="mb-0">{{ deleteConfirm.message }}</p>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button class="btn btn-secondary btn-sm" (click)="cancelDeleteAction()">Cancel</button>
+          <button class="btn btn-danger btn-sm" (click)="confirmDeleteAction()">Delete</button>
         </div>
       </div>
     </div>

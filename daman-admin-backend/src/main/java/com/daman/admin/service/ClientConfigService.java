@@ -25,7 +25,7 @@ public class ClientConfigService {
     private final ClientConfigRepository repository;
     private final ObjectMapper objectMapper;
 
-    @Value("${daman.workspace:D:/Viora/src}")
+    @Value("${daman.workspace:D:/Daman/src}")
     private String workspaceRoot;
 
     public List<ClientConfigDto> findAll() {
@@ -221,12 +221,16 @@ public class ClientConfigService {
         Path workspace = Paths.get(workspaceRoot);
         Path backendDest = workspace.resolve("daman-backend/src/main/resources/client.config.json");
         Path frontendDest = workspace.resolve("daman-frontend/src/assets/client.config.json");
+        Path runtimePropsDest = Paths.get(System.getProperty("user.home"), ".daman", "runtime.properties");
+        String runtimeProps = "daman.runtime.client-code=" + clientCode + System.lineSeparator();
 
         try {
             Files.createDirectories(backendDest.getParent());
             Files.writeString(backendDest, json);
             Files.createDirectories(frontendDest.getParent());
             Files.writeString(frontendDest, json);
+            Files.createDirectories(runtimePropsDest.getParent());
+            Files.writeString(runtimePropsDest, runtimeProps);
         } catch (IOException e) {
             throw new RuntimeException("Failed to write config files: " + e.getMessage(), e);
         }

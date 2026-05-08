@@ -48,6 +48,36 @@ export class LicensesComponent implements OnInit {
   renewing = false;
   renewError = '';
 
+  deleteConfirm: { message: string; onConfirm: () => void } | null = null;
+
+  confirmDeleteAction(): void {
+    if (!this.deleteConfirm) return;
+    const action = this.deleteConfirm.onConfirm;
+    this.deleteConfirm = null;
+    action();
+  }
+
+  cancelDeleteAction(): void {
+    this.deleteConfirm = null;
+  }
+
+  revokeConfirm: { license: License } | null = null;
+
+  openRevokeConfirm(license: License): void {
+    this.revokeConfirm = { license };
+  }
+
+  cancelRevokeConfirm(): void {
+    this.revokeConfirm = null;
+  }
+
+  confirmRevokeAction(): void {
+    if (!this.revokeConfirm) return;
+    const license = this.revokeConfirm.license;
+    this.revokeConfirm = null;
+    this.licenseService.revoke(license.id).subscribe(() => this.loadLicenses());
+  }
+
   constructor(
     private licenseService: LicenseService,
     private clientService: ClientService
@@ -121,8 +151,14 @@ export class LicensesComponent implements OnInit {
   }
 
   revoke(license: License): void {
-    if (!confirm(`Revoke license for "${license.clientName}" on machine ${license.machineId.substring(0, 12)}...?`)) return;
-    this.licenseService.revoke(license.id).subscribe(() => this.loadLicenses());
+    this.openRevokeConfirm(license);
+  }
+
+  deleteLicense(license: License): void {
+    this.deleteConfirm = {
+      message: `Permanently delete the license for "${license.clientName || license.clientCode}"?`,
+      onConfirm: () => this.licenseService.delete(license.id).subscribe(() => this.loadLicenses())
+    };
   }
 
   truncateMachineId(id: string): string {
