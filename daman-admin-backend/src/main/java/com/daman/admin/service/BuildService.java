@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.Comparator;
 
 @Slf4j
 @Service
@@ -130,8 +131,9 @@ public class BuildService {
             writePublicKey(backendRoot);
             addLog(status, "Public key embedded");
 
-            addLog(status, "Building backend JAR (Maven)...");
-            runProcess(backendRoot, mavenCommand(backendRoot), status);
+            String[] mvnCmd = mavenCommand(backendRoot);
+            addLog(status, "Building backend JAR (Maven) using: " + mvnCmd[isWindows() ? 2 : 0]);
+            runProcess(backendRoot, mvnCmd, status);
             addLog(status, "Backend built");
 
             addLog(status, "Copying backend JAR...");
@@ -151,6 +153,13 @@ public class BuildService {
             String platformLabel = platform.equalsIgnoreCase("win7")
                     ? "win7 — Electron 22.3.27 (Windows 7/8 compatible)"
                     : platform;
+
+            // Wipe dist-electron BEFORE electron-builder runs so we can never
+            // pick up a stale installer from a previous client's build.
+            Path distDir = frontendRoot.resolve("dist-electron");
+            addLog(status, "Cleaning previous Electron output...");
+            cleanDirectory(distDir, status);
+
             addLog(status, "Packaging Electron app (" + platformLabel + ")...");
             runProcess(frontendRoot, electronBuilderCommand(platform), status);
             addLog(status, "Electron app packaged");
@@ -161,6 +170,13 @@ public class BuildService {
                         rawArtifact, clientCode, exportDto.getAppName(), versionNumber, workspace, status);
                 status.setArtifactPath(finalArtifact);
                 status.setArtifactName(Path.of(finalArtifact).getFileName().toString());
+
+                // Now that the installer lives in clients-build/, free up disk
+                // and ensure no leftovers leak into the next client's build.
+                addLog(status, "Cleaning dist-electron...");
+                cleanDirectory(distDir, status);
+            } else {
+                addLog(status, "Warning: no installer artifact found in dist-electron");
             }
 
             status.setStatus("SUCCESS");
@@ -340,12 +356,22 @@ public class BuildService {
     private String[] mavenCommand(Path backendRoot) {
         boolean isWin = isWindows();
         String mvnw = isWin ? "mvnw.cmd" : "mvnw";
-        String mvnwPath = backendRoot.resolve(mvnw).toString();
+        Path mvnwPath = backendRoot.resolve(mvnw);
+        Path wrapperProps = backendRoot.resolve(".mvn/wrapper/maven-wrapper.properties");
+
+        // Use the project's Maven wrapper only when both the script and its
+        // properties file are present. Otherwise fall back to a system-wide
+        // `mvn` binary so a missing/corrupted .mvn folder doesn't break builds.
+        boolean wrapperUsable = Files.isRegularFile(mvnwPath) && Files.isRegularFile(wrapperProps);
+
+        String executable = wrapperUsable
+                ? mvnwPath.toString()
+                : (isWin ? "mvn.cmd" : "mvn");
 
         if (isWin) {
-            return new String[]{"cmd.exe", "/c", mvnwPath, "clean", "package", "-DskipTests"};
+            return new String[]{"cmd.exe", "/c", executable, "clean", "package", "-DskipTests"};
         }
-        return new String[]{mvnwPath, "clean", "package", "-DskipTests"};
+        return new String[]{executable, "clean", "package", "-DskipTests"};
     }
 
     private String[] shellCommand(String... args) {
@@ -438,6 +464,28 @@ public class BuildService {
     // Artifact helpers
     // ------------------------------------------------------------------
 
+    /**
+     * Recursively deletes the contents of {@code dir} (the directory itself is preserved).
+     * Failures on individual files are logged but never thrown — a locked file from a
+     * previous run (e.g. an installer the user is still running) shouldn't kill the build.
+     */
+    private void cleanDirectory(Path dir, BuildStatusDto status) {
+        if (!Files.exists(dir)) return;
+        try (Stream<Path> walker = Files.walk(dir)) {
+            walker.sorted(Comparator.reverseOrder())
+                  .filter(p -> !p.equals(dir))
+                  .forEach(p -> {
+                      try {
+                          Files.deleteIfExists(p);
+                      } catch (IOException ex) {
+                          addLog(status, "  could not delete " + p.getFileName() + ": " + ex.getMessage());
+                      }
+                  });
+        } catch (IOException e) {
+            addLog(status, "Warning: could not clean " + dir + ": " + e.getMessage());
+        }
+    }
+
     private void copyBackendJar(Path backendRoot, Path frontendRoot) throws IOException {
         Path src = backendRoot.resolve("target/daman-backend-0.0.1-SNAPSHOT.jar");
         if (!Files.exists(src)) {
@@ -459,9 +507,18 @@ public class BuildService {
         };
 
         try (Stream<Path> files = Files.list(distDir)) {
+            // Pick the most recently modified matching file. This protects
+            // against any stale installer that managed to survive cleanDirectory().
             return files
-                    .filter(p -> p.getFileName().toString().endsWith(ext))
-                    .findFirst()
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().toLowerCase().endsWith(ext))
+                    .max(Comparator.comparingLong(p -> {
+                        try {
+                            return Files.getLastModifiedTime(p).toMillis();
+                        } catch (IOException e) {
+                            return 0L;
+                        }
+                    }))
                     .map(Path::toString)
                     .orElse(null);
         } catch (IOException e) {
