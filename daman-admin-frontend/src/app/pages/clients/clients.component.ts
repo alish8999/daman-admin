@@ -214,6 +214,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     label: string;
     electronVersion: string;
     outputExt: string;
+    fileExt: string;
     versionNumber: string;
   } | null = null;
 
@@ -421,16 +422,16 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   // -- Build --
 
-  private static readonly PLATFORM_META: Record<string, { label: string; electronVersion: string; outputExt: string }> = {
-    win:   { label: 'Windows (.exe)',     electronVersion: '28.x (latest)', outputExt: 'NSIS installer (.exe)' },
-    win7:  { label: 'Windows 7/8 (.exe)', electronVersion: '22.3.27',       outputExt: 'NSIS installer (.exe)' },
-    mac:   { label: 'macOS (.dmg)',       electronVersion: '28.x (latest)', outputExt: 'Disk image (.dmg)'    },
-    linux: { label: 'Linux (.AppImage)',  electronVersion: '28.x (latest)', outputExt: 'AppImage (.AppImage)' },
+  private static readonly PLATFORM_META: Record<string, { label: string; electronVersion: string; outputExt: string; fileExt: string }> = {
+    win:   { label: 'Windows (.exe)',     electronVersion: '28.x (latest)', outputExt: 'NSIS installer (.exe)', fileExt: 'exe' },
+    win7:  { label: 'Windows 7/8 (.exe)', electronVersion: '22.3.27',       outputExt: 'NSIS installer (.exe)', fileExt: 'exe' },
+    mac:   { label: 'macOS (.dmg)',       electronVersion: '28.x (latest)', outputExt: 'Disk image (.dmg)',     fileExt: 'dmg' },
+    linux: { label: 'Linux (.AppImage)',  electronVersion: '28.x (latest)', outputExt: 'AppImage (.AppImage)',  fileExt: 'AppImage' },
   };
 
   requestBuild(clientCode: string, platform: string): void {
     const meta = ClientsComponent.PLATFORM_META[platform] ?? {
-      label: platform, electronVersion: '28.x', outputExt: platform
+      label: platform, electronVersion: '28.x', outputExt: platform, fileExt: platform
     };
     const latestVersion = this.versions.length > 0 ? this.versions[0].versionNumber : '';
     this.buildConfirmation = { clientCode, platform, ...meta, versionNumber: latestVersion };
