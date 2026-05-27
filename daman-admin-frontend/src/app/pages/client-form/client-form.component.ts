@@ -68,16 +68,17 @@ export class ClientFormComponent implements OnInit {
       pointOfContact: [''],
       defaultBuildTarget: ['win'],
       features: this.fb.group({
-        multiLanguage:      [false],
-        barcode:            [false],
-        reports:            [false],
-        suppliers:          [false],
-        seedDemoData:       [false],
-        multiCurrency:      [true],
-        shifts:             [false],
-        clientLedger:       [false],
-        supplierLedger:     [false],
-        fractionalQuantity: [false]
+        multiLanguage:        [false],
+        barcode:              [false],
+        reports:              [false],
+        suppliers:            [false],
+        seedDemoData:         [false],
+        multiCurrency:        [true],
+        shifts:               [false],
+        clientLedger:         [false],
+        supplierLedger:       [false],
+        fractionalQuantity:   [false],
+        multiCurrencyPricing: [false]
       })
     });
     this.passwordVisible = false;
@@ -97,16 +98,17 @@ export class ClientFormComponent implements OnInit {
           pointOfContact: client.pointOfContact ?? '',
           defaultBuildTarget: client.defaultBuildTarget ?? 'win',
           features: {
-            multiLanguage:      client.features?.multiLanguage      ?? false,
-            barcode:            client.features?.barcode            ?? false,
-            reports:            client.features?.reports            ?? false,
-            suppliers:          client.features?.suppliers          ?? false,
-            seedDemoData:       client.features?.seedDemoData       ?? false,
-            multiCurrency:      client.features?.multiCurrency      ?? true,
-            shifts:             client.features?.shifts             ?? false,
-            clientLedger:       client.features?.clientLedger       ?? false,
-            supplierLedger:     client.features?.supplierLedger     ?? false,
-            fractionalQuantity: client.features?.fractionalQuantity ?? false
+            multiLanguage:        client.features?.multiLanguage        ?? false,
+            barcode:              client.features?.barcode              ?? false,
+            reports:              client.features?.reports              ?? false,
+            suppliers:            client.features?.suppliers            ?? false,
+            seedDemoData:         client.features?.seedDemoData         ?? false,
+            multiCurrency:        client.features?.multiCurrency        ?? true,
+            shifts:               client.features?.shifts               ?? false,
+            clientLedger:         client.features?.clientLedger         ?? false,
+            supplierLedger:       client.features?.supplierLedger       ?? false,
+            fractionalQuantity:   client.features?.fractionalQuantity   ?? false,
+            multiCurrencyPricing: client.features?.multiCurrencyPricing ?? false
           }
         });
       });

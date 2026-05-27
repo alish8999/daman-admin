@@ -336,6 +336,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
       { label: 'Client Ledger',  icon: '👤', on: !!f?.clientLedger },
       { label: 'Supplier Ledger',icon: '🏭', on: !!f?.supplierLedger },
       { label: 'Frac. Qty',      icon: '⚖️', on: !!f?.fractionalQuantity },
+      { label: 'Fixed Pricing',  icon: '💲', on: !!f?.multiCurrencyPricing },
       { label: 'Demo Data',      icon: '🌱', on: !!f?.seedDemoData }
     ];
   }

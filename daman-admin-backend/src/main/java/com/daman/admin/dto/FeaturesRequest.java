@@ -14,4 +14,6 @@ public class FeaturesRequest {
     private Boolean clientLedger;
     private Boolean supplierLedger;
     private Boolean fractionalQuantity;
+    /** Per-product pricing-currency override (e.g. fixed 2 500 SYP for MTN cards). */
+    private Boolean multiCurrencyPricing;
 }

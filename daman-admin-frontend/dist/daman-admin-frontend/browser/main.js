@@ -41525,7 +41525,7 @@ function ClientsComponent_Conditional_44_Conditional_40_Template(rf, ctx) {
   if (rf & 2) {
     const ctx_r0 = \u0275\u0275nextContext(2);
     \u0275\u0275advance(4);
-    \u0275\u0275textInterpolate2(" ", ctx_r0.buildConfirmation.clientCode, "_v", ctx_r0.buildConfirmation.versionNumber, "_... ");
+    \u0275\u0275textInterpolate3(" Daman_", ctx_r0.buildConfirmation.versionNumber, "_", ctx_r0.buildConfirmation.clientCode, ".", ctx_r0.buildConfirmation.fileExt, " ");
   }
 }
 function ClientsComponent_Conditional_44_Conditional_41_Template(rf, ctx) {
@@ -41584,7 +41584,7 @@ function ClientsComponent_Conditional_44_Template(rf, ctx) {
     \u0275\u0275elementStart(38, "td");
     \u0275\u0275text(39);
     \u0275\u0275elementEnd()();
-    \u0275\u0275template(40, ClientsComponent_Conditional_44_Conditional_40_Template, 5, 2, "tr");
+    \u0275\u0275template(40, ClientsComponent_Conditional_44_Conditional_40_Template, 5, 3, "tr");
     \u0275\u0275elementEnd()();
     \u0275\u0275template(41, ClientsComponent_Conditional_44_Conditional_41_Template, 4, 0, "div", 81);
     \u0275\u0275elementEnd();
@@ -42185,6 +42185,7 @@ var ClientsComponent = class _ClientsComponent {
       { label: "Client Ledger", icon: "\u{1F464}", on: !!f?.clientLedger },
       { label: "Supplier Ledger", icon: "\u{1F3ED}", on: !!f?.supplierLedger },
       { label: "Frac. Qty", icon: "\u2696\uFE0F", on: !!f?.fractionalQuantity },
+      { label: "Fixed Pricing", icon: "\u{1F4B2}", on: !!f?.multiCurrencyPricing },
       { label: "Demo Data", icon: "\u{1F331}", on: !!f?.seedDemoData }
     ];
   }
@@ -42261,17 +42262,18 @@ var ClientsComponent = class _ClientsComponent {
   }
   static {
     this.PLATFORM_META = {
-      win: { label: "Windows (.exe)", electronVersion: "28.x (latest)", outputExt: "NSIS installer (.exe)" },
-      win7: { label: "Windows 7/8 (.exe)", electronVersion: "22.3.27", outputExt: "NSIS installer (.exe)" },
-      mac: { label: "macOS (.dmg)", electronVersion: "28.x (latest)", outputExt: "Disk image (.dmg)" },
-      linux: { label: "Linux (.AppImage)", electronVersion: "28.x (latest)", outputExt: "AppImage (.AppImage)" }
+      win: { label: "Windows (.exe)", electronVersion: "28.x (latest)", outputExt: "NSIS installer (.exe)", fileExt: "exe" },
+      win7: { label: "Windows 7/8 (.exe)", electronVersion: "22.3.27", outputExt: "NSIS installer (.exe)", fileExt: "exe" },
+      mac: { label: "macOS (.dmg)", electronVersion: "28.x (latest)", outputExt: "Disk image (.dmg)", fileExt: "dmg" },
+      linux: { label: "Linux (.AppImage)", electronVersion: "28.x (latest)", outputExt: "AppImage (.AppImage)", fileExt: "AppImage" }
     };
   }
   requestBuild(clientCode, platform) {
     const meta = _ClientsComponent.PLATFORM_META[platform] ?? {
       label: platform,
       electronVersion: "28.x",
-      outputExt: platform
+      outputExt: platform,
+      fileExt: platform
     };
     const latestVersion = this.versions.length > 0 ? this.versions[0].versionNumber : "";
     this.buildConfirmation = __spreadProps(__spreadValues({ clientCode, platform }, meta), { versionNumber: latestVersion });
@@ -42530,7 +42532,7 @@ function ClientFormComponent_Conditional_31_Template(rf, ctx) {
 }
 function ClientFormComponent_Conditional_32_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275elementStart(0, "span", 84);
+    \u0275\u0275elementStart(0, "span", 86);
     \u0275\u0275text(1, "No image uploaded");
     \u0275\u0275elementEnd();
   }
@@ -42547,7 +42549,7 @@ function ClientFormComponent_Conditional_42_Template(rf, ctx) {
 }
 function ClientFormComponent_Conditional_43_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275elementStart(0, "span", 84);
+    \u0275\u0275elementStart(0, "span", 86);
     \u0275\u0275text(1, "No image uploaded");
     \u0275\u0275elementEnd();
   }
@@ -42564,7 +42566,7 @@ function ClientFormComponent_Conditional_53_Template(rf, ctx) {
 }
 function ClientFormComponent_Conditional_54_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275elementStart(0, "span", 84);
+    \u0275\u0275elementStart(0, "span", 86);
     \u0275\u0275text(1, "No image uploaded");
     \u0275\u0275elementEnd();
   }
@@ -42574,8 +42576,8 @@ function ClientFormComponent_For_65_Template(rf, ctx) {
     \u0275\u0275elementStart(0, "div", 29)(1, "label", 15);
     \u0275\u0275text(2);
     \u0275\u0275elementEnd();
-    \u0275\u0275elementStart(3, "div", 85);
-    \u0275\u0275element(4, "input", 86)(5, "input", 87);
+    \u0275\u0275elementStart(3, "div", 87);
+    \u0275\u0275element(4, "input", 88)(5, "input", 89);
     \u0275\u0275elementEnd()();
   }
   if (rf & 2) {
@@ -42591,8 +42593,8 @@ function ClientFormComponent_For_65_Template(rf, ctx) {
 function ClientFormComponent_Conditional_75_Template(rf, ctx) {
   if (rf & 1) {
     \u0275\u0275elementStart(0, "div", 31);
-    \u0275\u0275element(1, "img", 88);
-    \u0275\u0275elementStart(2, "div", 89)(3, "span", 90);
+    \u0275\u0275element(1, "img", 90);
+    \u0275\u0275elementStart(2, "div", 91)(3, "span", 92);
     \u0275\u0275text(4, "Header preview");
     \u0275\u0275elementEnd()()();
   }
@@ -42605,7 +42607,7 @@ function ClientFormComponent_Conditional_75_Template(rf, ctx) {
 }
 function ClientFormComponent_Conditional_76_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275elementStart(0, "div", 91)(1, "span", 92);
+    \u0275\u0275elementStart(0, "div", 93)(1, "span", 94);
     \u0275\u0275text(2, "Default gradient (no image set)");
     \u0275\u0275elementEnd()();
   }
@@ -42613,7 +42615,7 @@ function ClientFormComponent_Conditional_76_Template(rf, ctx) {
 function ClientFormComponent_Conditional_82_Template(rf, ctx) {
   if (rf & 1) {
     const _r3 = \u0275\u0275getCurrentView();
-    \u0275\u0275elementStart(0, "button", 93);
+    \u0275\u0275elementStart(0, "button", 95);
     \u0275\u0275listener("click", function ClientFormComponent_Conditional_82_Template_button_click_0_listener() {
       let tmp_2_0;
       \u0275\u0275restoreView(_r3);
@@ -42624,9 +42626,9 @@ function ClientFormComponent_Conditional_82_Template(rf, ctx) {
     \u0275\u0275elementEnd();
   }
 }
-function ClientFormComponent_option_163_Template(rf, ctx) {
+function ClientFormComponent_option_177_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275elementStart(0, "option", 94);
+    \u0275\u0275elementStart(0, "option", 96);
     \u0275\u0275text(1);
     \u0275\u0275elementEnd();
   }
@@ -42637,9 +42639,9 @@ function ClientFormComponent_option_163_Template(rf, ctx) {
     \u0275\u0275textInterpolate(t_r4.label);
   }
 }
-function ClientFormComponent_option_170_Template(rf, ctx) {
+function ClientFormComponent_option_184_Template(rf, ctx) {
   if (rf & 1) {
-    \u0275\u0275elementStart(0, "option", 94);
+    \u0275\u0275elementStart(0, "option", 96);
     \u0275\u0275text(1);
     \u0275\u0275elementEnd();
   }
@@ -42712,7 +42714,8 @@ var ClientFormComponent = class _ClientFormComponent {
         shifts: [false],
         clientLedger: [false],
         supplierLedger: [false],
-        fractionalQuantity: [false]
+        fractionalQuantity: [false],
+        multiCurrencyPricing: [false]
       })
     });
     this.passwordVisible = false;
@@ -42738,7 +42741,8 @@ var ClientFormComponent = class _ClientFormComponent {
             shifts: client.features?.shifts ?? false,
             clientLedger: client.features?.clientLedger ?? false,
             supplierLedger: client.features?.supplierLedger ?? false,
-            fractionalQuantity: client.features?.fractionalQuantity ?? false
+            fractionalQuantity: client.features?.fractionalQuantity ?? false,
+            multiCurrencyPricing: client.features?.multiCurrencyPricing ?? false
           }
         }));
       });
@@ -42784,7 +42788,7 @@ var ClientFormComponent = class _ClientFormComponent {
     };
   }
   static {
-    this.\u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _ClientFormComponent, selectors: [["app-client-form"]], standalone: true, features: [\u0275\u0275StandaloneFeature], decls: 244, vars: 29, consts: [[1, "container", "py-4", 2, "max-width", "720px"], [1, "d-flex", "align-items-center", "mb-4", "gap-3"], ["routerLink", "/clients", 1, "btn", "btn-sm", "btn-outline-secondary"], [1, "mb-0"], [1, "alert", "alert-warning"], [1, "bg-white", "rounded", "shadow-sm", "p-4", 3, "ngSubmit", "formGroup"], [1, "row", "g-3", "mb-4"], [1, "col-md-6"], [1, "form-label", "fw-semibold"], ["formControlName", "clientCode", "placeholder", "freshmart", 1, "form-control", "font-monospace"], [1, "form-text"], ["formControlName", "appName", "placeholder", "FreshMart", 1, "form-control"], [1, "col-12"], ["formControlName", "tagline", "placeholder", "salesManagement", 1, "form-control"], [1, "text-muted", "mb-3"], [1, "form-label"], [1, "upload-preview-box", "bg-dark", "rounded", "mb-2"], ["alt", "Logo Dark", 1, "upload-preview-img", 3, "src"], [1, "d-flex", "gap-2"], [1, "btn", "btn-sm", "btn-outline-secondary", "mb-0"], ["type", "file", "accept", "image/*", "hidden", "", 3, "change"], ["formControlName", "logoDark", "placeholder", "assets/brand/logo.png", 1, "form-control", "form-control-sm", "font-monospace"], [1, "upload-preview-box", "bg-light", "border", "rounded", "mb-2"], ["alt", "Logo Light", 1, "upload-preview-img", 3, "src"], ["formControlName", "logoLight", "placeholder", "assets/brand/logo-light.png", 1, "form-control", "form-control-sm", "font-monospace"], [1, "upload-preview-box", "bg-light", "border", "rounded", "mb-2", 2, "height", "60px"], ["alt", "Favicon", 2, "width", "32px", "height", "32px", "object-fit", "contain", 3, "src"], ["type", "file", "accept", "image/x-icon,image/png,image/svg+xml", "hidden", "", 3, "change"], ["formControlName", "favicon", "placeholder", "favicon.ico", 1, "form-control", "form-control-sm", "font-monospace"], [1, "col-md-4"], [1, "text-muted", "small", "mb-2"], [1, "dashboard-preview", "mb-2", "rounded", "overflow-hidden", "position-relative", 2, "height", "90px", "background", "#1e293b"], [1, "d-flex", "gap-2", "align-items-center"], ["formControlName", "dashboardHeaderImage", "placeholder", "assets/header.jpg  or leave blank", 1, "form-control", "form-control-sm", "font-monospace"], ["type", "button", 1, "btn", "btn-sm", "btn-outline-danger"], [1, "text-muted", "small", "mb-3"], ["formGroupName", "features", 1, "row", "g-2", "mb-4"], [1, "form-check"], ["type", "checkbox", "formControlName", "multiLanguage", "id", "featMultiLang", 1, "form-check-input"], ["for", "featMultiLang", 1, "form-check-label"], ["type", "checkbox", "formControlName", "barcode", "id", "barcode", 1, "form-check-input"], ["for", "barcode", 1, "form-check-label"], ["type", "checkbox", "formControlName", "reports", "id", "featReports", 1, "form-check-input"], ["for", "featReports", 1, "form-check-label"], ["type", "checkbox", "formControlName", "suppliers", "id", "featSuppliers", 1, "form-check-input"], ["for", "featSuppliers", 1, "form-check-label"], ["type", "checkbox", "formControlName", "seedDemoData", "id", "featSeedDemo", 1, "form-check-input"], ["for", "featSeedDemo", 1, "form-check-label"], [1, "badge", "bg-warning", "text-dark", "ms-1", 2, "font-size", "0.65rem"], ["type", "checkbox", "formControlName", "multiCurrency", "id", "featMultiCurrency", 1, "form-check-input"], ["for", "featMultiCurrency", 1, "form-check-label"], [1, "badge", "bg-info", "text-dark", "ms-1", 2, "font-size", "0.65rem"], [1, "my-3"], [1, "text-muted", "small", "fw-semibold", "mb-2"], [1, "form-check", "mb-2"], ["type", "checkbox", "formControlName", "shifts", "id", "featShifts", 1, "form-check-input"], ["for", "featShifts", 1, "form-check-label"], [1, "badge", "bg-secondary", "ms-1", 2, "font-size", "0.65rem"], ["type", "checkbox", "formControlName", "clientLedger", "id", "featClientLedger", 1, "form-check-input"], ["for", "featClientLedger", 1, "form-check-label"], ["type", "checkbox", "formControlName", "supplierLedger", "id", "featSupplierLedger", 1, "form-check-input"], ["for", "featSupplierLedger", 1, "form-check-label"], ["type", "checkbox", "formControlName", "fractionalQuantity", "id", "featFractionalQty", 1, "form-check-input"], ["for", "featFractionalQty", 1, "form-check-label"], [1, "form-text", "ms-0", "mt-1"], ["formControlName", "storeType", 1, "form-select"], [3, "value", 4, "ngFor", "ngForOf"], ["formControlName", "baseCurrency", 1, "form-select"], ["formControlName", "adminUsername", "placeholder", "admin", 1, "form-control", "font-monospace"], [1, "input-group"], ["formControlName", "adminPassword", "placeholder", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022", 1, "form-control", 3, "type"], ["type", "button", 1, "btn", "btn-outline-secondary", 3, "click"], ["formControlName", "phone", "placeholder", "+963 912 345 678", 1, "form-control"], ["formControlName", "email", "type", "email", "placeholder", "contact@client.com", 1, "form-control"], ["formControlName", "pointOfContact", "placeholder", "Mohammad Al-Ahmad", 1, "form-control"], ["formControlName", "defaultBuildTarget", 1, "form-select"], ["value", "win"], ["value", "win7"], ["value", "mac"], ["value", "linux"], ["formControlName", "footerDeveloper", "placeholder", "Eng. Ali Shaaban", 1, "form-control"], ["formControlName", "footerUrl", "placeholder", "https://linkedin.com/in/...", 1, "form-control"], ["type", "submit", 1, "btn", "btn-primary", 3, "disabled"], ["routerLink", "/clients", 1, "btn", "btn-outline-secondary"], [1, "upload-placeholder", "text-secondary"], [1, "color-input-group"], ["type", "color", 1, "form-control", "form-control-color", 3, "formControlName"], ["type", "text", "placeholder", "#667eea", 1, "form-control", "font-monospace", 3, "formControlName"], ["alt", "Header preview", 2, "width", "100%", "height", "100%", "object-fit", "cover", "opacity", "0.85", 3, "src"], [1, "position-absolute", "top-0", "start-0", "w-100", "h-100", "d-flex", "align-items-center", "justify-content-center", 2, "background", "rgba(0,0,0,0.28)"], [1, "text-white", "fw-semibold", "small"], [1, "dashboard-preview", "mb-2", "rounded", "d-flex", "align-items-center", "justify-content-center", "text-secondary", 2, "height", "90px", "background", "linear-gradient(135deg,#667eea,#764ba2)", "color", "#fff !important"], [1, "fw-semibold", "small", 2, "color", "#fff"], ["type", "button", 1, "btn", "btn-sm", "btn-outline-danger", 3, "click"], [3, "value"]], template: function ClientFormComponent_Template(rf, ctx) {
+    this.\u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _ClientFormComponent, selectors: [["app-client-form"]], standalone: true, features: [\u0275\u0275StandaloneFeature], decls: 258, vars: 29, consts: [[1, "container", "py-4", 2, "max-width", "720px"], [1, "d-flex", "align-items-center", "mb-4", "gap-3"], ["routerLink", "/clients", 1, "btn", "btn-sm", "btn-outline-secondary"], [1, "mb-0"], [1, "alert", "alert-warning"], [1, "bg-white", "rounded", "shadow-sm", "p-4", 3, "ngSubmit", "formGroup"], [1, "row", "g-3", "mb-4"], [1, "col-md-6"], [1, "form-label", "fw-semibold"], ["formControlName", "clientCode", "placeholder", "freshmart", 1, "form-control", "font-monospace"], [1, "form-text"], ["formControlName", "appName", "placeholder", "FreshMart", 1, "form-control"], [1, "col-12"], ["formControlName", "tagline", "placeholder", "salesManagement", 1, "form-control"], [1, "text-muted", "mb-3"], [1, "form-label"], [1, "upload-preview-box", "bg-dark", "rounded", "mb-2"], ["alt", "Logo Dark", 1, "upload-preview-img", 3, "src"], [1, "d-flex", "gap-2"], [1, "btn", "btn-sm", "btn-outline-secondary", "mb-0"], ["type", "file", "accept", "image/*", "hidden", "", 3, "change"], ["formControlName", "logoDark", "placeholder", "assets/brand/logo.png", 1, "form-control", "form-control-sm", "font-monospace"], [1, "upload-preview-box", "bg-light", "border", "rounded", "mb-2"], ["alt", "Logo Light", 1, "upload-preview-img", 3, "src"], ["formControlName", "logoLight", "placeholder", "assets/brand/logo-light.png", 1, "form-control", "form-control-sm", "font-monospace"], [1, "upload-preview-box", "bg-light", "border", "rounded", "mb-2", 2, "height", "60px"], ["alt", "Favicon", 2, "width", "32px", "height", "32px", "object-fit", "contain", 3, "src"], ["type", "file", "accept", "image/x-icon,image/png,image/svg+xml", "hidden", "", 3, "change"], ["formControlName", "favicon", "placeholder", "favicon.ico", 1, "form-control", "form-control-sm", "font-monospace"], [1, "col-md-4"], [1, "text-muted", "small", "mb-2"], [1, "dashboard-preview", "mb-2", "rounded", "overflow-hidden", "position-relative", 2, "height", "90px", "background", "#1e293b"], [1, "d-flex", "gap-2", "align-items-center"], ["formControlName", "dashboardHeaderImage", "placeholder", "assets/header.jpg  or leave blank", 1, "form-control", "form-control-sm", "font-monospace"], ["type", "button", 1, "btn", "btn-sm", "btn-outline-danger"], [1, "text-muted", "small", "mb-3"], ["formGroupName", "features", 1, "row", "g-2", "mb-4"], [1, "form-check"], ["type", "checkbox", "formControlName", "multiLanguage", "id", "featMultiLang", 1, "form-check-input"], ["for", "featMultiLang", 1, "form-check-label"], ["type", "checkbox", "formControlName", "barcode", "id", "barcode", 1, "form-check-input"], ["for", "barcode", 1, "form-check-label"], ["type", "checkbox", "formControlName", "reports", "id", "featReports", 1, "form-check-input"], ["for", "featReports", 1, "form-check-label"], ["type", "checkbox", "formControlName", "suppliers", "id", "featSuppliers", 1, "form-check-input"], ["for", "featSuppliers", 1, "form-check-label"], ["type", "checkbox", "formControlName", "seedDemoData", "id", "featSeedDemo", 1, "form-check-input"], ["for", "featSeedDemo", 1, "form-check-label"], [1, "badge", "bg-warning", "text-dark", "ms-1", 2, "font-size", "0.65rem"], ["type", "checkbox", "formControlName", "multiCurrency", "id", "featMultiCurrency", 1, "form-check-input"], ["for", "featMultiCurrency", 1, "form-check-label"], [1, "badge", "bg-info", "text-dark", "ms-1", 2, "font-size", "0.65rem"], [1, "my-3"], [1, "text-muted", "small", "fw-semibold", "mb-2"], [1, "form-check", "mb-2"], ["type", "checkbox", "formControlName", "shifts", "id", "featShifts", 1, "form-check-input"], ["for", "featShifts", 1, "form-check-label"], [1, "badge", "bg-secondary", "ms-1", 2, "font-size", "0.65rem"], ["type", "checkbox", "formControlName", "clientLedger", "id", "featClientLedger", 1, "form-check-input"], ["for", "featClientLedger", 1, "form-check-label"], ["type", "checkbox", "formControlName", "supplierLedger", "id", "featSupplierLedger", 1, "form-check-input"], ["for", "featSupplierLedger", 1, "form-check-label"], ["type", "checkbox", "formControlName", "fractionalQuantity", "id", "featFractionalQty", 1, "form-check-input"], ["for", "featFractionalQty", 1, "form-check-label"], [1, "form-text", "ms-0", "mt-1"], ["type", "checkbox", "formControlName", "multiCurrencyPricing", "id", "featMultiCurrencyPricing", 1, "form-check-input"], ["for", "featMultiCurrencyPricing", 1, "form-check-label"], ["formControlName", "storeType", 1, "form-select"], [3, "value", 4, "ngFor", "ngForOf"], ["formControlName", "baseCurrency", 1, "form-select"], ["formControlName", "adminUsername", "placeholder", "admin", 1, "form-control", "font-monospace"], [1, "input-group"], ["formControlName", "adminPassword", "placeholder", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022", 1, "form-control", 3, "type"], ["type", "button", 1, "btn", "btn-outline-secondary", 3, "click"], ["formControlName", "phone", "placeholder", "+963 912 345 678", 1, "form-control"], ["formControlName", "email", "type", "email", "placeholder", "contact@client.com", 1, "form-control"], ["formControlName", "pointOfContact", "placeholder", "Mohammad Al-Ahmad", 1, "form-control"], ["formControlName", "defaultBuildTarget", 1, "form-select"], ["value", "win"], ["value", "win7"], ["value", "mac"], ["value", "linux"], ["formControlName", "footerDeveloper", "placeholder", "Eng. Ali Shaaban", 1, "form-control"], ["formControlName", "footerUrl", "placeholder", "https://linkedin.com/in/...", 1, "form-control"], ["type", "submit", 1, "btn", "btn-primary", 3, "disabled"], ["routerLink", "/clients", 1, "btn", "btn-outline-secondary"], [1, "upload-placeholder", "text-secondary"], [1, "color-input-group"], ["type", "color", 1, "form-control", "form-control-color", 3, "formControlName"], ["type", "text", "placeholder", "#667eea", 1, "form-control", "font-monospace", 3, "formControlName"], ["alt", "Header preview", 2, "width", "100%", "height", "100%", "object-fit", "cover", "opacity", "0.85", 3, "src"], [1, "position-absolute", "top-0", "start-0", "w-100", "h-100", "d-flex", "align-items-center", "justify-content-center", 2, "background", "rgba(0,0,0,0.28)"], [1, "text-white", "fw-semibold", "small"], [1, "dashboard-preview", "mb-2", "rounded", "d-flex", "align-items-center", "justify-content-center", "text-secondary", 2, "height", "90px", "background", "linear-gradient(135deg,#667eea,#764ba2)", "color", "#fff !important"], [1, "fw-semibold", "small", 2, "color", "#fff"], ["type", "button", 1, "btn", "btn-sm", "btn-outline-danger", 3, "click"], [3, "value"]], template: function ClientFormComponent_Template(rf, ctx) {
       if (rf & 1) {
         \u0275\u0275elementStart(0, "div", 0)(1, "div", 1)(2, "a", 2);
         \u0275\u0275text(3, "\u2190 Back");
@@ -42981,112 +42985,130 @@ var ClientFormComponent = class _ClientFormComponent {
         \u0275\u0275text(156, "Disable");
         \u0275\u0275elementEnd();
         \u0275\u0275text(157, ' for stores selling whole units only (mobile phones, electronics) \u2014 only whole-number quantities will be accepted at the POS and the "Calculate by Total" tool will only allow adjusting the unit price, not the quantity. ');
-        \u0275\u0275elementEnd()()()();
-        \u0275\u0275elementStart(158, "div", 6)(159, "div", 7)(160, "label", 8);
-        \u0275\u0275text(161, "Store Type");
-        \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(162, "select", 65);
-        \u0275\u0275template(163, ClientFormComponent_option_163_Template, 2, 2, "option", 66);
-        \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(164, "div", 10);
-        \u0275\u0275text(165, ' Used when "Seed demo data" is enabled \u2014 picks the matching sample dataset. ');
         \u0275\u0275elementEnd()();
-        \u0275\u0275elementStart(166, "div", 7)(167, "label", 8);
-        \u0275\u0275text(168, "Base Currency");
+        \u0275\u0275elementStart(158, "div", 54);
+        \u0275\u0275element(159, "input", 65);
+        \u0275\u0275elementStart(160, "label", 66);
+        \u0275\u0275text(161, " Per-product pricing currency (fixed local pricing) ");
+        \u0275\u0275elementStart(162, "span", 48);
+        \u0275\u0275text(163, "e.g. MTN cards in SYP");
+        \u0275\u0275elementEnd()();
+        \u0275\u0275elementStart(164, "div", 64);
+        \u0275\u0275text(165, " Enable for stores selling products with ");
+        \u0275\u0275elementStart(166, "strong");
+        \u0275\u0275text(167, "fixed local-currency prices");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(169, "select", 67);
-        \u0275\u0275template(170, ClientFormComponent_option_170_Template, 2, 2, "option", 66);
+        \u0275\u0275text(168, ` (MTN / Syriatel top-up cards, voucher products, government-regulated SKUs) when the system base currency is different (e.g. USD-based POS in Syria). A new "Pricing Currency" dropdown appears on the Product modal so each SKU can be locked to its native currency; the POS converts to base on the fly using the invoice's currency rate so totals, profit, and the cash drawer stay coherent. `);
+        \u0275\u0275elementStart(169, "strong");
+        \u0275\u0275text(170, "Leave off");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(171, "div", 10);
-        \u0275\u0275text(172, " All prices (products, sales, purchases) are stored and reported in this currency. Set to ");
-        \u0275\u0275elementStart(173, "strong");
-        \u0275\u0275text(174, "SYP");
+        \u0275\u0275text(171, " for stores that always price in the base currency. ");
+        \u0275\u0275elementEnd()()()();
+        \u0275\u0275elementStart(172, "div", 6)(173, "div", 7)(174, "label", 8);
+        \u0275\u0275text(175, "Store Type");
         \u0275\u0275elementEnd();
-        \u0275\u0275text(175, " for Syrian-market deployments. ");
+        \u0275\u0275elementStart(176, "select", 67);
+        \u0275\u0275template(177, ClientFormComponent_option_177_Template, 2, 2, "option", 68);
+        \u0275\u0275elementEnd();
+        \u0275\u0275elementStart(178, "div", 10);
+        \u0275\u0275text(179, ' Used when "Seed demo data" is enabled \u2014 picks the matching sample dataset. ');
+        \u0275\u0275elementEnd()();
+        \u0275\u0275elementStart(180, "div", 7)(181, "label", 8);
+        \u0275\u0275text(182, "Base Currency");
+        \u0275\u0275elementEnd();
+        \u0275\u0275elementStart(183, "select", 69);
+        \u0275\u0275template(184, ClientFormComponent_option_184_Template, 2, 2, "option", 68);
+        \u0275\u0275elementEnd();
+        \u0275\u0275elementStart(185, "div", 10);
+        \u0275\u0275text(186, " All prices (products, sales, purchases) are stored and reported in this currency. Set to ");
+        \u0275\u0275elementStart(187, "strong");
+        \u0275\u0275text(188, "SYP");
+        \u0275\u0275elementEnd();
+        \u0275\u0275text(189, " for Syrian-market deployments. ");
         \u0275\u0275elementEnd()()();
-        \u0275\u0275element(176, "hr");
-        \u0275\u0275elementStart(177, "h6", 14);
-        \u0275\u0275text(178, "Admin Credentials");
+        \u0275\u0275element(190, "hr");
+        \u0275\u0275elementStart(191, "h6", 14);
+        \u0275\u0275text(192, "Admin Credentials");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(179, "div", 6)(180, "div", 7)(181, "label", 15);
-        \u0275\u0275text(182, "Username");
+        \u0275\u0275elementStart(193, "div", 6)(194, "div", 7)(195, "label", 15);
+        \u0275\u0275text(196, "Username");
         \u0275\u0275elementEnd();
-        \u0275\u0275element(183, "input", 68);
+        \u0275\u0275element(197, "input", 70);
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(184, "div", 7)(185, "label", 15);
-        \u0275\u0275text(186, "Password");
+        \u0275\u0275elementStart(198, "div", 7)(199, "label", 15);
+        \u0275\u0275text(200, "Password");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(187, "div", 69);
-        \u0275\u0275element(188, "input", 70);
-        \u0275\u0275elementStart(189, "button", 71);
-        \u0275\u0275listener("click", function ClientFormComponent_Template_button_click_189_listener() {
+        \u0275\u0275elementStart(201, "div", 71);
+        \u0275\u0275element(202, "input", 72);
+        \u0275\u0275elementStart(203, "button", 73);
+        \u0275\u0275listener("click", function ClientFormComponent_Template_button_click_203_listener() {
           return ctx.passwordVisible = !ctx.passwordVisible;
         });
-        \u0275\u0275text(190);
+        \u0275\u0275text(204);
         \u0275\u0275elementEnd()();
-        \u0275\u0275elementStart(191, "div", 10);
-        \u0275\u0275text(192, "Seeded into the app database on first launch.");
+        \u0275\u0275elementStart(205, "div", 10);
+        \u0275\u0275text(206, "Seeded into the app database on first launch.");
         \u0275\u0275elementEnd()()();
-        \u0275\u0275element(193, "hr");
-        \u0275\u0275elementStart(194, "h6", 14);
-        \u0275\u0275text(195, "Contact Information");
+        \u0275\u0275element(207, "hr");
+        \u0275\u0275elementStart(208, "h6", 14);
+        \u0275\u0275text(209, "Contact Information");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(196, "div", 6)(197, "div", 7)(198, "label", 15);
-        \u0275\u0275text(199, "Phone");
+        \u0275\u0275elementStart(210, "div", 6)(211, "div", 7)(212, "label", 15);
+        \u0275\u0275text(213, "Phone");
         \u0275\u0275elementEnd();
-        \u0275\u0275element(200, "input", 72);
+        \u0275\u0275element(214, "input", 74);
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(201, "div", 7)(202, "label", 15);
-        \u0275\u0275text(203, "Email");
+        \u0275\u0275elementStart(215, "div", 7)(216, "label", 15);
+        \u0275\u0275text(217, "Email");
         \u0275\u0275elementEnd();
-        \u0275\u0275element(204, "input", 73);
+        \u0275\u0275element(218, "input", 75);
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(205, "div", 12)(206, "label", 15);
-        \u0275\u0275text(207, "Point of Contact");
+        \u0275\u0275elementStart(219, "div", 12)(220, "label", 15);
+        \u0275\u0275text(221, "Point of Contact");
         \u0275\u0275elementEnd();
-        \u0275\u0275element(208, "input", 74);
+        \u0275\u0275element(222, "input", 76);
         \u0275\u0275elementEnd()();
-        \u0275\u0275element(209, "hr");
-        \u0275\u0275elementStart(210, "h6", 14);
-        \u0275\u0275text(211, "Build Settings");
+        \u0275\u0275element(223, "hr");
+        \u0275\u0275elementStart(224, "h6", 14);
+        \u0275\u0275text(225, "Build Settings");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(212, "div", 6)(213, "div", 7)(214, "label", 8);
-        \u0275\u0275text(215, "Default Build Target");
+        \u0275\u0275elementStart(226, "div", 6)(227, "div", 7)(228, "label", 8);
+        \u0275\u0275text(229, "Default Build Target");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(216, "select", 75)(217, "option", 76);
-        \u0275\u0275text(218, "Windows 10/11 (.exe)");
+        \u0275\u0275elementStart(230, "select", 77)(231, "option", 78);
+        \u0275\u0275text(232, "Windows 10/11 (.exe)");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(219, "option", 77);
-        \u0275\u0275text(220, "Windows 7/8 (.exe) \u2014 Electron 22");
+        \u0275\u0275elementStart(233, "option", 79);
+        \u0275\u0275text(234, "Windows 7/8 (.exe) \u2014 Electron 22");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(221, "option", 78);
-        \u0275\u0275text(222, "macOS (.dmg)");
+        \u0275\u0275elementStart(235, "option", 80);
+        \u0275\u0275text(236, "macOS (.dmg)");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(223, "option", 79);
-        \u0275\u0275text(224, "Linux (.AppImage)");
+        \u0275\u0275elementStart(237, "option", 81);
+        \u0275\u0275text(238, "Linux (.AppImage)");
         \u0275\u0275elementEnd()();
-        \u0275\u0275elementStart(225, "div", 10);
-        \u0275\u0275text(226, "This is the pre-selected platform when triggering a build for this client.");
+        \u0275\u0275elementStart(239, "div", 10);
+        \u0275\u0275text(240, "This is the pre-selected platform when triggering a build for this client.");
         \u0275\u0275elementEnd()()();
-        \u0275\u0275element(227, "hr");
-        \u0275\u0275elementStart(228, "h6", 14);
-        \u0275\u0275text(229, "Footer");
+        \u0275\u0275element(241, "hr");
+        \u0275\u0275elementStart(242, "h6", 14);
+        \u0275\u0275text(243, "Footer");
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(230, "div", 6)(231, "div", 7)(232, "label", 15);
-        \u0275\u0275text(233, "Developer Name");
+        \u0275\u0275elementStart(244, "div", 6)(245, "div", 7)(246, "label", 15);
+        \u0275\u0275text(247, "Developer Name");
         \u0275\u0275elementEnd();
-        \u0275\u0275element(234, "input", 80);
+        \u0275\u0275element(248, "input", 82);
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(235, "div", 7)(236, "label", 15);
-        \u0275\u0275text(237, "Developer URL");
+        \u0275\u0275elementStart(249, "div", 7)(250, "label", 15);
+        \u0275\u0275text(251, "Developer URL");
         \u0275\u0275elementEnd();
-        \u0275\u0275element(238, "input", 81);
+        \u0275\u0275element(252, "input", 83);
         \u0275\u0275elementEnd()();
-        \u0275\u0275elementStart(239, "div", 18)(240, "button", 82);
-        \u0275\u0275text(241);
+        \u0275\u0275elementStart(253, "div", 18)(254, "button", 84);
+        \u0275\u0275text(255);
         \u0275\u0275elementEnd();
-        \u0275\u0275elementStart(242, "a", 83);
-        \u0275\u0275text(243, "Cancel");
+        \u0275\u0275elementStart(256, "a", 85);
+        \u0275\u0275text(257, "Cancel");
         \u0275\u0275elementEnd()()()();
       }
       if (rf & 2) {
@@ -43115,7 +43137,7 @@ var ClientFormComponent = class _ClientFormComponent {
         \u0275\u0275conditional(75, ((tmp_8_0 = ctx.form.get("dashboardHeaderImage")) == null ? null : tmp_8_0.value) ? 75 : 76);
         \u0275\u0275advance(7);
         \u0275\u0275conditional(82, ((tmp_9_0 = ctx.form.get("dashboardHeaderImage")) == null ? null : tmp_9_0.value) ? 82 : -1);
-        \u0275\u0275advance(81);
+        \u0275\u0275advance(95);
         \u0275\u0275property("ngForOf", ctx.storeTypes);
         \u0275\u0275advance(7);
         \u0275\u0275property("ngForOf", ctx.baseCurrencies);

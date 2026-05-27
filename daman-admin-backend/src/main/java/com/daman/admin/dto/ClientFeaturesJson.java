@@ -20,6 +20,8 @@ public class ClientFeaturesJson {
     private boolean clientLedger;
     private boolean supplierLedger;
     private boolean fractionalQuantity;
+    /** Per-product pricing-currency override (e.g. fixed 2 500 SYP for MTN cards). Default: off — opt-in per client. */
+    private boolean multiCurrencyPricing;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

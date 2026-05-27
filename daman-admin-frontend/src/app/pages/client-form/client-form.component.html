@@ -242,6 +242,23 @@
             will only allow adjusting the unit price, not the quantity.
           </div>
         </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="multiCurrencyPricing" id="featMultiCurrencyPricing">
+          <label class="form-check-label" for="featMultiCurrencyPricing">
+            Per-product pricing currency (fixed local pricing)
+            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">e.g. MTN cards in SYP</span>
+          </label>
+          <div class="form-text ms-0 mt-1">
+            Enable for stores selling products with <strong>fixed local-currency prices</strong>
+            (MTN / Syriatel top-up cards, voucher products, government-regulated SKUs) when
+            the system base currency is different (e.g. USD-based POS in Syria).
+            A new "Pricing Currency" dropdown appears on the Product modal so each SKU can be
+            locked to its native currency; the POS converts to base on the fly using the
+            invoice's currency rate so totals, profit, and the cash drawer stay coherent.
+            <strong>Leave off</strong> for stores that always price in the base currency.
+          </div>
+        </div>
       </div>
     </div>
 

@@ -168,6 +168,7 @@ public class ClientConfigService {
             if (patch.getClientLedger()         != null) f.setClientLedger(patch.getClientLedger());
             if (patch.getSupplierLedger()       != null) f.setSupplierLedger(patch.getSupplierLedger());
             if (patch.getFractionalQuantity()   != null) f.setFractionalQuantity(patch.getFractionalQuantity());
+            if (patch.getMultiCurrencyPricing() != null) f.setMultiCurrencyPricing(patch.getMultiCurrencyPricing());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -189,6 +190,7 @@ public class ClientConfigService {
                 .clientLedger(f.isClientLedger())
                 .supplierLedger(f.isSupplierLedger())
                 .fractionalQuantity(f.isFractionalQuantity())
+                .multiCurrencyPricing(f.isMultiCurrencyPricing())
                 .build();
     }
 
@@ -205,6 +207,7 @@ public class ClientConfigService {
                 .clientLedger(f.isClientLedger())
                 .supplierLedger(f.isSupplierLedger())
                 .fractionalQuantity(f.isFractionalQuantity())
+                .multiCurrencyPricing(f.isMultiCurrencyPricing())
                 .build();
     }
 

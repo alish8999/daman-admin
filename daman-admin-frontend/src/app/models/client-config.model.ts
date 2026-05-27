@@ -10,6 +10,12 @@ export interface ClientFeatures {
   supplierLedger?: boolean;
   /** When false, only whole-number quantities are accepted at the POS. */
   fractionalQuantity?: boolean;
+  /**
+   * Per-product pricing-currency override — lets a single SKU lock its price
+   * in a non-base currency (e.g. MTN top-up cards at exactly 2 500 SYP even
+   * when the system base is USD). Default: false — opt-in per client.
+   */
+  multiCurrencyPricing?: boolean;
 }
 
 export interface ClientConfig {

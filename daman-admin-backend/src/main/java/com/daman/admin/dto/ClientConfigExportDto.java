@@ -75,5 +75,7 @@ public class ClientConfigExportDto {
         private boolean clientLedger;
         private boolean supplierLedger;
         private boolean fractionalQuantity;
+        /** Per-product pricing-currency override — MTN-style fixed local prices. */
+        private boolean multiCurrencyPricing;
     }
 }
