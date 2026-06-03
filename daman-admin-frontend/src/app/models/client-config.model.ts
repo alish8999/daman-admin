@@ -16,6 +16,16 @@ export interface ClientFeatures {
    * when the system base is USD). Default: false — opt-in per client.
    */
   multiCurrencyPricing?: boolean;
+  /**
+   * Shows the Client/Supplier Account Statement report page (nav link + route).
+   * Default: false — opt-in per client.
+   */
+  accountStatement?: boolean;
+  /**
+   * Shows the per-item Item Ledger report page (nav link + route).
+   * Default: false — opt-in per client.
+   */
+  itemLedger?: boolean;
 }
 
 export interface ClientConfig {

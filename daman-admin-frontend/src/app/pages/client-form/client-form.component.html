@@ -227,6 +227,33 @@
         </div>
 
         <hr class="my-3">
+        <div class="text-muted small fw-semibold mb-2">Reports &amp; Statements</div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="accountStatement" id="featAccountStatement">
+          <label class="form-check-label" for="featAccountStatement">
+            Client &amp; Supplier Account Statement page
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+          </label>
+          <div class="form-text ms-0 mt-1">
+            Adds the <strong>Account Statement</strong> nav link — per-client / per-supplier
+            balance history with opening balance, running balance, and date filters.
+          </div>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="itemLedger" id="featItemLedger">
+          <label class="form-check-label" for="featItemLedger">
+            Item Ledger page
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+          </label>
+          <div class="form-text ms-0 mt-1">
+            Adds the <strong>Item Ledger</strong> nav link — per-product movement history
+            (sales, purchases, stock adjustments) with opening &amp; closing on-hand qty.
+          </div>
+        </div>
+
+        <hr class="my-3">
         <div class="text-muted small fw-semibold mb-2">Inventory &amp; Sales Behaviour</div>
 
         <div class="form-check mb-2">
