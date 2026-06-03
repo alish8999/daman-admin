@@ -81,5 +81,7 @@ public class ClientConfigExportDto {
         private boolean accountStatement;
         /** Per-item Item Ledger report page. */
         private boolean itemLedger;
+        /** Batch stocktake / inventory reconciliation page + MONTHLY_RECONCILIATION P&amp;L reason. */
+        private boolean batchStocktake;
     }
 }

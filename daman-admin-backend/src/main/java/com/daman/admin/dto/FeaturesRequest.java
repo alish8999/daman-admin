@@ -20,4 +20,6 @@ public class FeaturesRequest {
     private Boolean accountStatement;
     /** Per-item Item Ledger report page (nav link + route). */
     private Boolean itemLedger;
+    /** Batch stocktake / inventory reconciliation page + MONTHLY_RECONCILIATION P&amp;L reason. */
+    private Boolean batchStocktake;
 }

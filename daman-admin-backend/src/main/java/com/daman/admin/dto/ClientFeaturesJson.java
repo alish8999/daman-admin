@@ -26,6 +26,13 @@ public class ClientFeaturesJson {
     private boolean accountStatement;
     /** Per-item Item Ledger report page (nav link + route). Default: off — opt-in per client. */
     private boolean itemLedger;
+    /**
+     * Batch stocktake / inventory reconciliation (تسوية الجرد المجمّعة).
+     * Adds the bulk "actual qty vs system qty" reconciliation page and unlocks
+     * the {@code MONTHLY_RECONCILIATION} stock-adjustment reason in P&amp;L
+     * (wastage / inventory gain). Default: off — opt-in per client.
+     */
+    private boolean batchStocktake;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

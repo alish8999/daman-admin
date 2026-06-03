@@ -171,6 +171,7 @@ public class ClientConfigService {
             if (patch.getMultiCurrencyPricing() != null) f.setMultiCurrencyPricing(patch.getMultiCurrencyPricing());
             if (patch.getAccountStatement()     != null) f.setAccountStatement(patch.getAccountStatement());
             if (patch.getItemLedger()           != null) f.setItemLedger(patch.getItemLedger());
+            if (patch.getBatchStocktake()       != null) f.setBatchStocktake(patch.getBatchStocktake());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -195,6 +196,7 @@ public class ClientConfigService {
                 .multiCurrencyPricing(f.isMultiCurrencyPricing())
                 .accountStatement(f.isAccountStatement())
                 .itemLedger(f.isItemLedger())
+                .batchStocktake(f.isBatchStocktake())
                 .build();
     }
 
@@ -214,6 +216,7 @@ public class ClientConfigService {
                 .multiCurrencyPricing(f.isMultiCurrencyPricing())
                 .accountStatement(f.isAccountStatement())
                 .itemLedger(f.isItemLedger())
+                .batchStocktake(f.isBatchStocktake())
                 .build();
     }
 

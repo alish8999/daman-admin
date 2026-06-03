@@ -26,6 +26,13 @@ export interface ClientFeatures {
    * Default: false — opt-in per client.
    */
   itemLedger?: boolean;
+  /**
+   * Batch stocktake / inventory reconciliation page (تسوية الجرد المجمّعة).
+   * Adds the bulk "actual vs system qty" reconciliation page and unlocks the
+   * MONTHLY_RECONCILIATION reason in P&L wastage / inventory-gain reports.
+   * Default: false — opt-in per client.
+   */
+  batchStocktake?: boolean;
 }
 
 export interface ClientConfig {

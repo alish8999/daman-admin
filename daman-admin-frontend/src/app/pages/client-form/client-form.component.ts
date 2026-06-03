@@ -80,7 +80,8 @@ export class ClientFormComponent implements OnInit {
         fractionalQuantity:   [false],
         multiCurrencyPricing: [false],
         accountStatement:     [false],
-        itemLedger:           [false]
+        itemLedger:           [false],
+        batchStocktake:       [false]
       })
     });
     this.passwordVisible = false;
@@ -112,7 +113,8 @@ export class ClientFormComponent implements OnInit {
             fractionalQuantity:   client.features?.fractionalQuantity   ?? false,
             multiCurrencyPricing: client.features?.multiCurrencyPricing ?? false,
             accountStatement:     client.features?.accountStatement     ?? false,
-            itemLedger:           client.features?.itemLedger           ?? false
+            itemLedger:           client.features?.itemLedger           ?? false,
+            batchStocktake:       client.features?.batchStocktake       ?? false
           }
         });
       });

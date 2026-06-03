@@ -253,6 +253,20 @@
           </div>
         </div>
 
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" formControlName="batchStocktake" id="featBatchStocktake">
+          <label class="form-check-label" for="featBatchStocktake">
+            Batch stocktake / inventory reconciliation
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+          </label>
+          <div class="form-text ms-0 mt-1">
+            Adds the <strong>تسوية الجرد المجمّعة</strong> page — enter actual on-hand
+            quantities for many products at once and post a single batch adjustment.
+            Differences are written as <code>MONTHLY_RECONCILIATION</code> stock
+            adjustments and flow into the wastage / inventory-gain P&amp;L lines.
+          </div>
+        </div>
+
         <hr class="my-3">
         <div class="text-muted small fw-semibold mb-2">Inventory &amp; Sales Behaviour</div>
 
