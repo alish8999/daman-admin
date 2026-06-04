@@ -172,6 +172,7 @@ public class ClientConfigService {
             if (patch.getAccountStatement()     != null) f.setAccountStatement(patch.getAccountStatement());
             if (patch.getItemLedger()           != null) f.setItemLedger(patch.getItemLedger());
             if (patch.getBatchStocktake()       != null) f.setBatchStocktake(patch.getBatchStocktake());
+            if (patch.getBulkPriceUpdate()      != null) f.setBulkPriceUpdate(patch.getBulkPriceUpdate());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -197,6 +198,7 @@ public class ClientConfigService {
                 .accountStatement(f.isAccountStatement())
                 .itemLedger(f.isItemLedger())
                 .batchStocktake(f.isBatchStocktake())
+                .bulkPriceUpdate(f.isBulkPriceUpdate())
                 .build();
     }
 
@@ -217,6 +219,7 @@ public class ClientConfigService {
                 .accountStatement(f.isAccountStatement())
                 .itemLedger(f.isItemLedger())
                 .batchStocktake(f.isBatchStocktake())
+                .bulkPriceUpdate(f.isBulkPriceUpdate())
                 .build();
     }
 

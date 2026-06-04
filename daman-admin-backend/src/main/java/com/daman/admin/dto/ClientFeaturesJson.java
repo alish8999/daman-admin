@@ -33,6 +33,12 @@ public class ClientFeaturesJson {
      * (wastage / inventory gain). Default: off — opt-in per client.
      */
     private boolean batchStocktake;
+    /**
+     * Bulk category price update (تعديل أسعار قسم بالكامل). Adds the bulk
+     * repricing action on the Products page with per-currency adjustment inputs.
+     * Default: off — opt-in per client.
+     */
+    private boolean bulkPriceUpdate;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

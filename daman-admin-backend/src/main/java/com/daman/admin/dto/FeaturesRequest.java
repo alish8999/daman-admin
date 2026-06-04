@@ -22,4 +22,6 @@ public class FeaturesRequest {
     private Boolean itemLedger;
     /** Batch stocktake / inventory reconciliation page + MONTHLY_RECONCILIATION P&amp;L reason. */
     private Boolean batchStocktake;
+    /** Bulk category price update (تعديل أسعار قسم بالكامل). */
+    private Boolean bulkPriceUpdate;
 }

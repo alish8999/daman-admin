@@ -33,6 +33,11 @@ export interface ClientFeatures {
    * Default: false — opt-in per client.
    */
   batchStocktake?: boolean;
+  /**
+   * Bulk category price update (تعديل أسعار قسم بالكامل) on the Products page.
+   * Default: false — opt-in per client via the admin dashboard.
+   */
+  bulkPriceUpdate?: boolean;
 }
 
 export interface ClientConfig {

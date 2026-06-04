@@ -81,7 +81,8 @@ export class ClientFormComponent implements OnInit {
         multiCurrencyPricing: [false],
         accountStatement:     [false],
         itemLedger:           [false],
-        batchStocktake:       [false]
+        batchStocktake:       [false],
+        bulkPriceUpdate:      [false]
       })
     });
     this.passwordVisible = false;
@@ -114,7 +115,8 @@ export class ClientFormComponent implements OnInit {
             multiCurrencyPricing: client.features?.multiCurrencyPricing ?? false,
             accountStatement:     client.features?.accountStatement     ?? false,
             itemLedger:           client.features?.itemLedger           ?? false,
-            batchStocktake:       client.features?.batchStocktake       ?? false
+            batchStocktake:       client.features?.batchStocktake       ?? false,
+            bulkPriceUpdate:      client.features?.bulkPriceUpdate      ?? false
           }
         });
       });
