@@ -38,6 +38,11 @@ export interface ClientFeatures {
    * Default: false — opt-in per client via the admin dashboard.
    */
   bulkPriceUpdate?: boolean;
+  /**
+   * BOM / recipe products (F&B). Finished goods backflush raw materials on sale.
+   * Default: false — opt-in per client via admin dashboard.
+   */
+  productRecipes?: boolean;
 }
 
 export interface ClientConfig {

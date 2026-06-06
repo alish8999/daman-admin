@@ -24,4 +24,6 @@ public class FeaturesRequest {
     private Boolean batchStocktake;
     /** Bulk category price update (تعديل أسعار قسم بالكامل). */
     private Boolean bulkPriceUpdate;
+    /** BOM / recipe products for F&B — composite items backflush raw materials. */
+    private Boolean productRecipes;
 }

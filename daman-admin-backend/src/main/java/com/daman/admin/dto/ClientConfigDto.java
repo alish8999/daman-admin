@@ -59,5 +59,7 @@ public class ClientConfigDto {
         private boolean batchStocktake;
         /** Bulk category price update (تعديل أسعار قسم بالكامل). */
         private boolean bulkPriceUpdate;
+        /** BOM / recipe products for F&B. */
+        private boolean productRecipes;
     }
 }

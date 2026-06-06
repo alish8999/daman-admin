@@ -39,6 +39,11 @@ public class ClientFeaturesJson {
      * Default: off — opt-in per client.
      */
     private boolean bulkPriceUpdate;
+    /**
+     * BOM / recipe products for F&B (cafés, restaurants). Composite finished goods
+     * backflush raw-material stock on sale. Default: off — opt-in per client.
+     */
+    private boolean productRecipes;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

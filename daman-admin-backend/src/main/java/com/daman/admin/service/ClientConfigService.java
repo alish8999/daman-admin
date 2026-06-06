@@ -173,6 +173,7 @@ public class ClientConfigService {
             if (patch.getItemLedger()           != null) f.setItemLedger(patch.getItemLedger());
             if (patch.getBatchStocktake()       != null) f.setBatchStocktake(patch.getBatchStocktake());
             if (patch.getBulkPriceUpdate()      != null) f.setBulkPriceUpdate(patch.getBulkPriceUpdate());
+            if (patch.getProductRecipes()       != null) f.setProductRecipes(patch.getProductRecipes());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -199,6 +200,7 @@ public class ClientConfigService {
                 .itemLedger(f.isItemLedger())
                 .batchStocktake(f.isBatchStocktake())
                 .bulkPriceUpdate(f.isBulkPriceUpdate())
+                .productRecipes(f.isProductRecipes())
                 .build();
     }
 
@@ -220,6 +222,7 @@ public class ClientConfigService {
                 .itemLedger(f.isItemLedger())
                 .batchStocktake(f.isBatchStocktake())
                 .bulkPriceUpdate(f.isBulkPriceUpdate())
+                .productRecipes(f.isProductRecipes())
                 .build();
     }
 

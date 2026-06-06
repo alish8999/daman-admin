@@ -82,7 +82,8 @@ export class ClientFormComponent implements OnInit {
         accountStatement:     [false],
         itemLedger:           [false],
         batchStocktake:       [false],
-        bulkPriceUpdate:      [false]
+        bulkPriceUpdate:      [false],
+        productRecipes:       [false]
       })
     });
     this.passwordVisible = false;
@@ -116,7 +117,8 @@ export class ClientFormComponent implements OnInit {
             accountStatement:     client.features?.accountStatement     ?? false,
             itemLedger:           client.features?.itemLedger           ?? false,
             batchStocktake:       client.features?.batchStocktake       ?? false,
-            bulkPriceUpdate:      client.features?.bulkPriceUpdate      ?? false
+            bulkPriceUpdate:      client.features?.bulkPriceUpdate      ?? false,
+            productRecipes:       client.features?.productRecipes       ?? false
           }
         });
       });
