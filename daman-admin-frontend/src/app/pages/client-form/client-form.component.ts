@@ -2,12 +2,15 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { AsyncPipe } from '@angular/common';
 import { ClientService } from '../../services/client.service';
+import { TranslationService } from '../../services/translation.service';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 
 @Component({
   selector: 'app-client-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, AsyncPipe, TranslatePipe],
   templateUrl: './client-form.component.html'
 })
 export class ClientFormComponent implements OnInit {
@@ -18,28 +21,25 @@ export class ClientFormComponent implements OnInit {
   error = '';
   passwordVisible = false;
 
-  readonly storeTypes = [
-    { value: 'mobile',    label: '📱 Mobile & Electronics' },
-    { value: 'grocery',   label: '🛒 Grocery & Supermarket' },
-    { value: 'clothing',  label: '👕 Clothing & Fashion' },
-    { value: 'pharmacy',  label: '💊 Pharmacy & Health' },
-    { value: 'hardware',  label: '🔧 Hardware & Tools' },
-    { value: 'bookstore', label: '📚 Books & Stationery' },
-    { value: 'cafe',      label: '☕ Café & Food Service' },
-    { value: 'general',   label: '🏪 General Retail' }
-  ];
+  readonly storeTypeValues = ['mobile', 'grocery', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
+  readonly baseCurrencyValues = ['USD', 'SYP', 'SYP_OLD'];
+  readonly buildTargetValues = ['win', 'win7', 'mac', 'linux'];
 
-  readonly baseCurrencies = [
-    { value: 'USD',     label: 'USD — US Dollar' },
-    { value: 'SYP',     label: 'SYP — Syrian Pound (New)' },
-    { value: 'SYP_OLD', label: 'SYP_OLD — Syrian Pound (Old)' }
+  readonly colorFields = [
+    { key: 'colorPrimary', labelKey: 'colorPrimary' },
+    { key: 'colorSecondary', labelKey: 'colorSecondary' },
+    { key: 'colorSuccess', labelKey: 'colorSuccess' },
+    { key: 'colorDanger', labelKey: 'colorDanger' },
+    { key: 'colorWarning', labelKey: 'colorWarning' },
+    { key: 'colorInfo', labelKey: 'colorInfo' }
   ];
 
   constructor(
     private fb: FormBuilder,
     private clientService: ClientService,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    public translationService: TranslationService
   ) {}
 
   ngOnInit(): void {
@@ -131,7 +131,10 @@ export class ClientFormComponent implements OnInit {
     if (!file) return;
 
     if (file.size > 512 * 1024) {
-      this.error = `"${file.name}" is ${Math.round(file.size / 1024)}KB. Use an image under 512KB for best results.`;
+      this.error = this.translationService.instant('imageTooLarge', {
+        name: file.name,
+        size: Math.round(file.size / 1024)
+      });
     } else {
       this.error = '';
     }
@@ -161,7 +164,7 @@ export class ClientFormComponent implements OnInit {
     request$.subscribe({
       next: () => this.router.navigate(['/clients']),
       error: err => {
-        this.error = err?.error?.message || 'Save failed. Please try again.';
+        this.error = err?.error?.message || this.translationService.instant('saveFailed');
         this.saving = false;
       }
     });

@@ -1,7 +1,8 @@
+@if (translationService.getLanguage$() | async) {
 <div class="container py-4" style="max-width: 720px">
   <div class="d-flex align-items-center mb-4 gap-3">
-    <a routerLink="/clients" class="btn btn-sm btn-outline-secondary">&larr; Back</a>
-    <h4 class="mb-0">{{ isEditMode ? 'Edit Client' : 'New Client' }}</h4>
+    <a routerLink="/clients" class="btn btn-sm btn-outline-secondary">&larr; {{ 'back' | t }}</a>
+    <h4 class="mb-0">{{ (isEditMode ? 'editClient' : 'newClient') | t }}</h4>
   </div>
 
   @if (error) {
@@ -12,419 +13,375 @@
 
     <div class="row g-3 mb-4">
       <div class="col-md-6">
-        <label class="form-label fw-semibold">Client Code</label>
+        <label class="form-label fw-semibold">{{ 'clientCode' | t }}</label>
         <input formControlName="clientCode" class="form-control font-monospace"
-               placeholder="freshmart" [class.bg-light]="isEditMode">
-        <div class="form-text">Unique identifier. Cannot be changed after creation.</div>
+               [placeholder]="'clientCodePlaceholder' | t" [class.bg-light]="isEditMode">
+        <div class="form-text">{{ 'clientCodeHint' | t }}</div>
       </div>
       <div class="col-md-6">
-        <label class="form-label fw-semibold">App Name</label>
-        <input formControlName="appName" class="form-control" placeholder="FreshMart">
+        <label class="form-label fw-semibold">{{ 'appName' | t }}</label>
+        <input formControlName="appName" class="form-control" [placeholder]="'appNamePlaceholder' | t">
       </div>
       <div class="col-12">
-        <label class="form-label fw-semibold">Tagline</label>
-        <input formControlName="tagline" class="form-control" placeholder="salesManagement">
+        <label class="form-label fw-semibold">{{ 'tagline' | t }}</label>
+        <input formControlName="tagline" class="form-control" [placeholder]="'taglinePlaceholder' | t">
       </div>
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">Branding</h6>
+    <h6 class="text-muted mb-3">{{ 'branding' | t }}</h6>
 
     <div class="row g-3 mb-4">
 
-      <!-- Logo Dark -->
       <div class="col-md-6">
-        <label class="form-label">Logo (Dark background)</label>
+        <label class="form-label">{{ 'logoDark' | t }}</label>
         <div class="upload-preview-box bg-dark rounded mb-2">
           @if (isDataUrl(form.get('logoDark')?.value)) {
-            <img [src]="form.get('logoDark')?.value" alt="Logo Dark" class="upload-preview-img">
+            <img [src]="form.get('logoDark')?.value" [alt]="'logoDark' | t" class="upload-preview-img">
           } @else {
-            <span class="upload-placeholder text-secondary">No image uploaded</span>
+            <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
           }
         </div>
         <div class="d-flex gap-2">
           <label class="btn btn-sm btn-outline-secondary mb-0">
-            Upload
+            {{ 'upload' | t }}
             <input type="file" accept="image/*" hidden (change)="onImageUpload('logoDark', $event)">
           </label>
           <input formControlName="logoDark" class="form-control form-control-sm font-monospace"
-                 placeholder="assets/brand/logo.png">
+                 [placeholder]="'logoDarkPlaceholder' | t">
         </div>
       </div>
 
-      <!-- Logo Light -->
       <div class="col-md-6">
-        <label class="form-label">Logo (Light background)</label>
+        <label class="form-label">{{ 'logoLight' | t }}</label>
         <div class="upload-preview-box bg-light border rounded mb-2">
           @if (isDataUrl(form.get('logoLight')?.value)) {
-            <img [src]="form.get('logoLight')?.value" alt="Logo Light" class="upload-preview-img">
+            <img [src]="form.get('logoLight')?.value" [alt]="'logoLight' | t" class="upload-preview-img">
           } @else {
-            <span class="upload-placeholder text-secondary">No image uploaded</span>
+            <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
           }
         </div>
         <div class="d-flex gap-2">
           <label class="btn btn-sm btn-outline-secondary mb-0">
-            Upload
+            {{ 'upload' | t }}
             <input type="file" accept="image/*" hidden (change)="onImageUpload('logoLight', $event)">
           </label>
           <input formControlName="logoLight" class="form-control form-control-sm font-monospace"
-                 placeholder="assets/brand/logo-light.png">
+                 [placeholder]="'logoLightPlaceholder' | t">
         </div>
       </div>
 
-      <!-- Favicon -->
       <div class="col-md-6">
-        <label class="form-label">Favicon</label>
+        <label class="form-label">{{ 'favicon' | t }}</label>
         <div class="upload-preview-box bg-light border rounded mb-2" style="height: 60px">
           @if (isDataUrl(form.get('favicon')?.value)) {
-            <img [src]="form.get('favicon')?.value" alt="Favicon" style="width:32px;height:32px;object-fit:contain">
+            <img [src]="form.get('favicon')?.value" [alt]="'favicon' | t" style="width:32px;height:32px;object-fit:contain">
           } @else {
-            <span class="upload-placeholder text-secondary">No image uploaded</span>
+            <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
           }
         </div>
         <div class="d-flex gap-2">
           <label class="btn btn-sm btn-outline-secondary mb-0">
-            Upload
+            {{ 'upload' | t }}
             <input type="file" accept="image/x-icon,image/png,image/svg+xml" hidden (change)="onImageUpload('favicon', $event)">
           </label>
           <input formControlName="favicon" class="form-control form-control-sm font-monospace"
-                 placeholder="favicon.ico">
+                 [placeholder]="'faviconPlaceholder' | t">
         </div>
       </div>
 
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">Theme Colors</h6>
+    <h6 class="text-muted mb-3">{{ 'themeColors' | t }}</h6>
 
     <div class="row g-3 mb-4">
-      @for (field of [
-        { key: 'colorPrimary', label: 'Primary' },
-        { key: 'colorSecondary', label: 'Secondary' },
-        { key: 'colorSuccess', label: 'Success' },
-        { key: 'colorDanger', label: 'Danger' },
-        { key: 'colorWarning', label: 'Warning' },
-        { key: 'colorInfo', label: 'Info' }
-      ]; track field.key) {
+      @for (field of colorFields; track field.key) {
         <div class="col-md-4">
-          <label class="form-label">{{ field.label }}</label>
+          <label class="form-label">{{ field.labelKey | t }}</label>
           <div class="color-input-group">
             <input type="color" [formControlName]="field.key" class="form-control form-control-color">
             <input type="text" [formControlName]="field.key" class="form-control font-monospace"
-                   placeholder="#667eea">
+                   [placeholder]="'colorHexPlaceholder' | t">
           </div>
         </div>
       }
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">Dashboard</h6>
+    <h6 class="text-muted mb-3">{{ 'dashboard' | t }}</h6>
 
     <div class="row g-3 mb-4">
       <div class="col-12">
-        <label class="form-label fw-semibold">Dashboard Header Background Image</label>
-        <p class="text-muted small mb-2">
-          Shown as the header background in the main app dashboard. If left blank the default gradient colour is used.
-          The header height is fixed — the image is cropped to fit.
-        </p>
+        <label class="form-label fw-semibold">{{ 'dashboardHeaderImage' | t }}</label>
+        <p class="text-muted small mb-2">{{ 'dashboardHeaderImageHint' | t }}</p>
 
-        <!-- Preview -->
         @if (form.get('dashboardHeaderImage')?.value) {
           <div class="dashboard-preview mb-2 rounded overflow-hidden position-relative"
                style="height: 90px; background: #1e293b;">
             <img [src]="form.get('dashboardHeaderImage')?.value"
-                 alt="Header preview"
+                 [alt]="'headerPreview' | t"
                  style="width:100%;height:100%;object-fit:cover;opacity:0.85;">
             <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
                  style="background:rgba(0,0,0,0.28);">
-              <span class="text-white fw-semibold small">Header preview</span>
+              <span class="text-white fw-semibold small">{{ 'headerPreview' | t }}</span>
             </div>
           </div>
         } @else {
           <div class="dashboard-preview mb-2 rounded d-flex align-items-center justify-content-center text-secondary"
                style="height: 90px; background: linear-gradient(135deg,#667eea,#764ba2); color:#fff !important;">
-            <span class="fw-semibold small" style="color:#fff">Default gradient (no image set)</span>
+            <span class="fw-semibold small" style="color:#fff">{{ 'defaultGradientPreview' | t }}</span>
           </div>
         }
 
         <div class="d-flex gap-2 align-items-center">
           <label class="btn btn-sm btn-outline-secondary mb-0">
-            Upload Image
+            {{ 'uploadImage' | t }}
             <input type="file" accept="image/*" hidden (change)="onImageUpload('dashboardHeaderImage', $event)">
           </label>
           <input formControlName="dashboardHeaderImage" class="form-control form-control-sm font-monospace"
-                 placeholder="assets/header.jpg  or leave blank">
+                 [placeholder]="'dashboardHeaderPlaceholder' | t">
           @if (form.get('dashboardHeaderImage')?.value) {
             <button type="button" class="btn btn-sm btn-outline-danger"
-                    (click)="form.get('dashboardHeaderImage')?.setValue('')">Clear</button>
+                    (click)="form.get('dashboardHeaderImage')?.setValue('')">{{ 'clear' | t }}</button>
           }
         </div>
-        <div class="form-text">Supports data-URLs (uploaded images) or asset paths. Max recommended: 512 KB.</div>
+        <div class="form-text">{{ 'dashboardImageFormatsHint' | t }}</div>
       </div>
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">App features</h6>
-    <p class="text-muted small mb-3">These flags are embedded in <code>client.config.json</code> at build time and control the packaged desktop/web app.</p>
+    <h6 class="text-muted mb-3">{{ 'appFeatures' | t }}</h6>
+    <p class="text-muted small mb-3">{{ 'appFeaturesHint' | t }}</p>
     <div formGroupName="features" class="row g-2 mb-4">
       <div class="col-12">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" formControlName="multiLanguage" id="featMultiLang">
-          <label class="form-check-label" for="featMultiLang">Multi-language support (English / Arabic)</label>
+          <label class="form-check-label" for="featMultiLang">{{ 'featMultiLanguage' | t }}</label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" formControlName="barcode" id="barcode">
-          <label class="form-check-label" for="barcode">Barcode reader</label>
+          <label class="form-check-label" for="barcode">{{ 'featBarcode' | t }}</label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" formControlName="reports" id="featReports">
-          <label class="form-check-label" for="featReports">Financial reports</label>
+          <label class="form-check-label" for="featReports">{{ 'featReports' | t }}</label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" formControlName="suppliers" id="featSuppliers">
-          <label class="form-check-label" for="featSuppliers">Suppliers &amp; Purchases management</label>
+          <label class="form-check-label" for="featSuppliers">{{ 'featSuppliers' | t }}</label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" formControlName="seedDemoData" id="featSeedDemo">
           <label class="form-check-label" for="featSeedDemo">
-            Seed demo data on first launch
-            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">runs once</span>
+            {{ 'featSeedDemoData' | t }}
+            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeRunsOnce' | t }}</span>
           </label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" formControlName="multiCurrency" id="featMultiCurrency">
           <label class="form-check-label" for="featMultiCurrency">
-            Multi-currency support (USD / SYP / SYP_OLD)
-            <span class="badge bg-info text-dark ms-1" style="font-size:0.65rem">default on</span>
+            {{ 'featMultiCurrency' | t }}
+            <span class="badge bg-info text-dark ms-1" style="font-size:0.65rem">{{ 'badgeDefaultOn' | t }}</span>
           </label>
         </div>
 
         <hr class="my-3">
-        <div class="text-muted small fw-semibold mb-2">Operations</div>
+        <div class="text-muted small fw-semibold mb-2">{{ 'sectionOperations' | t }}</div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="shifts" id="featShifts">
           <label class="form-check-label" for="featShifts">
-            Shift management (cashier sessions with opening/closing cash)
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featShifts' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
         </div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="clientLedger" id="featClientLedger">
           <label class="form-check-label" for="featClientLedger">
-            Client debt ledger (track unpaid sales &amp; record client payments)
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featClientLedger' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
         </div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="supplierLedger" id="featSupplierLedger">
           <label class="form-check-label" for="featSupplierLedger">
-            Supplier balance ledger (track credit purchases &amp; record supplier payments)
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featSupplierLedger' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
         </div>
 
         <hr class="my-3">
-        <div class="text-muted small fw-semibold mb-2">Reports &amp; Statements</div>
+        <div class="text-muted small fw-semibold mb-2">{{ 'sectionReportsStatements' | t }}</div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="accountStatement" id="featAccountStatement">
           <label class="form-check-label" for="featAccountStatement">
-            Client &amp; Supplier Account Statement page
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featAccountStatement' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
-          <div class="form-text ms-0 mt-1">
-            Adds the <strong>Account Statement</strong> nav link — per-client / per-supplier
-            balance history with opening balance, running balance, and date filters.
-          </div>
+          <div class="form-text ms-0 mt-1">{{ 'featAccountStatementHint' | t }}</div>
         </div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="itemLedger" id="featItemLedger">
           <label class="form-check-label" for="featItemLedger">
-            Item Ledger page
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featItemLedger' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
-          <div class="form-text ms-0 mt-1">
-            Adds the <strong>Item Ledger</strong> nav link — per-product movement history
-            (sales, purchases, stock adjustments) with opening &amp; closing on-hand qty.
-          </div>
+          <div class="form-text ms-0 mt-1">{{ 'featItemLedgerHint' | t }}</div>
         </div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="batchStocktake" id="featBatchStocktake">
           <label class="form-check-label" for="featBatchStocktake">
-            Batch stocktake / inventory reconciliation
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featBatchStocktake' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
-          <div class="form-text ms-0 mt-1">
-            Adds the <strong>تسوية الجرد المجمّعة</strong> page — enter actual on-hand
-            quantities for many products at once and post a single batch adjustment.
-            Differences are written as <code>MONTHLY_RECONCILIATION</code> stock
-            adjustments and flow into the wastage / inventory-gain P&amp;L lines.
-          </div>
+          <div class="form-text ms-0 mt-1">{{ 'featBatchStocktakeHint' | t }}</div>
         </div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="bulkPriceUpdate" id="featBulkPriceUpdate">
           <label class="form-check-label" for="featBulkPriceUpdate">
-            Bulk category price update
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featBulkPriceUpdate' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
-          <div class="form-text ms-0 mt-1">
-            Adds the <strong>تعديل أسعار قسم بالكامل</strong> action on the Products page —
-            increase or decrease every product in a category by a percentage or fixed amount,
-            with separate inputs per pricing currency (base USD vs fixed SYP cards, etc.).
-          </div>
+          <div class="form-text ms-0 mt-1">{{ 'featBulkPriceUpdateHint' | t }}</div>
         </div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="productRecipes" id="featProductRecipes">
           <label class="form-check-label" for="featProductRecipes">
-            Product recipes / BOM (F&amp;B)
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">optional</span>
+            {{ 'featProductRecipes' | t }}
+            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
           </label>
-          <div class="form-text ms-0 mt-1">
-            Enables <strong>composite products</strong> in the Product modal (e.g. Espresso built from
-            coffee beans + sugar). Selling a recipe deducts raw-material stock and rolls up cost
-            dynamically — the finished good does not track its own inventory.
-          </div>
+          <div class="form-text ms-0 mt-1">{{ 'featProductRecipesHint' | t }}</div>
         </div>
 
         <hr class="my-3">
-        <div class="text-muted small fw-semibold mb-2">Inventory &amp; Sales Behaviour</div>
+        <div class="text-muted small fw-semibold mb-2">{{ 'sectionInventorySales' | t }}</div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="fractionalQuantity" id="featFractionalQty">
           <label class="form-check-label" for="featFractionalQty">
-            Allow fractional quantities
-            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">e.g. 0.5 kg</span>
+            {{ 'featFractionalQuantity' | t }}
+            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeFractionalExample' | t }}</span>
           </label>
-          <div class="form-text ms-0 mt-1">
-            Enable for stores selling by weight or bulk (grocery, pharmacy).
-            <strong>Disable</strong> for stores selling whole units only (mobile phones, electronics)
-            — only whole-number quantities will be accepted at the POS and the "Calculate by Total" tool
-            will only allow adjusting the unit price, not the quantity.
-          </div>
+          <div class="form-text ms-0 mt-1">{{ 'featFractionalQuantityHint' | t }}</div>
         </div>
 
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" formControlName="multiCurrencyPricing" id="featMultiCurrencyPricing">
           <label class="form-check-label" for="featMultiCurrencyPricing">
-            Per-product pricing currency (fixed local pricing)
-            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">e.g. MTN cards in SYP</span>
+            {{ 'featMultiCurrencyPricing' | t }}
+            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeMtnExample' | t }}</span>
           </label>
-          <div class="form-text ms-0 mt-1">
-            Enable for stores selling products with <strong>fixed local-currency prices</strong>
-            (MTN / Syriatel top-up cards, voucher products, government-regulated SKUs) when
-            the system base currency is different (e.g. USD-based POS in Syria).
-            A new "Pricing Currency" dropdown appears on the Product modal so each SKU can be
-            locked to its native currency; the POS converts to base on the fly using the
-            invoice's currency rate so totals, profit, and the cash drawer stay coherent.
-            <strong>Leave off</strong> for stores that always price in the base currency.
-          </div>
+          <div class="form-text ms-0 mt-1">{{ 'featMultiCurrencyPricingHint' | t }}</div>
         </div>
       </div>
     </div>
 
-    <!-- Store Type & Base Currency -->
     <div class="row g-3 mb-4">
       <div class="col-md-6">
-        <label class="form-label fw-semibold">Store Type</label>
+        <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
         <select formControlName="storeType" class="form-select">
-          <option *ngFor="let t of storeTypes" [value]="t.value">{{ t.label }}</option>
+          @for (value of storeTypeValues; track value) {
+            <option [value]="value">{{ ('storeType.' + value) | t }}</option>
+          }
         </select>
-        <div class="form-text">
-          Used when "Seed demo data" is enabled — picks the matching sample dataset.
-        </div>
+        <div class="form-text">{{ 'storeTypeHint' | t }}</div>
       </div>
       <div class="col-md-6">
-        <label class="form-label fw-semibold">Base Currency</label>
+        <label class="form-label fw-semibold">{{ 'baseCurrency' | t }}</label>
         <select formControlName="baseCurrency" class="form-select">
-          <option *ngFor="let c of baseCurrencies" [value]="c.value">{{ c.label }}</option>
+          @for (value of baseCurrencyValues; track value) {
+            <option [value]="value">{{ ('baseCurrency.' + value) | t }}</option>
+          }
         </select>
-        <div class="form-text">
-          All prices (products, sales, purchases) are stored and reported in this currency.
-          Set to <strong>SYP</strong> for Syrian-market deployments.
-        </div>
+        <div class="form-text">{{ 'baseCurrencyHint' | t }}</div>
       </div>
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">Admin Credentials</h6>
+    <h6 class="text-muted mb-3">{{ 'adminCredentials' | t }}</h6>
     <div class="row g-3 mb-4">
       <div class="col-md-6">
-        <label class="form-label">Username</label>
-        <input formControlName="adminUsername" class="form-control font-monospace" placeholder="admin">
+        <label class="form-label">{{ 'username' | t }}</label>
+        <input formControlName="adminUsername" class="form-control font-monospace" [placeholder]="'usernamePlaceholder' | t">
       </div>
       <div class="col-md-6">
-        <label class="form-label">Password</label>
+        <label class="form-label">{{ 'password' | t }}</label>
         <div class="input-group">
           <input formControlName="adminPassword" class="form-control"
-                 [type]="passwordVisible ? 'text' : 'password'" placeholder="••••••••">
+                 [type]="passwordVisible ? 'text' : 'password'" [placeholder]="'passwordPlaceholder' | t">
           <button type="button" class="btn btn-outline-secondary"
                   (click)="passwordVisible = !passwordVisible">
-            {{ passwordVisible ? 'Hide' : 'Show' }}
+            {{ (passwordVisible ? 'hide' : 'show') | t }}
           </button>
         </div>
-        <div class="form-text">Seeded into the app database on first launch.</div>
+        <div class="form-text">{{ 'adminCredentialsHint' | t }}</div>
       </div>
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">Contact Information</h6>
+    <h6 class="text-muted mb-3">{{ 'contactInformation' | t }}</h6>
     <div class="row g-3 mb-4">
       <div class="col-md-6">
-        <label class="form-label">Phone</label>
-        <input formControlName="phone" class="form-control" placeholder="+963 912 345 678">
+        <label class="form-label">{{ 'phone' | t }}</label>
+        <input formControlName="phone" class="form-control" [placeholder]="'phonePlaceholder' | t">
       </div>
       <div class="col-md-6">
-        <label class="form-label">Email</label>
-        <input formControlName="email" class="form-control" type="email" placeholder="contact@client.com">
+        <label class="form-label">{{ 'email' | t }}</label>
+        <input formControlName="email" class="form-control" type="email" [placeholder]="'emailPlaceholder' | t">
       </div>
       <div class="col-12">
-        <label class="form-label">Point of Contact</label>
-        <input formControlName="pointOfContact" class="form-control" placeholder="Mohammad Al-Ahmad">
+        <label class="form-label">{{ 'pointOfContact' | t }}</label>
+        <input formControlName="pointOfContact" class="form-control" [placeholder]="'pointOfContactPlaceholder' | t">
       </div>
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">Build Settings</h6>
+    <h6 class="text-muted mb-3">{{ 'buildSettings' | t }}</h6>
     <div class="row g-3 mb-4">
       <div class="col-md-6">
-        <label class="form-label fw-semibold">Default Build Target</label>
+        <label class="form-label fw-semibold">{{ 'defaultBuildTarget' | t }}</label>
         <select formControlName="defaultBuildTarget" class="form-select">
-          <option value="win">Windows 10/11 (.exe)</option>
-          <option value="win7">Windows 7/8 (.exe) — Electron 22</option>
-          <option value="mac">macOS (.dmg)</option>
-          <option value="linux">Linux (.AppImage)</option>
+          @for (value of buildTargetValues; track value) {
+            <option [value]="value">{{ ('buildTarget.' + value) | t }}</option>
+          }
         </select>
-        <div class="form-text">This is the pre-selected platform when triggering a build for this client.</div>
+        <div class="form-text">{{ 'defaultBuildTargetHint' | t }}</div>
       </div>
     </div>
 
     <hr>
-    <h6 class="text-muted mb-3">Footer</h6>
+    <h6 class="text-muted mb-3">{{ 'footer' | t }}</h6>
 
     <div class="row g-3 mb-4">
       <div class="col-md-6">
-        <label class="form-label">Developer Name</label>
-        <input formControlName="footerDeveloper" class="form-control" placeholder="Eng. Ali Shaaban">
+        <label class="form-label">{{ 'developerName' | t }}</label>
+        <input formControlName="footerDeveloper" class="form-control" [placeholder]="'developerNamePlaceholder' | t">
       </div>
       <div class="col-md-6">
-        <label class="form-label">Developer URL</label>
-        <input formControlName="footerUrl" class="form-control" placeholder="https://linkedin.com/in/...">
+        <label class="form-label">{{ 'developerUrl' | t }}</label>
+        <input formControlName="footerUrl" class="form-control" [placeholder]="'developerUrlPlaceholder' | t">
       </div>
     </div>
 
     <div class="d-flex gap-2">
       <button type="submit" class="btn btn-primary" [disabled]="form.invalid || saving">
-        {{ saving ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Create Client') }}
+        @if (saving) {
+          {{ 'saving' | t }}
+        } @else {
+          {{ (isEditMode ? 'saveChanges' : 'createClient') | t }}
+        }
       </button>
-      <a routerLink="/clients" class="btn btn-outline-secondary">Cancel</a>
+      <a routerLink="/clients" class="btn btn-outline-secondary">{{ 'cancel' | t }}</a>
     </div>
 
   </form>
 </div>
+}
