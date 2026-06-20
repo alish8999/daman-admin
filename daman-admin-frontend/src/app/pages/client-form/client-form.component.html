@@ -153,6 +153,34 @@
     <hr>
     <h6 class="text-muted mb-3">{{ 'appFeatures' | t }}</h6>
     <p class="text-muted small mb-3">{{ 'appFeaturesHint' | t }}</p>
+
+    <label class="form-label fw-semibold">{{ 'choosePackage' | t }}</label>
+    <p class="text-muted small mb-2">{{ 'choosePackageHint' | t }}</p>
+    <div class="row g-2 mb-2">
+      @for (tier of packageTiers; track tier) {
+        <div class="col-md-4">
+          <button type="button"
+                  class="btn w-100 h-100 text-start p-3"
+                  [class.btn-primary]="selectedTier === tier"
+                  [class.btn-outline-secondary]="selectedTier !== tier"
+                  (click)="selectPackage(tier)">
+            <div class="fw-bold d-flex align-items-center gap-2">
+              {{ ('package.' + tier) | t }}
+              @if (selectedTier === tier) {
+                <span>✓</span>
+              }
+            </div>
+            <div class="small opacity-75">{{ ('packageDesc.' + tier) | t }}</div>
+          </button>
+        </div>
+      }
+    </div>
+    @if (selectedTier === null) {
+      <p class="text-muted small mb-3">{{ 'packageCustom' | t }}</p>
+    } @else {
+      <div class="mb-3"></div>
+    }
+
     <div formGroupName="features" class="row g-2 mb-4">
       <div class="col-12">
         <div class="form-check">

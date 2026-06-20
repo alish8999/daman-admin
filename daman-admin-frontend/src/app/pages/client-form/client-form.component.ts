@@ -7,6 +7,8 @@ import { ClientService } from '../../services/client.service';
 import { TranslationService } from '../../services/translation.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 
+type PackageTier = 'basic' | 'pro' | 'ultimate';
+
 @Component({
   selector: 'app-client-form',
   standalone: true,
@@ -24,6 +26,30 @@ export class ClientFormComponent implements OnInit {
   readonly storeTypeValues = ['mobile', 'grocery', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
   readonly baseCurrencyValues = ['USD', 'SYP', 'SYP_OLD'];
   readonly buildTargetValues = ['win', 'win7', 'mac', 'linux'];
+
+  /** Selectable package tiers, shown as preset cards above the feature toggles. */
+  readonly packageTiers: readonly PackageTier[] = ['basic', 'pro', 'ultimate'];
+
+  /** Every feature flag key, in the order they appear in the form. */
+  private readonly featureKeys = [
+    'multiLanguage', 'barcode', 'reports', 'suppliers', 'seedDemoData', 'multiCurrency',
+    'shifts', 'clientLedger', 'supplierLedger', 'fractionalQuantity', 'multiCurrencyPricing',
+    'accountStatement', 'itemLedger', 'batchStocktake', 'bulkPriceUpdate', 'productRecipes'
+  ];
+
+  /**
+   * Features turned ON for each tier (cumulative: pro ⊇ basic, ultimate ⊇ pro).
+   * Any key not listed is forced OFF when a package is applied. `seedDemoData`
+   * is deliberately excluded — it is a one-time dev/demo toggle, not a tier feature.
+   */
+  private readonly packagePresets: Record<PackageTier, string[]> = {
+    basic: ['multiLanguage', 'suppliers', 'clientLedger', 'supplierLedger', 'fractionalQuantity'],
+    pro: ['multiLanguage', 'suppliers', 'clientLedger', 'supplierLedger', 'fractionalQuantity',
+          'barcode', 'reports', 'multiCurrency'],
+    ultimate: ['multiLanguage', 'suppliers', 'clientLedger', 'supplierLedger', 'fractionalQuantity',
+               'barcode', 'reports', 'multiCurrency', 'shifts', 'accountStatement', 'itemLedger',
+               'batchStocktake', 'bulkPriceUpdate', 'multiCurrencyPricing', 'productRecipes']
+  };
 
   readonly colorFields = [
     { key: 'colorPrimary', labelKey: 'colorPrimary' },
@@ -123,6 +149,39 @@ export class ClientFormComponent implements OnInit {
         });
       });
     }
+  }
+
+  /**
+   * Applies a package preset to the feature toggles. Features in the tier are
+   * turned ON, all others (except `seedDemoData`) OFF. The toggles remain fully
+   * editable afterward, so the user can opt into extra features on top of a tier.
+   */
+  selectPackage(tier: PackageTier): void {
+    const on = new Set(this.packagePresets[tier]);
+    const features = this.form.get('features') as FormGroup;
+    for (const key of this.featureKeys) {
+      if (key === 'seedDemoData') continue;
+      features.get(key)?.setValue(on.has(key));
+    }
+    features.markAsDirty();
+  }
+
+  /**
+   * The tier whose preset exactly matches the current toggles, or `null` when
+   * the selection is custom. `seedDemoData` is ignored in the comparison.
+   * Used to highlight the active package card in the template.
+   */
+  get selectedTier(): PackageTier | null {
+    const features = this.form?.get('features') as FormGroup | null;
+    if (!features) return null;
+    for (const tier of this.packageTiers) {
+      const on = new Set(this.packagePresets[tier]);
+      const matches = this.featureKeys.every(key =>
+        key === 'seedDemoData' || !!features.get(key)?.value === on.has(key)
+      );
+      if (matches) return tier;
+    }
+    return null;
   }
 
   onImageUpload(field: string, event: Event): void {
