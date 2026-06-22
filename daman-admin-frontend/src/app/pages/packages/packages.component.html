@@ -1,0 +1,57 @@
+@if (translationService.getLanguage$() | async) {
+<div class="container py-4" style="max-width: 920px">
+  <div class="d-flex align-items-center mb-3 gap-3">
+    <h4 class="mb-0">{{ 'navPackages' | t }}</h4>
+    <a routerLink="/clients" class="btn btn-sm btn-outline-secondary ms-auto">&larr; {{ 'back' | t }}</a>
+  </div>
+
+  <p class="text-muted small mb-3">{{ 'packagesPageHint' | t }}</p>
+
+  @if (error) {
+    <div class="alert alert-warning">{{ error }}</div>
+  }
+  @if (saved) {
+    <div class="alert alert-success py-2">{{ 'packagesSaved' | t }}</div>
+  }
+
+  @if (loading) {
+    <div class="text-muted">{{ 'loading' | t }}</div>
+  } @else {
+    <div class="table-responsive bg-white rounded shadow-sm">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width: 320px">{{ 'feature' | t }}</th>
+            @for (pkg of defs.packages; track pkg.key) {
+              <th class="text-center">{{ ('package.' + pkg.key) | t }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (feat of featureKeys; track feat) {
+            <tr>
+              <td>{{ featLabelKey(feat) | t }}</td>
+              @for (pkg of defs.packages; track pkg.key) {
+                <td class="text-center">
+                  <input type="checkbox" class="form-check-input"
+                         [checked]="hasFeature(pkg.key, feat)"
+                         (change)="toggleFeature(pkg.key, feat, $any($event.target).checked)">
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex gap-2 mt-3">
+      <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">
+        {{ (saving ? 'saving' : 'saveChanges') | t }}
+      </button>
+      <button type="button" class="btn btn-outline-secondary" (click)="resetDefaults()">
+        {{ 'resetDefaults' | t }}
+      </button>
+    </div>
+  }
+</div>
+}

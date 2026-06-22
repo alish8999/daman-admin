@@ -6,8 +6,8 @@ import { AsyncPipe } from '@angular/common';
 import { ClientService } from '../../services/client.service';
 import { TranslationService } from '../../services/translation.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-
-type PackageTier = 'basic' | 'pro' | 'ultimate';
+import { PackageService } from '../../services/package.service';
+import { PackageDef, DEFAULT_PACKAGE_DEFINITIONS } from '../../models/package-definition.model';
 
 @Component({
   selector: 'app-client-form',
@@ -27,8 +27,13 @@ export class ClientFormComponent implements OnInit {
   readonly baseCurrencyValues = ['USD', 'SYP', 'SYP_OLD'];
   readonly buildTargetValues = ['win', 'win7', 'mac', 'linux'];
 
-  /** Selectable package tiers, shown as preset cards above the feature toggles. */
-  readonly packageTiers: readonly PackageTier[] = ['basic', 'pro', 'ultimate'];
+  /**
+   * Package presets shown as cards above the feature toggles. Loaded from the
+   * admin Packages settings; falls back to the built-in defaults if the API is
+   * unreachable. The card iterates this list and uses `package.<key>` /
+   * `packageDesc.<key>` translation keys for display.
+   */
+  packageDefs: PackageDef[] = DEFAULT_PACKAGE_DEFINITIONS.packages;
 
   /** Every feature flag key, in the order they appear in the form. */
   private readonly featureKeys = [
@@ -36,20 +41,6 @@ export class ClientFormComponent implements OnInit {
     'shifts', 'clientLedger', 'supplierLedger', 'fractionalQuantity', 'multiCurrencyPricing',
     'accountStatement', 'itemLedger', 'batchStocktake', 'bulkPriceUpdate', 'productRecipes'
   ];
-
-  /**
-   * Features turned ON for each tier (cumulative: pro ⊇ basic, ultimate ⊇ pro).
-   * Any key not listed is forced OFF when a package is applied. `seedDemoData`
-   * is deliberately excluded — it is a one-time dev/demo toggle, not a tier feature.
-   */
-  private readonly packagePresets: Record<PackageTier, string[]> = {
-    basic: ['multiLanguage', 'suppliers', 'clientLedger', 'supplierLedger', 'fractionalQuantity'],
-    pro: ['multiLanguage', 'suppliers', 'clientLedger', 'supplierLedger', 'fractionalQuantity',
-          'barcode', 'reports', 'multiCurrency'],
-    ultimate: ['multiLanguage', 'suppliers', 'clientLedger', 'supplierLedger', 'fractionalQuantity',
-               'barcode', 'reports', 'multiCurrency', 'shifts', 'accountStatement', 'itemLedger',
-               'batchStocktake', 'bulkPriceUpdate', 'multiCurrencyPricing', 'productRecipes']
-  };
 
   readonly colorFields = [
     { key: 'colorPrimary', labelKey: 'colorPrimary' },
@@ -65,6 +56,7 @@ export class ClientFormComponent implements OnInit {
     private clientService: ClientService,
     private route: ActivatedRoute,
     private router: Router,
+    private packageService: PackageService,
     public translationService: TranslationService
   ) {}
 
@@ -114,6 +106,13 @@ export class ClientFormComponent implements OnInit {
     });
     this.passwordVisible = false;
 
+    // Load package presets from the admin Packages settings; keep built-in
+    // defaults if the request fails.
+    this.packageService.getDefinitions().subscribe({
+      next: (d) => { if (d?.packages?.length) this.packageDefs = d.packages; },
+      error: () => { /* keep DEFAULT_PACKAGE_DEFINITIONS */ }
+    });
+
     this.clientCode = this.route.snapshot.paramMap.get('clientCode');
     this.isEditMode = !!this.clientCode;
 
@@ -156,12 +155,13 @@ export class ClientFormComponent implements OnInit {
    * turned ON, all others (except `seedDemoData`) OFF. The toggles remain fully
    * editable afterward, so the user can opt into extra features on top of a tier.
    */
-  selectPackage(tier: PackageTier): void {
-    const on = new Set(this.packagePresets[tier]);
+  selectPackage(key: string): void {
+    const def = this.packageDefs.find(p => p.key === key);
+    const on = new Set(def?.features ?? []);
     const features = this.form.get('features') as FormGroup;
-    for (const key of this.featureKeys) {
-      if (key === 'seedDemoData') continue;
-      features.get(key)?.setValue(on.has(key));
+    for (const k of this.featureKeys) {
+      if (k === 'seedDemoData') continue;
+      features.get(k)?.setValue(on.has(k));
     }
     features.markAsDirty();
   }
@@ -171,15 +171,15 @@ export class ClientFormComponent implements OnInit {
    * the selection is custom. `seedDemoData` is ignored in the comparison.
    * Used to highlight the active package card in the template.
    */
-  get selectedTier(): PackageTier | null {
+  get selectedTier(): string | null {
     const features = this.form?.get('features') as FormGroup | null;
     if (!features) return null;
-    for (const tier of this.packageTiers) {
-      const on = new Set(this.packagePresets[tier]);
+    for (const def of this.packageDefs) {
+      const on = new Set(def.features);
       const matches = this.featureKeys.every(key =>
         key === 'seedDemoData' || !!features.get(key)?.value === on.has(key)
       );
-      if (matches) return tier;
+      if (matches) return def.key;
     }
     return null;
   }
