@@ -17,7 +17,8 @@ export interface PackageDefinitions {
 export const PACKAGE_FEATURE_KEYS: readonly string[] = [
   'multiLanguage', 'barcode', 'reports', 'suppliers', 'multiCurrency',
   'shifts', 'clientLedger', 'supplierLedger', 'fractionalQuantity', 'multiCurrencyPricing',
-  'accountStatement', 'itemLedger', 'batchStocktake', 'bulkPriceUpdate', 'productRecipes'
+  'accountStatement', 'itemLedger', 'batchStocktake', 'bulkPriceUpdate', 'productRecipes',
+  'manufacturing'
 ];
 
 /** Fallback used when the API is unreachable — mirrors the backend seed defaults. */
@@ -38,7 +39,7 @@ export const DEFAULT_PACKAGE_DEFINITIONS: PackageDefinitions = {
       features: ['multiLanguage', 'suppliers', 'clientLedger', 'supplierLedger', 'fractionalQuantity',
         'barcode', 'reports', 'multiCurrency',
         'accountStatement', 'itemLedger', 'batchStocktake', 'bulkPriceUpdate', 'multiCurrencyPricing',
-        'shifts', 'productRecipes']
+        'shifts', 'productRecipes', 'manufacturing']
     }
   ]
 };

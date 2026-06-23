@@ -44,6 +44,11 @@ public class ClientFeaturesJson {
      * backflush raw-material stock on sale. Default: off — opt-in per client.
      */
     private boolean productRecipes;
+    /**
+     * Manufacturing orders (batch / make-to-stock). Lets recipe products be
+     * pre-produced to stock and sold from finished-good inventory. Default: off.
+     */
+    private boolean manufacturing;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

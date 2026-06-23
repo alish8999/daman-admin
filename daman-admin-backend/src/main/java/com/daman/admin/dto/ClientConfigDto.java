@@ -61,5 +61,7 @@ public class ClientConfigDto {
         private boolean bulkPriceUpdate;
         /** BOM / recipe products for F&B. */
         private boolean productRecipes;
+        /** Manufacturing orders (batch / make-to-stock production). */
+        private boolean manufacturing;
     }
 }

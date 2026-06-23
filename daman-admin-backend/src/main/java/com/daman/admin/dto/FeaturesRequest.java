@@ -26,4 +26,6 @@ public class FeaturesRequest {
     private Boolean bulkPriceUpdate;
     /** BOM / recipe products for F&B — composite items backflush raw materials. */
     private Boolean productRecipes;
+    /** Manufacturing orders (batch / make-to-stock production). */
+    private Boolean manufacturing;
 }

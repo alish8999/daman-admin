@@ -43,6 +43,12 @@ export interface ClientFeatures {
    * Default: false — opt-in per client via admin dashboard.
    */
   productRecipes?: boolean;
+  /**
+   * Manufacturing Orders (batch / make-to-stock production). Lets recipe products
+   * be pre-produced to stock and sold from finished-good inventory instead of
+   * exploding the BOM at sale time. Default: false — opt-in per client.
+   */
+  manufacturing?: boolean;
 }
 
 export interface ClientConfig {
