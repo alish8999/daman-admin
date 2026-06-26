@@ -49,6 +49,10 @@ public class ClientFeaturesJson {
      * pre-produced to stock and sold from finished-good inventory. Default: off.
      */
     private boolean manufacturing;
+    /** User & Permissions management in Settings (admin assigns per-user flags). Default: off — ultimate tier. */
+    private boolean userManagement;
+    /** Invoice Settings card in Settings (phones, address, tax number on invoice). Default: off — pro tier. */
+    private boolean invoiceSettings;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

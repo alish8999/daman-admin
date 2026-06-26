@@ -40,7 +40,7 @@ export class ClientFormComponent implements OnInit {
     'multiLanguage', 'barcode', 'reports', 'suppliers', 'seedDemoData', 'multiCurrency',
     'shifts', 'clientLedger', 'supplierLedger', 'fractionalQuantity', 'multiCurrencyPricing',
     'accountStatement', 'itemLedger', 'batchStocktake', 'bulkPriceUpdate', 'productRecipes',
-    'manufacturing'
+    'manufacturing', 'userManagement', 'invoiceSettings'
   ];
 
   readonly colorFields = [
@@ -103,7 +103,9 @@ export class ClientFormComponent implements OnInit {
         batchStocktake:       [false],
         bulkPriceUpdate:      [false],
         productRecipes:       [false],
-        manufacturing:        [false]
+        manufacturing:        [false],
+        userManagement:       [false],
+        invoiceSettings:      [false]
       })
     });
     this.passwordVisible = false;
@@ -146,7 +148,9 @@ export class ClientFormComponent implements OnInit {
             batchStocktake:       client.features?.batchStocktake       ?? false,
             bulkPriceUpdate:      client.features?.bulkPriceUpdate      ?? false,
             productRecipes:       client.features?.productRecipes       ?? false,
-            manufacturing:        client.features?.manufacturing        ?? false
+            manufacturing:        client.features?.manufacturing        ?? false,
+            userManagement:       client.features?.userManagement       ?? false,
+            invoiceSettings:      client.features?.invoiceSettings      ?? false
           }
         });
       });

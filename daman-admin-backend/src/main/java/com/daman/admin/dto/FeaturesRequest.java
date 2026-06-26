@@ -28,4 +28,8 @@ public class FeaturesRequest {
     private Boolean productRecipes;
     /** Manufacturing orders (batch / make-to-stock production). */
     private Boolean manufacturing;
+    /** User & Permissions management in Settings. */
+    private Boolean userManagement;
+    /** Invoice Settings card in Settings. */
+    private Boolean invoiceSettings;
 }

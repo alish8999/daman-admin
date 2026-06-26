@@ -63,5 +63,9 @@ public class ClientConfigDto {
         private boolean productRecipes;
         /** Manufacturing orders (batch / make-to-stock production). */
         private boolean manufacturing;
+        /** User & Permissions management in Settings. */
+        private boolean userManagement;
+        /** Invoice Settings card in Settings. */
+        private boolean invoiceSettings;
     }
 }

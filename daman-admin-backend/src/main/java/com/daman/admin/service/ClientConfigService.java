@@ -175,6 +175,8 @@ public class ClientConfigService {
             if (patch.getBulkPriceUpdate()      != null) f.setBulkPriceUpdate(patch.getBulkPriceUpdate());
             if (patch.getProductRecipes()       != null) f.setProductRecipes(patch.getProductRecipes());
             if (patch.getManufacturing()        != null) f.setManufacturing(patch.getManufacturing());
+            if (patch.getUserManagement()       != null) f.setUserManagement(patch.getUserManagement());
+            if (patch.getInvoiceSettings()      != null) f.setInvoiceSettings(patch.getInvoiceSettings());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -203,6 +205,8 @@ public class ClientConfigService {
                 .bulkPriceUpdate(f.isBulkPriceUpdate())
                 .productRecipes(f.isProductRecipes())
                 .manufacturing(f.isManufacturing())
+                .userManagement(f.isUserManagement())
+                .invoiceSettings(f.isInvoiceSettings())
                 .build();
     }
 
@@ -226,6 +230,8 @@ public class ClientConfigService {
                 .bulkPriceUpdate(f.isBulkPriceUpdate())
                 .productRecipes(f.isProductRecipes())
                 .manufacturing(f.isManufacturing())
+                .userManagement(f.isUserManagement())
+                .invoiceSettings(f.isInvoiceSettings())
                 .build();
     }
 

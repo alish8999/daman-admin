@@ -49,6 +49,16 @@ export interface ClientFeatures {
    * exploding the BOM at sale time. Default: false — opt-in per client.
    */
   manufacturing?: boolean;
+  /**
+   * User & Permissions management in Settings — lets the admin assign per-user
+   * permission flags. Default: false — opt-in per client (ultimate tier).
+   */
+  userManagement?: boolean;
+  /**
+   * Invoice Settings card in Settings — configure contact details printed on
+   * every invoice. Default: false — opt-in per client (pro tier).
+   */
+  invoiceSettings?: boolean;
 }
 
 export interface ClientConfig {
