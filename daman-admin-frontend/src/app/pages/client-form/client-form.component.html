@@ -151,6 +151,44 @@
     </div>
 
     <hr>
+    <h6 class="text-muted mb-3">{{ 'contactInformation' | t }}</h6>
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label">{{ 'phone' | t }}</label>
+        <input formControlName="phone" class="form-control" [placeholder]="'phonePlaceholder' | t">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ 'email' | t }}</label>
+        <input formControlName="email" class="form-control" type="email" [placeholder]="'emailPlaceholder' | t">
+      </div>
+      <div class="col-12">
+        <label class="form-label">{{ 'pointOfContact' | t }}</label>
+        <input formControlName="pointOfContact" class="form-control" [placeholder]="'pointOfContactPlaceholder' | t">
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
+        <select formControlName="storeType" class="form-select">
+          @for (value of storeTypeValues; track value) {
+            <option [value]="value">{{ ('storeType.' + value) | t }}</option>
+          }
+        </select>
+        <div class="form-text">{{ 'storeTypeHint' | t }}</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">{{ 'baseCurrency' | t }}</label>
+        <select formControlName="baseCurrency" class="form-select">
+          @for (value of baseCurrencyValues; track value) {
+            <option [value]="value">{{ ('baseCurrency.' + value) | t }}</option>
+          }
+        </select>
+        <div class="form-text">{{ 'baseCurrencyHint' | t }}</div>
+      </div>
+    </div>
+
+    <hr>
     <h6 class="text-muted mb-3">{{ 'appFeatures' | t }}</h6>
     <p class="text-muted small mb-3">{{ 'appFeaturesHint' | t }}</p>
 
@@ -321,27 +359,6 @@
       </div>
     </div>
 
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
-        <select formControlName="storeType" class="form-select">
-          @for (value of storeTypeValues; track value) {
-            <option [value]="value">{{ ('storeType.' + value) | t }}</option>
-          }
-        </select>
-        <div class="form-text">{{ 'storeTypeHint' | t }}</div>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">{{ 'baseCurrency' | t }}</label>
-        <select formControlName="baseCurrency" class="form-select">
-          @for (value of baseCurrencyValues; track value) {
-            <option [value]="value">{{ ('baseCurrency.' + value) | t }}</option>
-          }
-        </select>
-        <div class="form-text">{{ 'baseCurrencyHint' | t }}</div>
-      </div>
-    </div>
-
     <hr>
     <h6 class="text-muted mb-3">{{ 'adminCredentials' | t }}</h6>
     <div class="row g-3 mb-4">
@@ -360,23 +377,6 @@
           </button>
         </div>
         <div class="form-text">{{ 'adminCredentialsHint' | t }}</div>
-      </div>
-    </div>
-
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'contactInformation' | t }}</h6>
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label">{{ 'phone' | t }}</label>
-        <input formControlName="phone" class="form-control" [placeholder]="'phonePlaceholder' | t">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">{{ 'email' | t }}</label>
-        <input formControlName="email" class="form-control" type="email" [placeholder]="'emailPlaceholder' | t">
-      </div>
-      <div class="col-12">
-        <label class="form-label">{{ 'pointOfContact' | t }}</label>
-        <input formControlName="pointOfContact" class="form-control" [placeholder]="'pointOfContactPlaceholder' | t">
       </div>
     </div>
 
