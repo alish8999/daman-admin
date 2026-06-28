@@ -1,442 +1,985 @@
 @if (translationService.getLanguage$() | async) {
-<div class="container py-4" style="max-width: 720px">
-  <div class="d-flex align-items-center mb-4 gap-3">
+<div class="container-fluid py-4" style="max-width: 960px">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h4 class="mb-1">{{ (isEditMode ? 'editClient' : 'newClient') | t }}</h4>
+      @if (isEditMode) {
+        <p class="text-muted small mb-0 font-monospace">{{ clientCode }}</p>
+      }
+    </div>
     <a routerLink="/clients" class="btn btn-sm btn-outline-secondary">&larr; {{ 'back' | t }}</a>
-    <h4 class="mb-0">{{ (isEditMode ? 'editClient' : 'newClient') | t }}</h4>
   </div>
 
   @if (error) {
-    <div class="alert alert-warning">{{ error }}</div>
+    <div class="alert alert-warning mb-3">{{ error }}</div>
   }
 
-  <form [formGroup]="form" (ngSubmit)="save()" class="bg-white rounded shadow-sm p-4">
+  <!-- ── Tab Nav ──────────────────────────────────────────────────────────── -->
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <button type="button" class="nav-link" [class.active]="activeTab === 'business'" (click)="switchTab('business')">
+        <i class="bi bi-building me-1"></i>{{ 'tabBusiness' | t }}
+      </button>
+    </li>
+    <li class="nav-item">
+      <button type="button" class="nav-link" [class.active]="activeTab === 'branding'" (click)="switchTab('branding')">
+        <i class="bi bi-palette me-1"></i>{{ 'tabBranding' | t }}
+      </button>
+    </li>
+    <li class="nav-item">
+      <button type="button" class="nav-link" [class.active]="activeTab === 'features'" (click)="switchTab('features')">
+        <i class="bi bi-toggles me-1"></i>{{ 'tabFeatures' | t }}
+      </button>
+    </li>
+    @if (isEditMode) {
+      <li class="nav-item">
+        <button type="button" class="nav-link" [class.active]="activeTab === 'billing'" (click)="switchTab('billing')">
+          <i class="bi bi-receipt me-1"></i>{{ 'tabBilling' | t }}
+        </button>
+      </li>
+      <li class="nav-item">
+        <button type="button" class="nav-link" [class.active]="activeTab === 'license'" (click)="switchTab('license')">
+          <i class="bi bi-key me-1"></i>{{ 'tabLicense' | t }}
+        </button>
+      </li>
+    }
+  </ul>
 
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">{{ 'clientCode' | t }}</label>
-        <input formControlName="clientCode" class="form-control font-monospace"
-               [placeholder]="'clientCodePlaceholder' | t" [class.bg-light]="isEditMode">
-        <div class="form-text">{{ 'clientCodeHint' | t }}</div>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">{{ 'appName' | t }}</label>
-        <input formControlName="appName" class="form-control" [placeholder]="'appNamePlaceholder' | t">
-      </div>
-      <div class="col-12">
-        <label class="form-label fw-semibold">{{ 'tagline' | t }}</label>
-        <input formControlName="tagline" class="form-control" [placeholder]="'taglinePlaceholder' | t">
-      </div>
-    </div>
+  <!-- ══════════════════════════════════════════════════════════════════════
+       FORM — contains Business, Branding, Features tabs
+       ══════════════════════════════════════════════════════════════════════ -->
+  <form [formGroup]="form" (ngSubmit)="save()">
 
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'branding' | t }}</h6>
+    <!-- ════════════════════════════════════════════════════════════════════
+         TAB 1 — Business & Billing
+         ════════════════════════════════════════════════════════════════════ -->
+    <div [hidden]="activeTab !== 'business'">
 
-    <div class="row g-3 mb-4">
+      <div class="bg-white rounded shadow-sm p-4 mb-4">
 
-      <div class="col-md-6">
-        <label class="form-label">{{ 'logoDark' | t }}</label>
-        <div class="upload-preview-box bg-dark rounded mb-2">
-          @if (isDataUrl(form.get('logoDark')?.value)) {
-            <img [src]="form.get('logoDark')?.value" [alt]="'logoDark' | t" class="upload-preview-img">
-          } @else {
-            <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
-          }
-        </div>
-        <div class="d-flex gap-2">
-          <label class="btn btn-sm btn-outline-secondary mb-0">
-            {{ 'upload' | t }}
-            <input type="file" accept="image/*" hidden (change)="onImageUpload('logoDark', $event)">
-          </label>
-          <input formControlName="logoDark" class="form-control form-control-sm font-monospace"
-                 [placeholder]="'logoDarkPlaceholder' | t">
-        </div>
-      </div>
-
-      <div class="col-md-6">
-        <label class="form-label">{{ 'logoLight' | t }}</label>
-        <div class="upload-preview-box bg-light border rounded mb-2">
-          @if (isDataUrl(form.get('logoLight')?.value)) {
-            <img [src]="form.get('logoLight')?.value" [alt]="'logoLight' | t" class="upload-preview-img">
-          } @else {
-            <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
-          }
-        </div>
-        <div class="d-flex gap-2">
-          <label class="btn btn-sm btn-outline-secondary mb-0">
-            {{ 'upload' | t }}
-            <input type="file" accept="image/*" hidden (change)="onImageUpload('logoLight', $event)">
-          </label>
-          <input formControlName="logoLight" class="form-control form-control-sm font-monospace"
-                 [placeholder]="'logoLightPlaceholder' | t">
-        </div>
-      </div>
-
-      <div class="col-md-6">
-        <label class="form-label">{{ 'favicon' | t }}</label>
-        <div class="upload-preview-box bg-light border rounded mb-2" style="height: 60px">
-          @if (isDataUrl(form.get('favicon')?.value)) {
-            <img [src]="form.get('favicon')?.value" [alt]="'favicon' | t" style="width:32px;height:32px;object-fit:contain">
-          } @else {
-            <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
-          }
-        </div>
-        <div class="d-flex gap-2">
-          <label class="btn btn-sm btn-outline-secondary mb-0">
-            {{ 'upload' | t }}
-            <input type="file" accept="image/x-icon,image/png,image/svg+xml" hidden (change)="onImageUpload('favicon', $event)">
-          </label>
-          <input formControlName="favicon" class="form-control form-control-sm font-monospace"
-                 [placeholder]="'faviconPlaceholder' | t">
-        </div>
-      </div>
-
-    </div>
-
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'themeColors' | t }}</h6>
-
-    <div class="row g-3 mb-4">
-      @for (field of colorFields; track field.key) {
-        <div class="col-md-4">
-          <label class="form-label">{{ field.labelKey | t }}</label>
-          <div class="color-input-group">
-            <input type="color" [formControlName]="field.key" class="form-control form-control-color">
-            <input type="text" [formControlName]="field.key" class="form-control font-monospace"
-                   [placeholder]="'colorHexPlaceholder' | t">
+        <!-- App Info -->
+        <h6 class="text-muted mb-3">{{ 'appInfo' | t }}</h6>
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'clientCode' | t }}</label>
+            <input formControlName="clientCode" class="form-control font-monospace"
+                   [placeholder]="'clientCodePlaceholder' | t" [class.bg-light]="isEditMode">
+            <div class="form-text">{{ 'clientCodeHint' | t }}</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'appName' | t }}</label>
+            <input formControlName="appName" class="form-control" [placeholder]="'appNamePlaceholder' | t">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'tagline' | t }}</label>
+            <input formControlName="tagline" class="form-control" [placeholder]="'taglinePlaceholder' | t">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
+            <select formControlName="storeType" class="form-select">
+              @for (value of storeTypeValues; track value) {
+                <option [value]="value">{{ ('storeType.' + value) | t }}</option>
+              }
+            </select>
+            <div class="form-text">{{ 'storeTypeHint' | t }}</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'baseCurrency' | t }}</label>
+            <select formControlName="baseCurrency" class="form-select">
+              @for (value of baseCurrencyValues; track value) {
+                <option [value]="value">{{ ('baseCurrency.' + value) | t }}</option>
+              }
+            </select>
+            <div class="form-text">{{ 'baseCurrencyHint' | t }}</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'defaultBuildTarget' | t }}</label>
+            <select formControlName="defaultBuildTarget" class="form-select">
+              @for (value of buildTargetValues; track value) {
+                <option [value]="value">{{ ('buildTarget.' + value) | t }}</option>
+              }
+            </select>
+            <div class="form-text">{{ 'defaultBuildTargetHint' | t }}</div>
           </div>
         </div>
-      }
-    </div>
 
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'dashboard' | t }}</h6>
+      </div><!-- /app info card -->
 
-    <div class="row g-3 mb-4">
-      <div class="col-12">
-        <label class="form-label fw-semibold">{{ 'dashboardHeaderImage' | t }}</label>
-        <p class="text-muted small mb-2">{{ 'dashboardHeaderImageHint' | t }}</p>
+      <!-- ── Client Status Card ─────────────────────────────────────────────── -->
+      <div class="bg-white rounded shadow-sm p-4 mb-4">
+        <h6 class="fw-semibold mb-3">{{ 'clientStatusSection' | t }}</h6>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'packageTier' | t }}</label>
+            <select formControlName="packageTier" class="form-select">
+              <option value="">—</option>
+              @for (v of packageTierValues; track v) {
+                <option [value]="v">{{ v }}</option>
+              }
+            </select>
+            <div class="form-text">{{ 'packageTierHint' | t }}</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'clientStatus' | t }}</label>
+            <select formControlName="clientStatus" class="form-select">
+              <option value="">—</option>
+              @for (v of clientStatusValues; track v) {
+                <option [value]="v">{{ v }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-4">
+            <!-- filler for future fields -->
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">{{ 'clientNotes' | t }}</label>
+            <textarea formControlName="clientNotes" class="form-control" rows="2"
+                      [placeholder]="'clientNotesPlaceholder' | t"></textarea>
+            <div class="form-text">{{ 'clientNotesHint' | t }}</div>
+          </div>
+        </div>
+      </div><!-- /client status card -->
 
-        @if (form.get('dashboardHeaderImage')?.value) {
-          <div class="dashboard-preview mb-2 rounded overflow-hidden position-relative"
-               style="height: 90px; background: #1e293b;">
-            <img [src]="form.get('dashboardHeaderImage')?.value"
-                 [alt]="'headerPreview' | t"
-                 style="width:100%;height:100%;object-fit:cover;opacity:0.85;">
-            <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-                 style="background:rgba(0,0,0,0.28);">
-              <span class="text-white fw-semibold small">{{ 'headerPreview' | t }}</span>
+      <!-- ── Contact / Credentials / Footer ──────────────────────────────── -->
+      <div class="bg-white rounded shadow-sm p-4 mb-4">
+
+        <!-- Contact -->
+        <h6 class="text-muted mb-3"><i class="bi bi-person-lines-fill me-1"></i>{{ 'contactInformation' | t }}</h6>
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="form-label">{{ 'pointOfContact' | t }}</label>
+            <input formControlName="pointOfContact" class="form-control" [placeholder]="'pointOfContactPlaceholder' | t">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ 'phone' | t }}</label>
+            <input formControlName="phone" class="form-control" [placeholder]="'phonePlaceholder' | t">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ 'email' | t }}</label>
+            <input formControlName="email" class="form-control" type="email" [placeholder]="'emailPlaceholder' | t">
+          </div>
+        </div>
+
+        <hr>
+
+        <!-- Admin Credentials -->
+        <h6 class="text-muted mb-3"><i class="bi bi-shield-lock me-1"></i>{{ 'adminCredentials' | t }}</h6>
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label">{{ 'username' | t }}</label>
+            <input formControlName="adminUsername" class="form-control font-monospace" [placeholder]="'usernamePlaceholder' | t">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ 'password' | t }}</label>
+            <div class="input-group">
+              <input formControlName="adminPassword" class="form-control"
+                     [type]="passwordVisible ? 'text' : 'password'" [placeholder]="'passwordPlaceholder' | t">
+              <button type="button" class="btn btn-outline-secondary" (click)="passwordVisible = !passwordVisible">
+                {{ (passwordVisible ? 'hide' : 'show') | t }}
+              </button>
             </div>
+            <div class="form-text">{{ 'adminCredentialsHint' | t }}</div>
           </div>
-        } @else {
-          <div class="dashboard-preview mb-2 rounded d-flex align-items-center justify-content-center text-secondary"
-               style="height: 90px; background: linear-gradient(135deg,#667eea,#764ba2); color:#fff !important;">
-            <span class="fw-semibold small" style="color:#fff">{{ 'defaultGradientPreview' | t }}</span>
-          </div>
-        }
-
-        <div class="d-flex gap-2 align-items-center">
-          <label class="btn btn-sm btn-outline-secondary mb-0">
-            {{ 'uploadImage' | t }}
-            <input type="file" accept="image/*" hidden (change)="onImageUpload('dashboardHeaderImage', $event)">
-          </label>
-          <input formControlName="dashboardHeaderImage" class="form-control form-control-sm font-monospace"
-                 [placeholder]="'dashboardHeaderPlaceholder' | t">
-          @if (form.get('dashboardHeaderImage')?.value) {
-            <button type="button" class="btn btn-sm btn-outline-danger"
-                    (click)="form.get('dashboardHeaderImage')?.setValue('')">{{ 'clear' | t }}</button>
-          }
         </div>
-        <div class="form-text">{{ 'dashboardImageFormatsHint' | t }}</div>
-      </div>
-    </div>
 
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'contactInformation' | t }}</h6>
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label">{{ 'phone' | t }}</label>
-        <input formControlName="phone" class="form-control" [placeholder]="'phonePlaceholder' | t">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">{{ 'email' | t }}</label>
-        <input formControlName="email" class="form-control" type="email" [placeholder]="'emailPlaceholder' | t">
-      </div>
-      <div class="col-12">
-        <label class="form-label">{{ 'pointOfContact' | t }}</label>
-        <input formControlName="pointOfContact" class="form-control" [placeholder]="'pointOfContactPlaceholder' | t">
-      </div>
-    </div>
+        <hr>
 
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
-        <select formControlName="storeType" class="form-select">
-          @for (value of storeTypeValues; track value) {
-            <option [value]="value">{{ ('storeType.' + value) | t }}</option>
-          }
-        </select>
-        <div class="form-text">{{ 'storeTypeHint' | t }}</div>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">{{ 'baseCurrency' | t }}</label>
-        <select formControlName="baseCurrency" class="form-select">
-          @for (value of baseCurrencyValues; track value) {
-            <option [value]="value">{{ ('baseCurrency.' + value) | t }}</option>
-          }
-        </select>
-        <div class="form-text">{{ 'baseCurrencyHint' | t }}</div>
-      </div>
-    </div>
+        <!-- Footer -->
+        <h6 class="text-muted mb-3"><i class="bi bi-info-circle me-1"></i>{{ 'footer' | t }}</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">{{ 'developerName' | t }}</label>
+            <input formControlName="footerDeveloper" class="form-control" [placeholder]="'developerNamePlaceholder' | t">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ 'developerUrl' | t }}</label>
+            <input formControlName="footerUrl" class="form-control" [placeholder]="'developerUrlPlaceholder' | t">
+          </div>
+        </div>
 
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'appFeatures' | t }}</h6>
-    <p class="text-muted small mb-3">{{ 'appFeaturesHint' | t }}</p>
+      </div>
+    </div><!-- /business tab -->
 
-    <label class="form-label fw-semibold">{{ 'choosePackage' | t }}</label>
-    <p class="text-muted small mb-2">{{ 'choosePackageHint' | t }}</p>
-    <div class="row g-2 mb-2">
-      @for (pkg of packageDefs; track pkg.key) {
-        <div class="col-md-4">
-          <button type="button"
-                  class="btn w-100 h-100 text-start p-3"
-                  [class.btn-primary]="selectedTier === pkg.key"
-                  [class.btn-outline-secondary]="selectedTier !== pkg.key"
-                  (click)="selectPackage(pkg.key)">
-            <div class="fw-bold d-flex align-items-center gap-2">
-              {{ ('package.' + pkg.key) | t }}
-              @if (selectedTier === pkg.key) {
-                <span>✓</span>
+    <!-- ════════════════════════════════════════════════════════════════════
+         TAB 2 — Branding
+         ════════════════════════════════════════════════════════════════════ -->
+    <div [hidden]="activeTab !== 'branding'">
+      <div class="bg-white rounded shadow-sm p-4 mb-4">
+
+        <h6 class="text-muted mb-3">{{ 'branding' | t }}</h6>
+
+        <div class="row g-3 mb-4">
+
+          <div class="col-md-6">
+            <label class="form-label">{{ 'logoDark' | t }}</label>
+            <div class="upload-preview-box bg-dark rounded mb-2">
+              @if (isDataUrl(form.get('logoDark')?.value)) {
+                <img [src]="form.get('logoDark')?.value" [alt]="'logoDark' | t" class="upload-preview-img">
+              } @else {
+                <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
               }
             </div>
-            <div class="small opacity-75">{{ ('packageDesc.' + pkg.key) | t }}</div>
-          </button>
+            <div class="d-flex gap-2">
+              <label class="btn btn-sm btn-outline-secondary mb-0">
+                {{ 'upload' | t }}
+                <input type="file" accept="image/*" hidden (change)="onImageUpload('logoDark', $event)">
+              </label>
+              <input formControlName="logoDark" class="form-control form-control-sm font-monospace"
+                     [placeholder]="'logoDarkPlaceholder' | t">
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">{{ 'logoLight' | t }}</label>
+            <div class="upload-preview-box bg-light border rounded mb-2">
+              @if (isDataUrl(form.get('logoLight')?.value)) {
+                <img [src]="form.get('logoLight')?.value" [alt]="'logoLight' | t" class="upload-preview-img">
+              } @else {
+                <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
+              }
+            </div>
+            <div class="d-flex gap-2">
+              <label class="btn btn-sm btn-outline-secondary mb-0">
+                {{ 'upload' | t }}
+                <input type="file" accept="image/*" hidden (change)="onImageUpload('logoLight', $event)">
+              </label>
+              <input formControlName="logoLight" class="form-control form-control-sm font-monospace"
+                     [placeholder]="'logoLightPlaceholder' | t">
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">{{ 'favicon' | t }}</label>
+            <div class="upload-preview-box bg-light border rounded mb-2" style="height: 60px">
+              @if (isDataUrl(form.get('favicon')?.value)) {
+                <img [src]="form.get('favicon')?.value" [alt]="'favicon' | t" style="width:32px;height:32px;object-fit:contain">
+              } @else {
+                <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
+              }
+            </div>
+            <div class="d-flex gap-2">
+              <label class="btn btn-sm btn-outline-secondary mb-0">
+                {{ 'upload' | t }}
+                <input type="file" accept="image/x-icon,image/png,image/svg+xml" hidden (change)="onImageUpload('favicon', $event)">
+              </label>
+              <input formControlName="favicon" class="form-control form-control-sm font-monospace"
+                     [placeholder]="'faviconPlaceholder' | t">
+            </div>
+          </div>
+
         </div>
-      }
-    </div>
-    @if (selectedTier === null) {
-      <p class="text-muted small mb-3">{{ 'packageCustom' | t }}</p>
-    } @else {
-      <div class="mb-3"></div>
+
+        <hr>
+        <h6 class="text-muted mb-3">{{ 'themeColors' | t }}</h6>
+
+        <div class="row g-3 mb-4">
+          @for (field of colorFields; track field.key) {
+            <div class="col-md-4">
+              <label class="form-label">{{ field.labelKey | t }}</label>
+              <div class="color-input-group">
+                <input type="color" [formControlName]="field.key" class="form-control form-control-color">
+                <input type="text" [formControlName]="field.key" class="form-control font-monospace"
+                       [placeholder]="'colorHexPlaceholder' | t">
+              </div>
+            </div>
+          }
+        </div>
+
+        <hr>
+        <h6 class="text-muted mb-3">{{ 'dashboard' | t }}</h6>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">{{ 'dashboardHeaderImage' | t }}</label>
+          <p class="text-muted small mb-2">{{ 'dashboardHeaderImageHint' | t }}</p>
+
+          @if (form.get('dashboardHeaderImage')?.value) {
+            <div class="dashboard-preview mb-2 rounded overflow-hidden position-relative"
+                 style="height: 90px; background: #1e293b;">
+              <img [src]="form.get('dashboardHeaderImage')?.value"
+                   [alt]="'headerPreview' | t"
+                   style="width:100%;height:100%;object-fit:cover;opacity:0.85;">
+              <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+                   style="background:rgba(0,0,0,0.28);">
+                <span class="text-white fw-semibold small">{{ 'headerPreview' | t }}</span>
+              </div>
+            </div>
+          } @else {
+            <div class="dashboard-preview mb-2 rounded d-flex align-items-center justify-content-center"
+                 style="height: 90px; background: linear-gradient(135deg,#667eea,#764ba2);">
+              <span class="fw-semibold small" style="color:#fff">{{ 'defaultGradientPreview' | t }}</span>
+            </div>
+          }
+
+          <div class="d-flex gap-2 align-items-center">
+            <label class="btn btn-sm btn-outline-secondary mb-0">
+              {{ 'uploadImage' | t }}
+              <input type="file" accept="image/*" hidden (change)="onImageUpload('dashboardHeaderImage', $event)">
+            </label>
+            <input formControlName="dashboardHeaderImage" class="form-control form-control-sm font-monospace"
+                   [placeholder]="'dashboardHeaderPlaceholder' | t">
+            @if (form.get('dashboardHeaderImage')?.value) {
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      (click)="form.get('dashboardHeaderImage')?.setValue('')">{{ 'clear' | t }}</button>
+            }
+          </div>
+          <div class="form-text">{{ 'dashboardImageFormatsHint' | t }}</div>
+        </div>
+
+      </div>
+    </div><!-- /branding tab -->
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         TAB 3 — Features
+         ════════════════════════════════════════════════════════════════════ -->
+    <div [hidden]="activeTab !== 'features'">
+      <div class="bg-white rounded shadow-sm p-4 mb-4">
+
+        <h6 class="text-muted mb-3">{{ 'appFeatures' | t }}</h6>
+        <p class="text-muted small mb-3">{{ 'appFeaturesHint' | t }}</p>
+
+        <label class="form-label fw-semibold">{{ 'choosePackage' | t }}</label>
+        <p class="text-muted small mb-2">{{ 'choosePackageHint' | t }}</p>
+        <div class="row g-2 mb-2">
+          @for (pkg of packageDefs; track pkg.key) {
+            <div class="col-md-4">
+              <button type="button"
+                      class="btn w-100 h-100 text-start p-3"
+                      [class.btn-primary]="selectedTier === pkg.key"
+                      [class.btn-outline-secondary]="selectedTier !== pkg.key"
+                      (click)="selectPackage(pkg.key)">
+                <div class="fw-bold d-flex align-items-center gap-2">
+                  {{ ('package.' + pkg.key) | t }}
+                  @if (selectedTier === pkg.key) {
+                    <span>✓</span>
+                  }
+                </div>
+                <div class="small opacity-75">{{ ('packageDesc.' + pkg.key) | t }}</div>
+              </button>
+            </div>
+          }
+        </div>
+        @if (selectedTier === null) {
+          <p class="text-muted small mb-3">{{ 'packageCustom' | t }}</p>
+        } @else {
+          <div class="mb-3"></div>
+        }
+
+        <div formGroupName="features" class="row g-2 mb-4">
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" formControlName="multiLanguage" id="featMultiLang">
+              <label class="form-check-label" for="featMultiLang">{{ 'featMultiLanguage' | t }}</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" formControlName="barcode" id="barcode">
+              <label class="form-check-label" for="barcode">{{ 'featBarcode' | t }}</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" formControlName="reports" id="featReports">
+              <label class="form-check-label" for="featReports">{{ 'featReports' | t }}</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" formControlName="suppliers" id="featSuppliers">
+              <label class="form-check-label" for="featSuppliers">{{ 'featSuppliers' | t }}</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" formControlName="seedDemoData" id="featSeedDemo">
+              <label class="form-check-label" for="featSeedDemo">
+                {{ 'featSeedDemoData' | t }}
+                <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeRunsOnce' | t }}</span>
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" formControlName="multiCurrency" id="featMultiCurrency">
+              <label class="form-check-label" for="featMultiCurrency">
+                {{ 'featMultiCurrency' | t }}
+                <span class="badge bg-info text-dark ms-1" style="font-size:0.65rem">{{ 'badgeDefaultOn' | t }}</span>
+              </label>
+            </div>
+
+            <hr class="my-3">
+            <div class="text-muted small fw-semibold mb-2">{{ 'sectionOperations' | t }}</div>
+
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="shifts" id="featShifts">
+              <label class="form-check-label" for="featShifts">
+                {{ 'featShifts' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="clientLedger" id="featClientLedger">
+              <label class="form-check-label" for="featClientLedger">
+                {{ 'featClientLedger' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="supplierLedger" id="featSupplierLedger">
+              <label class="form-check-label" for="featSupplierLedger">
+                {{ 'featSupplierLedger' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+            </div>
+
+            <hr class="my-3">
+            <div class="text-muted small fw-semibold mb-2">{{ 'sectionReportsStatements' | t }}</div>
+
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="accountStatement" id="featAccountStatement">
+              <label class="form-check-label" for="featAccountStatement">
+                {{ 'featAccountStatement' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featAccountStatementHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="itemLedger" id="featItemLedger">
+              <label class="form-check-label" for="featItemLedger">
+                {{ 'featItemLedger' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featItemLedgerHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="batchStocktake" id="featBatchStocktake">
+              <label class="form-check-label" for="featBatchStocktake">
+                {{ 'featBatchStocktake' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featBatchStocktakeHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="bulkPriceUpdate" id="featBulkPriceUpdate">
+              <label class="form-check-label" for="featBulkPriceUpdate">
+                {{ 'featBulkPriceUpdate' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featBulkPriceUpdateHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="productRecipes" id="featProductRecipes">
+              <label class="form-check-label" for="featProductRecipes">
+                {{ 'featProductRecipes' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featProductRecipesHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="manufacturing" id="featManufacturing">
+              <label class="form-check-label" for="featManufacturing">
+                {{ 'featManufacturing' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featManufacturingHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="userManagement" id="featUserManagement">
+              <label class="form-check-label" for="featUserManagement">
+                {{ 'featUserManagement' | t }}
+                <span class="badge bg-dark ms-1" style="font-size:0.65rem">{{ 'badgeUltimate' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featUserManagementHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="invoiceSettings" id="featInvoiceSettings">
+              <label class="form-check-label" for="featInvoiceSettings">
+                {{ 'featInvoiceSettings' | t }}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featInvoiceSettingsHint' | t }}</div>
+            </div>
+
+            <hr class="my-3">
+            <div class="text-muted small fw-semibold mb-2">{{ 'sectionInventorySales' | t }}</div>
+
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="fractionalQuantity" id="featFractionalQty">
+              <label class="form-check-label" for="featFractionalQty">
+                {{ 'featFractionalQuantity' | t }}
+                <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeFractionalExample' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featFractionalQuantityHint' | t }}</div>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" formControlName="multiCurrencyPricing" id="featMultiCurrencyPricing">
+              <label class="form-check-label" for="featMultiCurrencyPricing">
+                {{ 'featMultiCurrencyPricing' | t }}
+                <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeMtnExample' | t }}</span>
+              </label>
+              <div class="form-text ms-0 mt-1">{{ 'featMultiCurrencyPricingHint' | t }}</div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /features tab -->
+
+    <!-- ── Save Button (business, branding, features tabs only) ───────── -->
+    @if (activeTab !== 'license' && activeTab !== 'billing') {
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" [disabled]="form.invalid || saving">
+          @if (saving) {
+            {{ 'saving' | t }}
+          } @else {
+            {{ (isEditMode ? 'saveChanges' : 'createClient') | t }}
+          }
+        </button>
+        <a routerLink="/clients" class="btn btn-outline-secondary">{{ 'cancel' | t }}</a>
+      </div>
     }
 
-    <div formGroupName="features" class="row g-2 mb-4">
-      <div class="col-12">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" formControlName="multiLanguage" id="featMultiLang">
-          <label class="form-check-label" for="featMultiLang">{{ 'featMultiLanguage' | t }}</label>
+  </form>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       TAB 4 — Billing  (outside the reactive form, edit mode only)
+       ════════════════════════════════════════════════════════════════════ -->
+  @if (isEditMode) {
+    <div [hidden]="activeTab !== 'billing'">
+
+      @if (billingsLoading) {
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary"></div>
+          <p class="mt-2 text-muted">{{ 'loadingBillings' | t }}</p>
         </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" formControlName="barcode" id="barcode">
-          <label class="form-check-label" for="barcode">{{ 'featBarcode' | t }}</label>
+      } @else {
+
+        <!-- Summary bar -->
+        @if (clientBillings.length > 0) {
+          <div class="bg-white rounded shadow-sm p-3 mb-4 d-flex gap-4 align-items-center flex-wrap">
+            <div>
+              <div class="text-muted small">{{ 'totalPaid' | t }}</div>
+              <div class="fw-bold fs-5 text-success">${{ totalBillingPaid | number:'1.0-2' }}</div>
+            </div>
+            <div>
+              <div class="text-muted small">{{ 'billingRecords' | t }}</div>
+              <div class="fw-bold fs-5">{{ clientBillings.length }}</div>
+            </div>
+            @if (latestBilling?.supportEndDate) {
+              <div>
+                <div class="text-muted small">{{ 'supportUntil' | t }}</div>
+                <div class="fw-semibold"
+                     [class.text-success]="(billingSupportDaysLeft(latestBilling!) ?? 0) >= 30"
+                     [class.text-warning]="(billingSupportDaysLeft(latestBilling!) ?? 0) >= 0 && (billingSupportDaysLeft(latestBilling!) ?? 0) < 30"
+                     [class.text-danger]="(billingSupportDaysLeft(latestBilling!) ?? 0) < 0">
+                  {{ latestBilling!.supportEndDate | date:'dd MMM yyyy' }}
+                  <span class="small">({{ billingSupportDaysLeft(latestBilling!) }}d)</span>
+                </div>
+              </div>
+            }
+            <div class="ms-auto">
+              <button type="button" class="btn btn-sm btn-primary" (click)="openAddBillingForm()">
+                + {{ 'addPayment' | t }}
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Add / Edit form -->
+        @if (showBillingForm) {
+          <div class="bg-white rounded shadow-sm p-4 mb-4">
+            <h6 class="fw-semibold mb-3">{{ billingEditTarget ? ('editPayment' | t) : ('addPayment' | t) }}</h6>
+            <div class="row g-3">
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'packageTier' | t }}</label>
+                <select class="form-select form-select-sm" [(ngModel)]="billingForm.packageTier">
+                  <option value="">—</option>
+                  @for (v of billingPackageTierValues; track v) {
+                    <option [value]="v">{{ v }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'pricePaid' | t }}</label>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">$</span>
+                  <input type="number" class="form-control" step="0.01" min="0" placeholder="0.00"
+                         [(ngModel)]="billingForm.amount">
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'paymentStatus' | t }}</label>
+                <select class="form-select form-select-sm" [(ngModel)]="billingForm.paymentStatus">
+                  <option value="">—</option>
+                  @for (v of paymentStatusValues; track v) {
+                    <option [value]="v">{{ v }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'paymentMethod' | t }}</label>
+                <select class="form-select form-select-sm" [(ngModel)]="billingForm.paymentMethod">
+                  <option value="">—</option>
+                  @for (v of paymentMethodValues; track v) {
+                    <option [value]="v">{{ paymentMethodLabels[v] ?? v }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'paymentDate' | t }}</label>
+                <input type="date" class="form-control form-control-sm" [(ngModel)]="billingForm.paymentDate">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'supportStartDate' | t }}</label>
+                <input type="date" class="form-control form-control-sm" [(ngModel)]="billingForm.supportStartDate">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'supportEndDate' | t }}</label>
+                <input type="date" class="form-control form-control-sm" [(ngModel)]="billingForm.supportEndDate">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">{{ 'invoiceRef' | t }}</label>
+                <input type="text" class="form-control form-control-sm font-monospace"
+                       [(ngModel)]="billingForm.invoiceRef"
+                       [placeholder]="'invoiceRefPlaceholder' | t">
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold">{{ 'clientNotes' | t }}</label>
+                <textarea class="form-control form-control-sm" rows="2"
+                          [(ngModel)]="billingForm.notes"
+                          [placeholder]="'billingNotesPlaceholder' | t"></textarea>
+              </div>
+            </div>
+            @if (billingError) {
+              <div class="alert alert-danger mt-3 mb-0 py-2">{{ billingError }}</div>
+            }
+            <div class="d-flex gap-2 mt-3">
+              <button type="button" class="btn btn-sm btn-primary" [disabled]="billingSaving" (click)="saveBilling()">
+                @if (billingSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                {{ 'save' | t }}
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancelBillingForm()">
+                {{ 'cancel' | t }}
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Empty state + add button -->
+        @if (!showBillingForm && clientBillings.length === 0) {
+          <div class="bg-white rounded shadow-sm p-5 text-center text-muted mb-4">
+            <div class="fs-1 mb-2">🧾</div>
+            <div class="mb-3">{{ 'noBillingsYet' | t }}</div>
+            <button type="button" class="btn btn-primary btn-sm" (click)="openAddBillingForm()">
+              + {{ 'addPayment' | t }}
+            </button>
+          </div>
+        }
+
+        <!-- Billing records table -->
+        @if (clientBillings.length > 0) {
+          <div class="bg-white rounded shadow-sm mb-4">
+            <div class="p-3 border-bottom fw-semibold">
+              {{ 'paymentHistory' | t }}
+              <span class="badge bg-secondary ms-2">{{ clientBillings.length }}</span>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>{{ 'paymentDate' | t }}</th>
+                    <th>{{ 'packageTier' | t }}</th>
+                    <th>{{ 'pricePaid' | t }}</th>
+                    <th>{{ 'paymentStatus' | t }}</th>
+                    <th>{{ 'paymentMethod' | t }}</th>
+                    <th>{{ 'supportPeriod' | t }}</th>
+                    <th>{{ 'invoiceRef' | t }}</th>
+                    <th class="text-end">{{ 'actions' | t }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (b of clientBillings; track b.id) {
+                    <tr>
+                      <td class="text-muted small">{{ (b.paymentDate ?? b.createdAt) | date:'dd MMM yyyy' }}</td>
+                      <td>
+                        @if (b.packageTier) {
+                          <span class="badge bg-secondary">{{ b.packageTier }}</span>
+                        } @else { <span class="text-muted">—</span> }
+                      </td>
+                      <td>
+                        @if (b.amount != null) {
+                          <span class="fw-semibold">${{ b.amount | number:'1.0-2' }}</span>
+                        } @else { <span class="text-muted">—</span> }
+                      </td>
+                      <td>
+                        @if (b.paymentStatus) {
+                          <span class="badge" [class]="billingPaymentBadge(b.paymentStatus)">{{ b.paymentStatus }}</span>
+                        } @else { <span class="text-muted">—</span> }
+                      </td>
+                      <td class="text-muted small">{{ (b.paymentMethod ? (paymentMethodLabels[b.paymentMethod] ?? b.paymentMethod) : '—') }}</td>
+                      <td class="small">
+                        @if (b.supportStartDate || b.supportEndDate) {
+                          <span>{{ b.supportStartDate | date:'dd MMM yy' }} → {{ b.supportEndDate | date:'dd MMM yy' }}</span>
+                          @if (billingSupportDaysLeft(b) !== null) {
+                            <span class="ms-1 text-muted">({{ billingSupportDaysLeft(b) }}d)</span>
+                          }
+                        } @else { <span class="text-muted">—</span> }
+                      </td>
+                      <td class="font-monospace small text-muted">{{ b.invoiceRef ?? '—' }}</td>
+                      <td class="text-end">
+                        <div class="d-flex gap-1 justify-content-end flex-wrap">
+                          <button type="button" class="btn btn-xs btn-outline-primary"
+                                  (click)="printInvoice(b, 'en')" title="Print invoice in English">
+                            🖨 EN
+                          </button>
+                          <button type="button" class="btn btn-xs btn-outline-primary"
+                                  (click)="printInvoice(b, 'ar')" title="طباعة الفاتورة بالعربية">
+                            🖨 AR
+                          </button>
+                          <button type="button" class="btn btn-xs btn-outline-secondary"
+                                  (click)="openEditBillingForm(b)">
+                            ✏ {{ 'edit' | t }}
+                          </button>
+                          <button type="button" class="btn btn-xs btn-outline-danger"
+                                  (click)="deleteBilling(b)">
+                            🗑 {{ 'delete' | t }}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+      }<!-- /!billingsLoading -->
+    </div><!-- /billing tab div -->
+  }<!-- /isEditMode billing -->
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       TAB 5 — License  (outside the reactive form, edit mode only)
+       ════════════════════════════════════════════════════════════════════ -->
+  @if (isEditMode) {
+    <div [hidden]="activeTab !== 'license'">
+
+      @if (licensesLoading) {
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary"></div>
+          <p class="mt-2 text-muted">{{ 'loadingLicenses' | t }}</p>
         </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" formControlName="reports" id="featReports">
-          <label class="form-check-label" for="featReports">{{ 'featReports' | t }}</label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" formControlName="suppliers" id="featSuppliers">
-          <label class="form-check-label" for="featSuppliers">{{ 'featSuppliers' | t }}</label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" formControlName="seedDemoData" id="featSeedDemo">
-          <label class="form-check-label" for="featSeedDemo">
-            {{ 'featSeedDemoData' | t }}
-            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeRunsOnce' | t }}</span>
-          </label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" formControlName="multiCurrency" id="featMultiCurrency">
-          <label class="form-check-label" for="featMultiCurrency">
-            {{ 'featMultiCurrency' | t }}
-            <span class="badge bg-info text-dark ms-1" style="font-size:0.65rem">{{ 'badgeDefaultOn' | t }}</span>
-          </label>
+      } @else {
+
+        <!-- Generate panel -->
+        <div class="bg-white rounded shadow-sm mb-4">
+          <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
+            <span class="fw-semibold"><i class="bi bi-plus-circle me-2"></i>{{ 'generateLicense' | t }}</span>
+            @if (!showGenerateForm) {
+              <button type="button" class="btn btn-sm btn-primary" (click)="openGenerateForm()">
+                <i class="bi bi-plus me-1"></i>{{ 'newLicense' | t }}
+              </button>
+            } @else {
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancelGenerateForm()">
+                {{ 'cancel' | t }}
+              </button>
+            }
+          </div>
+
+          @if (showGenerateForm) {
+            <div class="p-4">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">{{ 'machineId' | t }} *</label>
+                  <input type="text" class="form-control font-monospace"
+                         [(ngModel)]="generateForm.machineId"
+                         [placeholder]="'machineIdPlaceholder' | t">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">{{ 'licenseLabel' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
+                  <input type="text" class="form-control"
+                         [(ngModel)]="generateForm.label"
+                         [placeholder]="'licenseLabelPlaceholder' | t">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">{{ 'expiresAt' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
+                  <input type="date" class="form-control" [(ngModel)]="generateForm.expiresAt">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                  <button type="button" class="btn btn-primary w-100"
+                          [disabled]="!generateForm.machineId.trim() || generating"
+                          (click)="generateLicense()">
+                    @if (generating) {
+                      <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    {{ 'generate' | t }}
+                  </button>
+                </div>
+              </div>
+
+              @if (generateError) {
+                <div class="alert alert-danger mt-3 mb-0">{{ generateError }}</div>
+              }
+
+              @if (generatedResult) {
+                <div class="alert alert-success mt-3 mb-0">
+                  <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-check-circle-fill fs-5 mt-1 flex-shrink-0"></i>
+                    <div class="flex-grow-1">
+                      <div class="fw-semibold mb-1">{{ 'licenseGenerated' | t }}</div>
+                      <code class="d-block bg-light text-dark p-2 rounded border mb-2"
+                            style="word-break:break-all;font-size:.8rem;">
+                        {{ generatedResult.licenseKey }}
+                      </code>
+                      <button type="button" class="btn btn-sm btn-outline-success"
+                              (click)="copyKey(generatedResult!.licenseKey)">
+                        <i class="bi me-1" [class.bi-clipboard]="!licenseCopied" [class.bi-check2]="licenseCopied"></i>
+                        {{ licenseCopied ? ('copied' | t) : ('copyKey' | t) }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (!showGenerateForm && clientLicenses.length === 0) {
+            <div class="p-4 text-muted">{{ 'noLicensesYet' | t }}</div>
+          }
         </div>
 
-        <hr class="my-3">
-        <div class="text-muted small fw-semibold mb-2">{{ 'sectionOperations' | t }}</div>
+        <!-- Licenses table -->
+        @if (clientLicenses.length > 0) {
+          <div class="bg-white rounded shadow-sm mb-4">
+            <div class="p-3 border-bottom fw-semibold">
+              <i class="bi bi-list-check me-2"></i>{{ 'existingLicenses' | t }}
+              <span class="badge bg-secondary ms-2">{{ clientLicenses.length }}</span>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>{{ 'machineId' | t }}</th>
+                    <th>{{ 'licenseLabel' | t }}</th>
+                    <th>{{ 'status' | t }}</th>
+                    <th>{{ 'activatedAt' | t }}</th>
+                    <th>{{ 'expiresAt' | t }}</th>
+                    <th class="text-end">{{ 'actions' | t }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (lic of clientLicenses; track lic.id) {
+                    <tr>
+                      <td><code class="text-muted" style="font-size:.8rem;">{{ truncate(lic.machineId) }}</code></td>
+                      <td>
+                        @if (lic.label) {
+                          <span class="badge bg-light text-dark border" style="font-size:.72rem;">{{ lic.label }}</span>
+                        } @else {
+                          <span class="text-muted">—</span>
+                        }
+                      </td>
+                      <td>
+                        <span class="badge"
+                              [class.bg-success]="lic.status === 'ACTIVE' && !isLicenseExpired(lic)"
+                              [class.bg-danger]="lic.status === 'REVOKED' || isLicenseExpired(lic)"
+                              [class.bg-warning]="lic.status === 'ACTIVE' && (daysUntilExpiry(lic) ?? 999) < 14 && !isLicenseExpired(lic)"
+                              [class.text-dark]="lic.status === 'ACTIVE' && (daysUntilExpiry(lic) ?? 999) < 14 && !isLicenseExpired(lic)">
+                          {{ isLicenseExpired(lic) ? 'EXPIRED' : lic.status }}
+                        </span>
+                      </td>
+                      <td class="text-muted small">{{ lic.activatedAt | date:'dd MMM yyyy' }}</td>
+                      <td>
+                        @if (!lic.expiresAt) {
+                          <span class="text-muted">∞ no expiry</span>
+                        } @else {
+                          {{ lic.expiresAt | date:'dd MMM yyyy' }}
+                          @if (daysUntilExpiry(lic) !== null && !isLicenseExpired(lic)) {
+                            <span class="text-muted small ms-1">({{ daysUntilExpiry(lic) }}d)</span>
+                          }
+                        }
+                      </td>
+                      <td class="text-end">
+                        <div class="d-flex gap-1 justify-content-end">
+                          <button type="button" class="btn btn-xs btn-outline-primary"
+                                  (click)="copyKey(lic.licenseKey)">
+                            ⎘ {{ 'copyKey' | t }}
+                          </button>
+                          @if (lic.status === 'ACTIVE') {
+                            <button type="button" class="btn btn-xs btn-outline-warning"
+                                    (click)="openRenewModal(lic)">
+                              ↻ {{ 'renew' | t }}
+                            </button>
+                            <button type="button" class="btn btn-xs btn-outline-danger"
+                                    (click)="openRevokeConfirm(lic)">
+                              ✕ {{ 'revoke' | t }}
+                            </button>
+                          }
+                          <button type="button" class="btn btn-xs btn-outline-secondary"
+                                  (click)="deleteLicense(lic)">
+                            🗑 {{ 'delete' | t }}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
 
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="shifts" id="featShifts">
-          <label class="form-check-label" for="featShifts">
-            {{ 'featShifts' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
+      }<!-- /!licensesLoading -->
+    </div><!-- /license tab div -->
+  }<!-- /isEditMode -->
+
+</div><!-- /container -->
+
+<!-- ── Revoke Modal ──────────────────────────────────────────────────────── -->
+@if (licenseRevokeTarget) {
+  <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>{{ 'confirmRevoke' | t }}</h5>
         </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="clientLedger" id="featClientLedger">
-          <label class="form-check-label" for="featClientLedger">
-            {{ 'featClientLedger' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
+        <div class="modal-body">
+          <p>{{ 'revokeWarning' | t }}</p>
+          <code class="text-muted small">{{ truncate(licenseRevokeTarget.machineId) }}</code>
+          @if (licenseRevokeError) {
+            <div class="alert alert-danger mt-3 mb-0 py-2">{{ licenseRevokeError }}</div>
+          }
         </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="supplierLedger" id="featSupplierLedger">
-          <label class="form-check-label" for="featSupplierLedger">
-            {{ 'featSupplierLedger' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-        </div>
-
-        <hr class="my-3">
-        <div class="text-muted small fw-semibold mb-2">{{ 'sectionReportsStatements' | t }}</div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="accountStatement" id="featAccountStatement">
-          <label class="form-check-label" for="featAccountStatement">
-            {{ 'featAccountStatement' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featAccountStatementHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="itemLedger" id="featItemLedger">
-          <label class="form-check-label" for="featItemLedger">
-            {{ 'featItemLedger' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featItemLedgerHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="batchStocktake" id="featBatchStocktake">
-          <label class="form-check-label" for="featBatchStocktake">
-            {{ 'featBatchStocktake' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featBatchStocktakeHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="bulkPriceUpdate" id="featBulkPriceUpdate">
-          <label class="form-check-label" for="featBulkPriceUpdate">
-            {{ 'featBulkPriceUpdate' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featBulkPriceUpdateHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="productRecipes" id="featProductRecipes">
-          <label class="form-check-label" for="featProductRecipes">
-            {{ 'featProductRecipes' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featProductRecipesHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="manufacturing" id="featManufacturing">
-          <label class="form-check-label" for="featManufacturing">
-            {{ 'featManufacturing' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featManufacturingHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="userManagement" id="featUserManagement">
-          <label class="form-check-label" for="featUserManagement">
-            {{ 'featUserManagement' | t }}
-            <span class="badge bg-dark ms-1" style="font-size:0.65rem">{{ 'badgeUltimate' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featUserManagementHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="invoiceSettings" id="featInvoiceSettings">
-          <label class="form-check-label" for="featInvoiceSettings">
-            {{ 'featInvoiceSettings' | t }}
-            <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ 'badgeOptional' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featInvoiceSettingsHint' | t }}</div>
-        </div>
-
-        <hr class="my-3">
-        <div class="text-muted small fw-semibold mb-2">{{ 'sectionInventorySales' | t }}</div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="fractionalQuantity" id="featFractionalQty">
-          <label class="form-check-label" for="featFractionalQty">
-            {{ 'featFractionalQuantity' | t }}
-            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeFractionalExample' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featFractionalQuantityHint' | t }}</div>
-        </div>
-
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" formControlName="multiCurrencyPricing" id="featMultiCurrencyPricing">
-          <label class="form-check-label" for="featMultiCurrencyPricing">
-            {{ 'featMultiCurrencyPricing' | t }}
-            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">{{ 'badgeMtnExample' | t }}</span>
-          </label>
-          <div class="form-text ms-0 mt-1">{{ 'featMultiCurrencyPricingHint' | t }}</div>
-        </div>
-      </div>
-    </div>
-
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'adminCredentials' | t }}</h6>
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label">{{ 'username' | t }}</label>
-        <input formControlName="adminUsername" class="form-control font-monospace" [placeholder]="'usernamePlaceholder' | t">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">{{ 'password' | t }}</label>
-        <div class="input-group">
-          <input formControlName="adminPassword" class="form-control"
-                 [type]="passwordVisible ? 'text' : 'password'" [placeholder]="'passwordPlaceholder' | t">
-          <button type="button" class="btn btn-outline-secondary"
-                  (click)="passwordVisible = !passwordVisible">
-            {{ (passwordVisible ? 'hide' : 'show') | t }}
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" (click)="cancelRevoke()">{{ 'cancel' | t }}</button>
+          <button class="btn btn-danger" [disabled]="licenseRevoking" (click)="confirmRevoke()">
+            @if (licenseRevoking) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            {{ 'revoke' | t }}
           </button>
         </div>
-        <div class="form-text">{{ 'adminCredentialsHint' | t }}</div>
       </div>
     </div>
-
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'buildSettings' | t }}</h6>
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label fw-semibold">{{ 'defaultBuildTarget' | t }}</label>
-        <select formControlName="defaultBuildTarget" class="form-select">
-          @for (value of buildTargetValues; track value) {
-            <option [value]="value">{{ ('buildTarget.' + value) | t }}</option>
-          }
-        </select>
-        <div class="form-text">{{ 'defaultBuildTargetHint' | t }}</div>
-      </div>
-    </div>
-
-    <hr>
-    <h6 class="text-muted mb-3">{{ 'footer' | t }}</h6>
-
-    <div class="row g-3 mb-4">
-      <div class="col-md-6">
-        <label class="form-label">{{ 'developerName' | t }}</label>
-        <input formControlName="footerDeveloper" class="form-control" [placeholder]="'developerNamePlaceholder' | t">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">{{ 'developerUrl' | t }}</label>
-        <input formControlName="footerUrl" class="form-control" [placeholder]="'developerUrlPlaceholder' | t">
-      </div>
-    </div>
-
-    <div class="d-flex gap-2">
-      <button type="submit" class="btn btn-primary" [disabled]="form.invalid || saving">
-        @if (saving) {
-          {{ 'saving' | t }}
-        } @else {
-          {{ (isEditMode ? 'saveChanges' : 'createClient') | t }}
-        }
-      </button>
-      <a routerLink="/clients" class="btn btn-outline-secondary">{{ 'cancel' | t }}</a>
-    </div>
-
-  </form>
-</div>
+  </div>
 }
+
+<!-- ── Renew Modal ──────────────────────────────────────────────────────── -->
+@if (licenseRenewTarget) {
+  <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-arrow-repeat text-warning me-2"></i>{{ 'renewLicense' | t }}</h5>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-2">{{ 'machineId' | t }}: <code>{{ truncate(licenseRenewTarget.license.machineId) }}</code></p>
+          <label class="form-label mt-2">{{ 'newExpiryDate' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
+          <input type="date" class="form-control" [(ngModel)]="licenseRenewTarget.expiresAt">
+          @if (licenseRenewError) {
+            <div class="alert alert-danger mt-3 mb-0 py-2">{{ licenseRenewError }}</div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" (click)="cancelRenew()">{{ 'cancel' | t }}</button>
+          <button class="btn btn-warning" [disabled]="licenseRenewing" (click)="confirmRenew()">
+            @if (licenseRenewing) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            {{ 'renew' | t }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+}<!-- /@if language -->

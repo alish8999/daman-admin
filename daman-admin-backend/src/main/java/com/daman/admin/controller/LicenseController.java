@@ -23,11 +23,14 @@ public class LicenseController {
     private final LicenseRepository licenseRepository;
     private final ClientConfigRepository clientConfigRepository;
 
+    // ── Generate ──────────────────────────────────────────────────────────────
+
     @PostMapping("/generate")
     public ResponseEntity<Map<String, Object>> generate(@RequestBody Map<String, String> body) {
-        String machineId = body.get("machineId");
+        String machineId  = body.get("machineId");
         String clientCode = body.get("clientCode");
-        String expiresAt = body.get("expiresAt");
+        String expiresAt  = body.get("expiresAt");
+        String label      = body.getOrDefault("label", "");
 
         if (machineId == null || machineId.isBlank() || clientCode == null || clientCode.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "machineId and clientCode are required"));
@@ -38,10 +41,11 @@ public class LicenseController {
             return ResponseEntity.badRequest().body(Map.of("error", "Client not found: " + clientCode));
         }
 
-        // Enforce 1:1 — one license per client
-        if (licenseRepository.findByClientCode(clientCode).isPresent()) {
+        // Block duplicate: same client + same machine already has an ACTIVE license
+        var duplicate = licenseRepository.findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE");
+        if (duplicate.isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "A license already exists for this client. Use Renew to update it."));
+                    .body(Map.of("error", "An active license already exists for this machine and client. Revoke or renew it instead."));
         }
 
         String clientName = clientConfig.getAppName();
@@ -53,43 +57,41 @@ public class LicenseController {
         license.setLicenseKey(licenseKey);
         license.setClientName(clientName);
         license.setStatus("ACTIVE");
+        license.setLabel(label.isBlank() ? null : label);
         license.setExpiresAt(expiresAt != null && !expiresAt.isBlank() ? LocalDate.parse(expiresAt) : null);
         licenseRepository.save(license);
 
         return ResponseEntity.ok(Map.of(
             "licenseKey", licenseKey,
             "clientName", clientName,
-            "machineId", machineId
+            "machineId",  machineId,
+            "label",      label
         ));
     }
 
+    // ── Activate (called by the desktop app) ─────────────────────────────────
+
     @PostMapping("/activate")
     public ResponseEntity<Map<String, Object>> activate(@RequestBody Map<String, String> body) {
-        String machineId = body.get("machineId");
+        String machineId  = body.get("machineId");
         String clientCode = body.get("clientCode");
 
         if (machineId == null || clientCode == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "machineId and clientCode are required"));
         }
 
-        // If the client's single license is active and machine matches, return it
+        // Return existing active license for this machine if present
         var existing = licenseRepository.findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE");
         if (existing.isPresent()) {
             return ResponseEntity.ok(Map.of(
                 "licenseKey", existing.get().getLicenseKey(),
-                "message", "Already activated"
+                "message",    "Already activated"
             ));
         }
 
         var clientConfig = clientConfigRepository.findByClientCode(clientCode).orElse(null);
         if (clientConfig == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "Client not found"));
-        }
-
-        // Only create if no license exists yet (1:1 guard)
-        if (licenseRepository.findByClientCode(clientCode).isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "License exists for this client but machine ID does not match."));
         }
 
         String clientName = clientConfig.getAppName();
@@ -107,6 +109,8 @@ public class LicenseController {
         return ResponseEntity.ok(Map.of("licenseKey", licenseKey, "clientName", clientName));
     }
 
+    // ── List ─────────────────────────────────────────────────────────────────
+
     @GetMapping
     public List<License> getAll() {
         return licenseRepository.findAllByOrderByActivatedAtDesc();
@@ -116,6 +120,8 @@ public class LicenseController {
     public List<License> getByClient(@PathVariable String clientCode) {
         return licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode);
     }
+
+    // ── Revoke ───────────────────────────────────────────────────────────────
 
     @PostMapping("/{id}/revoke")
     public ResponseEntity<Map<String, String>> revokeById(@PathVariable Long id) {
@@ -129,30 +135,54 @@ public class LicenseController {
 
     @PostMapping("/client/{clientCode}/revoke")
     public ResponseEntity<Map<String, String>> revokeByClient(@PathVariable String clientCode) {
-        License license = licenseRepository.findByClientCode(clientCode).orElse(null);
-        if (license == null) return ResponseEntity.notFound().build();
+        var licenses = licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode);
+        if (licenses.isEmpty()) return ResponseEntity.notFound().build();
+        // Revoke the most recent active one
+        License license = licenses.stream()
+                .filter(l -> "ACTIVE".equals(l.getStatus()))
+                .findFirst()
+                .orElse(licenses.get(0));
         license.setStatus("REVOKED");
         license.setRevokedAt(LocalDateTime.now());
         licenseRepository.save(license);
         return ResponseEntity.ok(Map.of("message", "License revoked"));
     }
 
+    // ── Renew ────────────────────────────────────────────────────────────────
+
+    /** Renew a specific license by its ID — preferred endpoint. */
+    @PutMapping("/{id}/renew")
+    public ResponseEntity<Map<String, Object>> renewById(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+
+        License license = licenseRepository.findById(id).orElse(null);
+        if (license == null) return ResponseEntity.notFound().build();
+
+        return doRenew(license, body.get("expiresAt"));
+    }
+
+    /** Legacy: renew by clientCode — renews the most recent active license. */
     @PutMapping("/client/{clientCode}/renew")
     public ResponseEntity<Map<String, Object>> renewByClient(
             @PathVariable String clientCode,
             @RequestBody Map<String, String> body) {
 
-        License license = licenseRepository.findByClientCode(clientCode).orElse(null);
-        if (license == null) {
-            return ResponseEntity.notFound().build();
-        }
+        var licenses = licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode);
+        if (licenses.isEmpty()) return ResponseEntity.notFound().build();
 
-        String expiresAt = body.get("expiresAt");
+        License license = licenses.stream()
+                .filter(l -> "ACTIVE".equals(l.getStatus()))
+                .findFirst()
+                .orElse(licenses.get(0));
+
+        return doRenew(license, body.get("expiresAt"));
+    }
+
+    private ResponseEntity<Map<String, Object>> doRenew(License license, String expiresAt) {
         String newExpiresAt = (expiresAt != null && !expiresAt.isBlank()) ? expiresAt : null;
-
-        // Re-generate license key with updated expiry
         String newKey = licenseKeyService.generateLicense(
-                license.getMachineId(), license.getClientName(), clientCode, newExpiresAt);
+                license.getMachineId(), license.getClientName(), license.getClientCode(), newExpiresAt);
 
         license.setLicenseKey(newKey);
         license.setStatus("ACTIVE");
@@ -162,11 +192,13 @@ public class LicenseController {
         licenseRepository.save(license);
 
         return ResponseEntity.ok(Map.of(
-            "message", "License renewed",
+            "message",    "License renewed",
             "licenseKey", newKey,
-            "clientCode", clientCode
+            "clientCode", license.getClientCode()
         ));
     }
+
+    // ── Delete ───────────────────────────────────────────────────────────────
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteById(@PathVariable Long id) {
@@ -174,6 +206,8 @@ public class LicenseController {
         licenseRepository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
+
+    // ── Public key ───────────────────────────────────────────────────────────
 
     @GetMapping("/public-key")
     public ResponseEntity<Map<String, String>> getPublicKey() {

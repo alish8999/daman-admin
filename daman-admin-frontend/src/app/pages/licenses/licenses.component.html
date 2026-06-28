@@ -1,22 +1,27 @@
 <div class="page-scroll-container">
   <div class="container-fluid p-4">
 
-    <!-- Hero header -->
+    <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <div class="page-hero">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
         <div>
-          <h3 class="mb-1 fw-bold">Licenses</h3>
-          <div class="d-flex gap-2 flex-wrap">
-            <span class="stat-chip">{{ licenses.length }} total</span>
+          <h3 class="mb-1 fw-bold">Sales &amp; Subscriptions</h3>
+          <div class="d-flex gap-2 flex-wrap mt-2">
+            <span class="stat-chip">{{ clients.length }} clients</span>
             <span class="stat-chip" style="background:rgba(34,197,94,0.25);color:#bbf7d0">
-              {{ activeCount }} active
+              {{ activeLicenseCount }} licensed
             </span>
-            <span class="stat-chip" style="background:rgba(239,68,68,0.25);color:#fecaca">
-              {{ revokedCount }} revoked
+            <span class="stat-chip" style="background:rgba(99,102,241,0.3);color:#c7d2fe">
+              ${{ totalRevenue | number:'1.0-2' }} revenue
             </span>
             @if (expiringSoonCount > 0) {
               <span class="stat-chip" style="background:rgba(245,158,11,0.25);color:#fde68a">
                 ⚠ {{ expiringSoonCount }} expiring soon
+              </span>
+            }
+            @if (pendingCount > 0) {
+              <span class="stat-chip" style="background:rgba(239,68,68,0.2);color:#fca5a5">
+                {{ pendingCount }} pending payment
               </span>
             }
           </div>
@@ -27,128 +32,223 @@
       </div>
     </div>
 
-    <!-- Filter bar -->
+    <!-- ── Stats Cards ───────────────────────────────────────────────────── -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="stats-card">
+          <div class="label">Total Clients</div>
+          <div class="value text-dark">{{ clients.length }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stats-card">
+          <div class="label">Active Licenses</div>
+          <div class="value text-success">{{ activeLicenseCount }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stats-card">
+          <div class="label">Total Revenue</div>
+          <div class="value text-primary">${{ totalRevenue | number:'1.0-2' }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stats-card">
+          <div class="label">Paid / Pending</div>
+          <div class="value">
+            <span class="text-success">{{ paidCount }}</span>
+            <span class="text-muted fs-5"> / </span>
+            <span class="text-warning">{{ pendingCount }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Filter Bar ─────────────────────────────────────────────────────── -->
     <div class="filter-bar mb-4">
       <div class="d-flex gap-2 flex-wrap align-items-center">
-        <!-- Search -->
-        <div class="search-input-wrap flex-grow-1" style="min-width:220px;max-width:340px">
+        <div class="search-input-wrap flex-grow-1" style="min-width:200px;max-width:300px">
           <span class="search-icon">🔍</span>
           <input type="text" class="form-control form-control-sm"
                  [(ngModel)]="searchQuery"
-                 placeholder="Search client, code or machine ID…">
+                 placeholder="Search by name, code, contact…">
         </div>
 
-        <!-- Status filter -->
-        <div class="btn-group btn-group-sm">
-          <button class="btn"
-                  [class.btn-dark]="filter === 'all'"
-                  [class.btn-outline-dark]="filter !== 'all'"
-                  (click)="filter = 'all'">All ({{ licenses.length }})</button>
-          <button class="btn"
-                  [class.btn-success]="filter === 'active'"
-                  [class.btn-outline-success]="filter !== 'active'"
-                  (click)="filter = 'active'">Active ({{ activeCount }})</button>
-          <button class="btn"
-                  [class.btn-danger]="filter === 'revoked'"
-                  [class.btn-outline-danger]="filter !== 'revoked'"
-                  (click)="filter = 'revoked'">Revoked ({{ revokedCount }})</button>
-        </div>
+        <select class="form-select form-select-sm" style="width:auto" [(ngModel)]="packageFilter">
+          <option value="">All Packages</option>
+          <option value="BASIC">BASIC</option>
+          <option value="PRO">PRO</option>
+          <option value="ULTIMATE">ULTIMATE</option>
+        </select>
 
-        <!-- Results count -->
-        @if (filteredLicenses.length !== licenses.length) {
-          <span class="text-muted small">{{ filteredLicenses.length }} of {{ licenses.length }}</span>
+        <select class="form-select form-select-sm" style="width:auto" [(ngModel)]="paymentFilter">
+          <option value="">All Payments</option>
+          <option value="PAID">Paid</option>
+          <option value="PENDING">Pending</option>
+          <option value="PARTIAL">Partial</option>
+        </select>
+
+        <select class="form-select form-select-sm" style="width:auto" [(ngModel)]="licenseFilter">
+          <option value="">All License Status</option>
+          <option value="ACTIVE">Active</option>
+          <option value="EXPIRING">Expiring Soon</option>
+          <option value="EXPIRED">Expired</option>
+          <option value="REVOKED">Revoked</option>
+          <option value="NONE">No License</option>
+        </select>
+
+        @if (searchQuery || packageFilter || paymentFilter || licenseFilter) {
+          <button class="btn btn-outline-secondary btn-sm" (click)="clearFilters()">Clear</button>
+          <span class="text-muted small">{{ filteredRows.length }} of {{ clients.length }}</span>
         }
       </div>
     </div>
 
-    @if (licenses.length === 0) {
+    <!-- ── Table ──────────────────────────────────────────────────────────── -->
+    @if (clients.length === 0) {
       <div class="empty-state">
-        <span class="emoji">📜</span>
-        <h5 class="mb-1">No licenses yet</h5>
-        <p class="mb-3">Generate your first license to bind a build to a customer's machine.</p>
-        <button class="btn btn-dark btn-sm" (click)="openGenerateModal()">+ Generate License</button>
+        <span class="emoji">🏪</span>
+        <h5 class="mb-1">No clients yet</h5>
+        <p class="mb-3">Create your first client to start tracking subscriptions.</p>
+        <a routerLink="/clients/new" class="btn btn-dark btn-sm">+ New Client</a>
       </div>
-    } @else if (filteredLicenses.length === 0) {
+    } @else if (filteredRows.length === 0) {
       <div class="empty-state">
         <span class="emoji">🔎</span>
-        <h5 class="mb-1">No licenses match</h5>
-        <p class="mb-3">Try adjusting your search or filter.</p>
+        <h5 class="mb-1">No clients match</h5>
+        <p class="mb-3">Try adjusting your filters.</p>
         <button class="btn btn-outline-dark btn-sm" (click)="clearFilters()">Clear filters</button>
       </div>
     } @else {
-      <div class="license-table-card">
+      <div class="sales-table-card">
         <div class="table-responsive">
           <table class="table table-hover align-middle">
             <thead>
               <tr>
-                <th style="width:40px">#</th>
+                <th style="width:36px">#</th>
                 <th>Client</th>
-                <th>Machine ID</th>
+                <th>Package</th>
                 <th>Status</th>
-                <th>Expires</th>
-                <th>Activated</th>
-                <th class="text-end" style="min-width:230px">Actions</th>
+                <th>Payment</th>
+                <th>Price</th>
+                <th>Support Until</th>
+                <th>License</th>
+                <th class="text-end" style="min-width:200px">Actions</th>
               </tr>
             </thead>
             <tbody>
-              @for (license of filteredLicenses; track trackById($index, license)) {
+              @for (row of filteredRows; track trackByCode($index, row)) {
                 <tr>
-                  <td class="text-muted">{{ license.id }}</td>
-                  <td class="client-cell">
-                    <div class="client-name">{{ license.clientName || license.clientCode }}</div>
-                    <div class="client-code">{{ license.clientCode }}</div>
-                  </td>
+                  <td class="text-muted small">{{ row.client.id ?? '—' }}</td>
+
                   <td>
-                    <span class="machine-id-cell d-inline-block" [title]="license.machineId">
-                      {{ truncateMachineId(license.machineId) }}
-                    </span>
-                  </td>
-                  <td>
-                    @if (license.status === 'ACTIVE' && isExpired(license)) {
-                      <span class="status-pill expired" title="Active license whose expiry date has passed">EXPIRED</span>
-                    } @else if (license.status === 'ACTIVE') {
-                      <span class="status-pill active">ACTIVE</span>
-                    } @else {
-                      <span class="status-pill revoked">REVOKED</span>
+                    <div class="client-name">{{ row.client.appName }}</div>
+                    <div class="client-code">{{ row.client.clientCode }}</div>
+                    @if (row.client.pointOfContact) {
+                      <div class="text-muted" style="font-size:.72rem">{{ row.client.pointOfContact }}</div>
                     }
                   </td>
-                  <td class="expiry-cell">
-                    @if (!license.expiresAt) {
-                      <span class="never">Never</span>
-                    } @else if (isExpired(license)) {
-                      <span class="past" [title]="'Expired ' + (-(daysUntilExpiry(license)!)) + ' days ago'">
-                        {{ license.expiresAt | date:'mediumDate' }}
-                      </span>
-                    } @else if (isExpiringSoon(license)) {
-                      <span class="soon" [title]="daysUntilExpiry(license) + ' days left'">
-                        {{ license.expiresAt | date:'mediumDate' }}
-                        <small>({{ daysUntilExpiry(license) }}d)</small>
+
+                  <td>
+                    @if (row.client.packageTier || row.billing?.packageTier) {
+                      <span class="badge" [class]="packageBadgeClass(row.client.packageTier ?? row.billing?.packageTier)">
+                        {{ row.client.packageTier ?? row.billing?.packageTier }}
                       </span>
                     } @else {
-                      {{ license.expiresAt | date:'mediumDate' }}
+                      <span class="text-muted small">—</span>
                     }
                   </td>
-                  <td class="text-muted small">{{ license.activatedAt | date:'short' }}</td>
-                  <td class="text-end">
-                    <div class="d-inline-flex gap-1">
-                      <button class="btn btn-xs btn-outline-secondary copy-btn"
-                              (click)="copyLicenseKey(license.licenseKey)"
-                              title="Copy license key to clipboard">
-                        Copy Key
-                      </button>
-                      @if (license.status === 'ACTIVE') {
-                        <button class="btn btn-xs btn-outline-danger"
-                                (click)="revoke(license)"
-                                title="Revoke this license — the customer's app will stop working until renewed">Revoke</button>
+
+                  <td>
+                    @if (row.client.clientStatus) {
+                      <span class="badge" [class]="clientStatusBadgeClass(row.client.clientStatus)">
+                        {{ row.client.clientStatus }}
+                      </span>
+                    } @else {
+                      <span class="text-muted small">—</span>
+                    }
+                  </td>
+
+                  <td>
+                    @if (row.billing?.paymentStatus) {
+                      <span class="badge" [class]="paymentBadgeClass(row.billing!.paymentStatus)">
+                        {{ row.billing!.paymentStatus }}
+                      </span>
+                      @if (row.billing!.paymentDate) {
+                        <div class="text-muted" style="font-size:.7rem">{{ row.billing!.paymentDate | date:'dd MMM yy' }}</div>
                       }
-                      <button class="btn btn-xs btn-outline-success"
-                              (click)="openRenewModal(license)"
-                              [title]="license.status === 'REVOKED'
-                                ? 'Reactivate: issue a fresh license key'
-                                : 'Extend: issue a fresh license key with a new expiry'">Renew</button>
-                      <button class="btn btn-xs btn-danger"
-                              (click)="deleteLicense(license)"
-                              title="Permanently delete this license record">Delete</button>
+                    } @else {
+                      <span class="text-muted small">—</span>
+                    }
+                  </td>
+
+                  <td>
+                    @if (row.billing?.amount != null) {
+                      <span class="fw-semibold">${{ row.billing!.amount | number:'1.0-2' }}</span>
+                    } @else {
+                      <span class="text-muted">—</span>
+                    }
+                  </td>
+
+                  <td>
+                    @if (row.billing?.supportEndDate) {
+                      <span [class.text-danger]="(row.supportDaysLeft ?? 999) < 14"
+                            [class.text-warning]="(row.supportDaysLeft ?? 999) >= 14 && (row.supportDaysLeft ?? 999) < 30"
+                            [class.fw-semibold]="(row.supportDaysLeft ?? 999) < 30">
+                        {{ row.billing!.supportEndDate | date:'dd MMM yyyy' }}
+                      </span>
+                      @if (row.supportDaysLeft !== null && row.supportDaysLeft < 60) {
+                        <div class="text-muted" style="font-size:.7rem">{{ row.supportDaysLeft }}d left</div>
+                      }
+                    } @else {
+                      <span class="text-muted small">—</span>
+                    }
+                  </td>
+
+                  <td>
+                    <span class="badge" [class]="licenseBadgeClass(row)">
+                      {{ licenseLabel(row) }}
+                    </span>
+                    @if (row.license?.label) {
+                      <div class="text-muted" style="font-size:.7rem">{{ row.license!.label }}</div>
+                    }
+                    @if (row.license && row.license.expiresAt && !row.isExpired) {
+                      <div class="text-muted" style="font-size:.7rem">
+                        {{ row.license.expiresAt | date:'dd MMM yyyy' }}
+                      </div>
+                    }
+                  </td>
+
+                  <td class="text-end">
+                    <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
+                      <a [routerLink]="['/clients', row.client.clientCode, 'edit']"
+                         class="btn btn-xs btn-outline-secondary">
+                        ✏ Edit
+                      </a>
+                      <button class="btn btn-xs btn-outline-primary"
+                              (click)="openGenerateModal(row.client.clientCode)">
+                        🔑 Key
+                      </button>
+                      @if (row.license && row.license.status === 'ACTIVE') {
+                        <button class="btn btn-xs btn-outline-success"
+                                (click)="openRenewModal(row.license)">
+                          ↻ Renew
+                        </button>
+                        <button class="btn btn-xs btn-outline-danger"
+                                (click)="revoke(row.license)">
+                          ✕ Revoke
+                        </button>
+                      }
+                      @if (row.license) {
+                        <button class="btn btn-xs btn-outline-secondary copy-btn"
+                                (click)="copyLicenseKey(row.license.licenseKey)">
+                          ⎘ Copy
+                        </button>
+                        <button class="btn btn-xs btn-danger"
+                                (click)="deleteLicense(row.license)">
+                          🗑 Del
+                        </button>
+                      }
                     </div>
                   </td>
                 </tr>
@@ -158,10 +258,11 @@
         </div>
       </div>
     }
+
   </div>
 </div>
 
-<!-- Generate License Modal -->
+<!-- ── Generate License Modal ──────────────────────────────────────────── -->
 @if (showGenerateModal) {
   <div class="modal-backdrop fade show" (click)="closeGenerateModal()"></div>
   <div class="modal fade show d-block" tabindex="-1">
@@ -187,15 +288,19 @@
               <input type="text" class="form-control font-monospace"
                      [(ngModel)]="generateForm.machineId"
                      placeholder="Paste the Machine ID from the client's activation screen">
-              <div class="form-text">The SHA-256 hardware fingerprint shown on the client's activation screen.</div>
+              <div class="form-text">The SHA-256 hardware fingerprint shown on the activation screen.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Label / Purpose <span class="text-muted fw-normal">(optional)</span></label>
+              <input type="text" class="form-control" [(ngModel)]="generateForm.label"
+                     placeholder="e.g. Main Store, Testing, Branch 2">
+              <div class="form-text">Helps identify which license is for which purpose.</div>
             </div>
             <div class="mb-3">
               <label class="form-label fw-semibold">Expiration Date <span class="text-muted fw-normal">(optional)</span></label>
-              <input type="date" class="form-control"
-                     [(ngModel)]="generateForm.expiresAt">
+              <input type="date" class="form-control" [(ngModel)]="generateForm.expiresAt">
               <div class="form-text">Leave empty for a perpetual license.</div>
             </div>
-
             @if (generateError) {
               <div class="alert alert-danger py-2 mb-0">{{ generateError }}</div>
             }
@@ -211,7 +316,7 @@
                     (click)="copyLicenseKey(generateResult.licenseKey)">
               {{ copied ? '✓ Copied!' : 'Copy to Clipboard' }}
             </button>
-            <div class="form-text mt-2">Send this license key to the client. They will paste it in the activation screen.</div>
+            <div class="form-text mt-2">Send this key to the client to enter in their activation screen.</div>
           }
         </div>
         <div class="modal-footer">
@@ -233,7 +338,7 @@
   </div>
 }
 
-<!-- Renew License Modal -->
+<!-- ── Renew License Modal ─────────────────────────────────────────────── -->
 @if (renewModal) {
   <div class="modal-backdrop fade show" (click)="closeRenewModal()"></div>
   <div class="modal fade show d-block" tabindex="-1">
@@ -249,7 +354,7 @@
             <strong>{{ renewModal.license.clientName || renewModal.license.clientCode }}</strong>
             on machine <code>{{ truncateMachineId(renewModal.license.machineId) }}</code>.
           </p>
-          <p class="text-muted small">A new license key will be generated and the status will be set to ACTIVE.</p>
+          <p class="text-muted small">A new license key will be generated and status set to ACTIVE.</p>
           <div class="mb-0">
             <label class="form-label fw-semibold">New Expiration Date <span class="text-muted fw-normal">(optional)</span></label>
             <input type="date" class="form-control" [(ngModel)]="renewModal.expiresAt">
@@ -274,7 +379,7 @@
   </div>
 }
 
-<!-- Revoke Confirmation Modal -->
+<!-- ── Revoke Confirmation Modal ──────────────────────────────────────── -->
 @if (revokeConfirm) {
   <div class="modal-backdrop fade show" (click)="cancelRevokeConfirm()"></div>
   <div class="modal fade show d-block" tabindex="-1">
@@ -289,7 +394,7 @@
             Revoke the license for
             <strong>{{ revokeConfirm.license.clientName || revokeConfirm.license.clientCode }}</strong>?
           </p>
-          <p class="text-muted small mb-0">The customer's app will stop working until the license is renewed.</p>
+          <p class="text-muted small mb-0">The app will stop working until renewed.</p>
           @if (revokeError) {
             <div class="alert alert-danger mt-3 py-2 mb-0">{{ revokeError }}</div>
           }
@@ -309,7 +414,7 @@
   </div>
 }
 
-<!-- Generic Delete Confirmation Modal -->
+<!-- ── Delete Confirmation Modal ──────────────────────────────────────── -->
 @if (deleteConfirm) {
   <div class="modal-backdrop fade show" (click)="cancelDeleteAction()"></div>
   <div class="modal fade show d-block" tabindex="-1">

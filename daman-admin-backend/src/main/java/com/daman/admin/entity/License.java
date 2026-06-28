@@ -18,11 +18,15 @@ public class License {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String clientCode;
 
     @Column(nullable = false)
     private String machineId;
+
+    /** Optional label to identify the purpose of this license (e.g. "Main Store", "Testing", "Branch 2"). */
+    @Column(name = "label", length = 100)
+    private String label;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String licenseKey;

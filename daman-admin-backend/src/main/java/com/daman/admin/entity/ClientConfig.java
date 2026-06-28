@@ -95,6 +95,20 @@ public class ClientConfig {
     @Column(name = "features_json", columnDefinition = "TEXT")
     private String featuresJson;
 
+    // ── Client status & package ──────────────────────────────────────────────
+
+    /** Current package tier for this client: BASIC, PRO, ULTIMATE */
+    @Column(name = "package_tier", length = 20)
+    private String packageTier;
+
+    /** Overall client status: ACTIVE, INACTIVE, TRIAL */
+    @Column(name = "client_status", length = 20)
+    private String clientStatus;
+
+    /** Free-text internal notes about this client (visible only in admin). */
+    @Column(name = "client_notes", columnDefinition = "TEXT")
+    private String clientNotes;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

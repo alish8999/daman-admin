@@ -157,7 +157,83 @@ export class TranslationService {
       'buildTarget.win': 'Windows 10/11 (.exe)',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',
       'buildTarget.mac': 'macOS (.dmg)',
-      'buildTarget.linux': 'Linux (.AppImage)'
+      'buildTarget.linux': 'Linux (.AppImage)',
+
+      // ── Billing section ───────────────────────────────────────────────
+      subscriptionPeriod: 'Subscription Period',
+      paymentDetails: 'Payment Details',
+      invoiceRef: 'Invoice / Reference #',
+      invoiceRefPlaceholder: 'e.g. INV-2026-001',
+      clientNotesHint: 'Internal notes — visible only in the admin panel. Use this to log renewals, special terms, or follow-up reminders.',
+
+      // ── Client form tabs ──────────────────────────────────────────────
+      tabBusiness: 'Business & Billing',
+      tabBranding: 'Branding',
+      tabFeatures: 'Features',
+      tabLicense: 'License',
+      appInfo: 'App Info',
+
+      // ── Subscription & Billing ────────────────────────────────────────
+      subscriptionBilling: 'Subscription & Billing',
+      packageTier: 'Package Tier',
+      packageBasicDesc: 'Core POS — essentials only',
+      packageProDesc: 'All Basic + financial reports & multi-currency',
+      packageUltimateDesc: 'All Pro + shifts, statements & premium modules',
+      packageTierHint: 'Click to tag this client with a package level. The billing record is independent of the feature toggles below.',
+      clientStatus: 'Client Status',
+      paymentStatus: 'Payment Status',
+      paymentMethod: 'Payment Method',
+      pricePaid: 'Price Paid (USD)',
+      paymentDate: 'Payment Date',
+      supportStartDate: 'Support From',
+      supportEndDate: 'Support Until',
+      clientNotes: 'Notes',
+      clientNotesPlaceholder: 'Internal notes — special terms, follow-up dates, etc.',
+
+      // ── Client status section ────────────────────────────────────────
+      clientStatusSection: 'Client Status & Package',
+
+      // ── Billing tab ──────────────────────────────────────────────────
+      tabBilling: 'Billing',
+      loadingBillings: 'Loading billing records…',
+      noBillingsYet: 'No billing records yet. Click "+ Add Payment" to record the first payment.',
+      addPayment: 'Add Payment',
+      editPayment: 'Edit Payment',
+      paymentHistory: 'Payment History',
+      billingRecords: 'Records',
+      totalPaid: 'Total Paid',
+      supportUntil: 'Support Until',
+      supportPeriod: 'Support Period',
+      billingNotesPlaceholder: 'Payment notes, renewal details…',
+      save: 'Save',
+      edit: 'Edit',
+
+      // ── License tab ───────────────────────────────────────────────────
+      loadingLicenses: 'Loading licenses…',
+      generateLicense: 'Generate New License',
+      newLicense: '+ New License',
+      machineId: 'Machine ID',
+      machineIdPlaceholder: 'Paste the SHA-256 hardware fingerprint from the activation screen',
+      expiresAt: 'Expiration Date',
+      optional: 'optional',
+      generate: 'Generate',
+      licenseGenerated: 'License generated successfully!',
+      copyKey: 'Copy Key',
+      copied: 'Copied!',
+      noLicensesYet: 'No licenses generated yet. Click "+ New License" to generate the first one.',
+      existingLicenses: 'Existing Licenses',
+      licenseLabel: 'Label / Purpose',
+      licenseLabelPlaceholder: 'e.g. Main Store, Testing, Branch 2',
+      status: 'Status',
+      activatedAt: 'Activated',
+      actions: 'Actions',
+      revoke: 'Revoke',
+      renew: 'Renew',
+      delete: 'Delete',
+      confirmRevoke: 'Confirm Revoke',
+      revokeWarning: 'This will immediately deactivate the license. The customer\'s app will stop working until renewed. Continue?',
+      renewLicense: 'Renew License',
+      newExpiryDate: 'New Expiry Date'
     },
     ar: {
       appTitle: 'إدارة ضمان',
@@ -308,7 +384,83 @@ export class TranslationService {
       'buildTarget.win': 'Windows 10/11 (.exe)',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',
       'buildTarget.mac': 'macOS (.dmg)',
-      'buildTarget.linux': 'Linux (.AppImage)'
+      'buildTarget.linux': 'Linux (.AppImage)',
+
+      // ── Billing section ───────────────────────────────────────────────
+      subscriptionPeriod: 'فترة الاشتراك',
+      paymentDetails: 'تفاصيل الدفع',
+      invoiceRef: 'رقم الفاتورة / المرجع',
+      invoiceRefPlaceholder: 'مثال: INV-2026-001',
+      clientNotesHint: 'ملاحظات داخلية — مرئية فقط في لوحة الإدارة. استخدمها لتسجيل التجديدات والشروط الخاصة أو تذكيرات المتابعة.',
+
+      // ── Client form tabs ──────────────────────────────────────────────
+      tabBusiness: 'بيانات العميل والفواتير',
+      tabBranding: 'الهوية البصرية',
+      tabFeatures: 'الميزات',
+      tabLicense: 'الترخيص',
+      appInfo: 'بيانات التطبيق',
+
+      // ── Subscription & Billing ────────────────────────────────────────
+      subscriptionBilling: 'الاشتراك والفواتير',
+      packageTier: 'الباقة المشتراة',
+      packageBasicDesc: 'نظام البيع الأساسي فقط',
+      packageProDesc: 'كل الأساسية + تقارير مالية وتعدد عملات',
+      packageUltimateDesc: 'كل الاحترافية + ورديات وكشوفات وحدات متقدمة',
+      packageTierHint: 'انقر لتحديد باقة هذا العميل. سجل الفاتورة مستقل عن مفاتيح الميزات أدناه.',
+      clientStatus: 'حالة العميل',
+      paymentStatus: 'حالة الدفع',
+      paymentMethod: 'طريقة الدفع',
+      pricePaid: 'المبلغ المدفوع (USD)',
+      paymentDate: 'تاريخ الدفع',
+      supportStartDate: 'بداية الدعم',
+      supportEndDate: 'نهاية الدعم',
+      clientNotes: 'ملاحظات',
+      clientNotesPlaceholder: 'ملاحظات داخلية — شروط خاصة، مواعيد متابعة، إلخ.',
+
+      // ── Client status section ────────────────────────────────────────
+      clientStatusSection: 'حالة العميل والباقة',
+
+      // ── Billing tab ──────────────────────────────────────────────────
+      tabBilling: 'الفواتير',
+      loadingBillings: 'جاري تحميل سجلات الفواتير…',
+      noBillingsYet: 'لا توجد سجلات فواتير بعد. انقر "+ إضافة دفعة" لتسجيل أول دفعة.',
+      addPayment: 'إضافة دفعة',
+      editPayment: 'تعديل الدفعة',
+      paymentHistory: 'سجل المدفوعات',
+      billingRecords: 'السجلات',
+      totalPaid: 'إجمالي المدفوع',
+      supportUntil: 'الدعم حتى',
+      supportPeriod: 'فترة الدعم',
+      billingNotesPlaceholder: 'ملاحظات الدفعة، تفاصيل التجديد…',
+      save: 'حفظ',
+      edit: 'تعديل',
+
+      // ── License tab ───────────────────────────────────────────────────
+      loadingLicenses: 'جاري تحميل التراخيص…',
+      generateLicense: 'إنشاء ترخيص جديد',
+      newLicense: '+ ترخيص جديد',
+      machineId: 'معرّف الجهاز',
+      machineIdPlaceholder: 'الصق البصمة SHA-256 من شاشة التفعيل',
+      expiresAt: 'تاريخ الانتهاء',
+      optional: 'اختياري',
+      generate: 'إنشاء',
+      licenseGenerated: 'تم إنشاء الترخيص بنجاح!',
+      copyKey: 'نسخ المفتاح',
+      copied: 'تم النسخ!',
+      noLicensesYet: 'لا توجد تراخيص بعد. انقر "+ ترخيص جديد" لإنشاء أول ترخيص.',
+      existingLicenses: 'التراخيص الحالية',
+      licenseLabel: 'التسمية / الغرض',
+      licenseLabelPlaceholder: 'مثل: المتجر الرئيسي، اختبار، فرع 2',
+      status: 'الحالة',
+      activatedAt: 'تاريخ التفعيل',
+      actions: 'الإجراءات',
+      revoke: 'إلغاء الترخيص',
+      renew: 'تجديد',
+      delete: 'حذف',
+      confirmRevoke: 'تأكيد إلغاء الترخيص',
+      revokeWarning: 'سيؤدي هذا إلى تعطيل الترخيص فوراً. لن يعمل تطبيق العميل حتى يتم التجديد. هل تريد المتابعة؟',
+      renewLicense: 'تجديد الترخيص',
+      newExpiryDate: 'تاريخ الانتهاء الجديد'
     }
   };
 

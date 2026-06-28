@@ -28,6 +28,76 @@ body {
   font-size: 0.8rem;
 }
 
+.btn-xs {
+  padding: 0.18rem 0.55rem;
+  font-size: 0.72rem;
+  border-radius: 6px;
+}
+
+// ── Billing section ─────────────────────────────────────────────────────────
+
+.billing-status-banner {
+  border: 1px solid transparent;
+
+  &.banner-active  { background: #f0fdf4; border-color: #bbf7d0; }
+  &.banner-trial   { background: #fffbeb; border-color: #fde68a; }
+  &.banner-inactive { background: #f9fafb; border-color: #e5e7eb; }
+}
+
+.billing-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+
+  &.tier          { background: #1e1e2e; color: #fff; }
+  &.status-active  { background: #dcfce7; color: #166534; }
+  &.status-trial   { background: #fef9c3; color: #713f12; }
+  &.status-inactive { background: #fee2e2; color: #991b1b; }
+  &.pay-paid    { background: #d1fae5; color: #065f46; }
+  &.pay-pending { background: #fef3c7; color: #92400e; }
+  &.pay-partial { background: #dbeafe; color: #1e40af; }
+}
+
+.tier-card {
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+
+  .tier-name { font-weight: 700; font-size: .85rem; margin-bottom: 2px; }
+  .tier-desc { font-size: .72rem; color: #6b7280; line-height: 1.3; }
+
+  &:hover { border-color: #6366f1; }
+
+  &.tier-basic.selected   { border-color: #6b7280; background: #f9fafb; }
+  &.tier-pro.selected     { border-color: #6366f1; background: #eef2ff; .tier-name { color: #4338ca; } }
+  &.tier-ultimate.selected { border-color: #1e1e2e; background: #1e1e2e; .tier-name, .tier-desc { color: #fff; } }
+}
+
+.billing-sub-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  height: 100%;
+
+  .billing-sub-title {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #6b7280;
+    margin-bottom: 14px;
+  }
+}
+
 .color-input-group {
   display: flex;
   align-items: center;

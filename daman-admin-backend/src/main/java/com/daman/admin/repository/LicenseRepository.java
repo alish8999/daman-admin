@@ -12,5 +12,4 @@ public interface LicenseRepository extends JpaRepository<License, Long> {
     Optional<License> findByMachineIdAndStatus(String machineId, String status);
     List<License> findAllByOrderByActivatedAtDesc();
     long countByClientCodeAndStatus(String clientCode, String status);
-    java.util.Optional<License> findByClientCode(String clientCode);
 }

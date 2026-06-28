@@ -92,6 +92,11 @@ export interface ClientConfig {
   features?: ClientFeatures;
   createdAt?: string;
   updatedAt?: string;
+
+  // Client status & package (billing details live in the Billing table)
+  packageTier?: 'BASIC' | 'PRO' | 'ULTIMATE' | null;
+  clientStatus?: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | null;
+  clientNotes?: string | null;
 }
 
 export interface ClientConfigExport {

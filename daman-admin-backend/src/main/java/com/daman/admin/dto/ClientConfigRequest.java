@@ -65,4 +65,9 @@ public class ClientConfigRequest {
     private String defaultBuildTarget;
 
     private FeaturesRequest features;
+
+    // Client status & package
+    private String packageTier;
+    private String clientStatus;
+    private String clientNotes;
 }

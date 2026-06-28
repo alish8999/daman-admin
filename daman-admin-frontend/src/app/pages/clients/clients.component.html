@@ -8,6 +8,21 @@
           <h3 class="mb-1 fw-bold">Clients</h3>
           <div class="d-flex gap-2 flex-wrap">
             <span class="stat-chip">{{ clients.length }} total</span>
+            @if (activeClientCount > 0) {
+              <span class="stat-chip" style="background:rgba(25,135,84,0.25);color:#75dba0">
+                ✓ {{ activeClientCount }} active
+              </span>
+            }
+            @if (trialClientCount > 0) {
+              <span class="stat-chip" style="background:rgba(255,193,7,0.25);color:#ffe082">
+                ◑ {{ trialClientCount }} trial
+              </span>
+            }
+            @if (inactiveClientCount > 0) {
+              <span class="stat-chip" style="background:rgba(220,53,69,0.2);color:#f08090">
+                ○ {{ inactiveClientCount }} inactive
+              </span>
+            }
             <span class="stat-chip">{{ licensedActiveCount }} active licenses</span>
             @if (expiringSoonCount > 0) {
               <span class="stat-chip" style="background:rgba(255,193,7,0.25);color:#ffe082">
@@ -30,7 +45,19 @@
           <span class="search-icon">🔍</span>
           <input type="text" class="form-control form-control-sm"
                  [(ngModel)]="searchQuery"
-                 placeholder="Search name, code, tagline…">
+                 placeholder="Search name, code, phone, contact…">
+        </div>
+
+        <!-- Client status filter -->
+        <div class="btn-group btn-group-sm">
+          <button class="btn" [class.btn-dark]="statusFilter==='all'" [class.btn-outline-dark]="statusFilter!=='all'"
+                  (click)="statusFilter='all'">All</button>
+          <button class="btn" [class.btn-success]="statusFilter==='ACTIVE'" [class.btn-outline-success]="statusFilter!=='ACTIVE'"
+                  (click)="statusFilter='ACTIVE'">Active</button>
+          <button class="btn" [class.btn-warning]="statusFilter==='TRIAL'" [class.btn-outline-warning]="statusFilter!=='TRIAL'"
+                  (click)="statusFilter='TRIAL'">Trial</button>
+          <button class="btn" [class.btn-danger]="statusFilter==='INACTIVE'" [class.btn-outline-danger]="statusFilter!=='INACTIVE'"
+                  (click)="statusFilter='INACTIVE'">Inactive</button>
         </div>
 
         <!-- License status filter -->
@@ -69,7 +96,7 @@
     } @else if (filteredClients.length === 0) {
       <div class="text-center text-muted py-5">
         <p>No clients match your filters.</p>
-        <button class="btn btn-outline-secondary btn-sm" (click)="searchQuery=''; licenseFilter='all'; expirationFilter='all'">
+        <button class="btn btn-outline-secondary btn-sm" (click)="searchQuery=''; licenseFilter='all'; expirationFilter='all'; statusFilter='all'">
           Clear filters
         </button>
       </div>
@@ -83,28 +110,69 @@
                  [style.background]="'linear-gradient(135deg, ' + client.colorPrimary + ' 0%, ' + client.colorSecondary + ' 100%)'">
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div class="client-app-name text-white">{{ client.appName }}</div>
-                @if (licenseOf(client.clientCode); as lic) {
-                  <span class="badge flex-shrink-0 mt-1" [ngClass]="{
-                    'bg-success': lic.status === 'ACTIVE',
-                    'bg-danger':  lic.status === 'REVOKED'
-                  }" style="font-size:0.65rem">{{ lic.status }}</span>
-                } @else {
-                  <span class="badge bg-dark bg-opacity-50 flex-shrink-0 mt-1" style="font-size:0.65rem">–</span>
-                }
+                <div class="d-flex gap-1 flex-shrink-0 mt-1 flex-wrap justify-content-end">
+                  @if (client.clientStatus) {
+                    <span class="badge" [ngClass]="clientStatusClass(client.clientStatus)" style="font-size:0.65rem">
+                      {{ client.clientStatus }}
+                    </span>
+                  }
+                  @if (licenseOf(client.clientCode); as lic) {
+                    <span class="badge" [ngClass]="{
+                      'bg-success': lic.status === 'ACTIVE',
+                      'bg-danger':  lic.status === 'REVOKED'
+                    }" style="font-size:0.65rem">{{ lic.status }}</span>
+                  } @else {
+                    <span class="badge bg-dark bg-opacity-50" style="font-size:0.65rem">No License</span>
+                  }
+                </div>
               </div>
               <div class="client-tagline text-white">{{ client.tagline }}</div>
             </div>
 
             <!-- Card body — identity & features -->
             <div class="client-card-body">
+              <!-- Code + package tier + color swatches -->
               <div class="d-flex align-items-center justify-content-between mb-2">
-                <code class="text-muted small">{{ client.clientCode }}</code>
+                <div class="d-flex align-items-center gap-2">
+                  <code class="text-muted small">{{ client.clientCode }}</code>
+                  @if (client.packageTier) {
+                    <span class="badge" [ngClass]="packageClass(client.packageTier)" style="font-size:0.6rem">
+                      {{ client.packageTier }}
+                    </span>
+                  }
+                </div>
                 <div class="d-flex gap-1">
                   @for (color of colorSwatches(client); track color) {
                     <span class="color-swatch" [style.background-color]="color" [title]="color"></span>
                   }
                 </div>
               </div>
+
+              <!-- Contact info -->
+              @if (client.pointOfContact || client.phone) {
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div class="text-muted small text-truncate" style="max-width:60%">
+                    @if (client.pointOfContact) {
+                      <span>👤 {{ client.pointOfContact }}</span>
+                    }
+                    @if (client.phone && !client.pointOfContact) {
+                      <span>📞 {{ client.phone }}</span>
+                    }
+                  </div>
+                  @if (client.phone) {
+                    <div class="d-flex gap-1">
+                      <a [href]="whatsappUrl(client.phone)" target="_blank" rel="noopener"
+                         class="btn btn-xs btn-outline-success" title="WhatsApp {{ client.phone }}">
+                        <i class="bi bi-whatsapp"></i>
+                      </a>
+                      <a [href]="telegramUrl(client.phone)" target="_blank" rel="noopener"
+                         class="btn btn-xs btn-outline-primary" title="Telegram {{ client.phone }}">
+                        <i class="bi bi-telegram"></i>
+                      </a>
+                    </div>
+                  }
+                </div>
+              }
 
               @if (hasAnyFeature(client)) {
                 <div class="d-flex flex-wrap gap-1">
@@ -127,6 +195,12 @@
                     </small>
                   </div>
                 }
+              }
+
+              @if (client.clientNotes) {
+                <div class="mt-2 text-muted small text-truncate" title="{{ client.clientNotes }}" style="font-style:italic">
+                  {{ client.clientNotes }}
+                </div>
               }
             </div>
 

@@ -1,14 +1,26 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { LicenseService, License, GenerateLicenseResponse } from '../../services/license.service';
 import { ClientService } from '../../services/client.service';
+import { BillingService } from '../../services/billing.service';
+import { Billing } from '../../models/billing.model';
 import { ClientConfig } from '../../models/client-config.model';
+
+export interface MergedRow {
+  client: ClientConfig;
+  license: License | null;
+  billing: Billing | null;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
+  supportDaysLeft: number | null;
+}
 
 @Component({
   selector: 'app-licenses',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './licenses.component.html',
   styles: [`
     .page-scroll-container {
@@ -32,6 +44,14 @@ import { ClientConfig } from '../../models/client-config.model';
       font-size: 0.78rem;
       backdrop-filter: blur(4px);
     }
+    .stats-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .stats-card .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .05em; color: #8a8aa0; font-weight: 600; }
+    .stats-card .value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
     .filter-bar {
       background: #fff;
       border-radius: 10px;
@@ -52,16 +72,14 @@ import { ClientConfig } from '../../models/client-config.model';
     .search-input-wrap input {
       padding-left: 32px;
     }
-    .license-table-card {
+    .sales-table-card {
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       overflow: hidden;
     }
-    .license-table-card .table {
-      margin-bottom: 0;
-    }
-    .license-table-card thead th {
+    .sales-table-card .table { margin-bottom: 0; }
+    .sales-table-card thead th {
       background: #f6f7fb;
       border-bottom: 1px solid #e9ecef;
       color: #4a4a5e;
@@ -72,135 +90,39 @@ import { ClientConfig } from '../../models/client-config.model';
       padding-top: 12px;
       padding-bottom: 12px;
     }
-    .license-table-card tbody tr {
-      transition: background 0.15s ease;
-    }
-    .license-table-card tbody tr:hover {
-      background: #fafbff;
-    }
-    .license-table-card tbody td {
-      padding-top: 14px;
-      padding-bottom: 14px;
-      vertical-align: middle;
-    }
+    .sales-table-card tbody tr { transition: background 0.15s ease; }
+    .sales-table-card tbody tr:hover { background: #fafbff; }
+    .sales-table-card tbody td { padding-top: 14px; padding-bottom: 14px; vertical-align: middle; }
+    .client-name { font-weight: 600; color: #1e1e2e; }
+    .client-code { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 0.72rem; color: #8a8aa0; }
     .license-key-display {
-      font-family: 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.75rem;
-      word-break: break-all;
-      background: #1e1e2e;
-      color: #d6d6e6;
-      padding: 14px;
-      border-radius: 8px;
-      border: 1px solid #2d2d44;
-      max-height: 220px;
-      overflow-y: auto;
-    }
-    .machine-id-cell {
-      font-family: 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.75rem;
-      color: #5a5a72;
-      max-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .client-cell .client-name {
-      font-weight: 600;
-      color: #1e1e2e;
-    }
-    .client-cell .client-code {
-      font-family: 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.72rem;
-      color: #8a8aa0;
-    }
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-weight: 600;
-      font-size: 0.72rem;
-      padding: 4px 10px;
-      border-radius: 999px;
-      letter-spacing: 0.03em;
-    }
-    .status-pill::before {
-      content: '';
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    .status-pill.active {
-      background: rgba(34,197,94,0.12);
-      color: #15803d;
-    }
-    .status-pill.revoked {
-      background: rgba(239,68,68,0.12);
-      color: #b91c1c;
-    }
-    .status-pill.expired {
-      background: rgba(107,114,128,0.18);
-      color: #4b5563;
-    }
-    .expiry-cell .never {
-      color: #6b7280;
-      font-style: italic;
-    }
-    .expiry-cell .soon {
-      color: #b45309;
-      font-weight: 600;
-    }
-    .expiry-cell .past {
-      color: #b91c1c;
-      font-weight: 600;
-      text-decoration: line-through;
+      font-family: 'Cascadia Code','Fira Code',monospace; font-size: 0.75rem; word-break: break-all;
+      background: #1e1e2e; color: #d6d6e6; padding: 14px; border-radius: 8px; border: 1px solid #2d2d44;
+      max-height: 220px; overflow-y: auto;
     }
     .empty-state {
-      background: #fff;
-      border-radius: 12px;
-      padding: 60px 24px;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      color: #6b7280;
+      background: #fff; border-radius: 12px; padding: 60px 24px;
+      text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); color: #6b7280;
     }
-    .empty-state .emoji {
-      font-size: 2.5rem;
-      display: block;
-      margin-bottom: 12px;
-      opacity: 0.6;
-    }
-    .btn-xs {
-      padding: 0.18rem 0.55rem;
-      font-size: 0.72rem;
-      border-radius: 6px;
-    }
-    .copy-btn.copied {
-      background: #15803d;
-      color: #fff;
-      border-color: #15803d;
-    }
-    .modal-content {
-      border-radius: 12px;
-      border: none;
-      box-shadow: 0 18px 50px rgba(15, 15, 30, 0.25);
-    }
-    .gradient-btn {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      border: none;
-      color: #fff;
-      font-weight: 600;
-    }
+    .empty-state .emoji { font-size: 2.5rem; display: block; margin-bottom: 12px; opacity: 0.6; }
+    .btn-xs { padding: 0.18rem 0.55rem; font-size: 0.72rem; border-radius: 6px; }
+    .copy-btn.copied { background: #15803d; color: #fff; border-color: #15803d; }
+    .modal-content { border-radius: 12px; border: none; box-shadow: 0 18px 50px rgba(15,15,30,0.25); }
+    .gradient-btn { background: linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%); border: none; color: #fff; font-weight: 600; }
     .gradient-btn:hover { color: #fff; opacity: 0.92; }
   `]
 })
 export class LicensesComponent implements OnInit {
   licenses: License[] = [];
   clients: ClientConfig[] = [];
-  filter: 'all' | 'active' | 'revoked' = 'all';
+  billings: Billing[] = [];
   searchQuery = '';
+  packageFilter = '';
+  paymentFilter = '';
+  licenseFilter = '';
 
   showGenerateModal = false;
-  generateForm = { machineId: '', clientCode: '', expiresAt: '' };
+  generateForm = { machineId: '', clientCode: '', label: '', expiresAt: '' };
   generateResult: GenerateLicenseResponse | null = null;
   generateError = '';
   generating = false;
@@ -210,86 +132,179 @@ export class LicensesComponent implements OnInit {
   renewing = false;
   renewError = '';
 
-  /** Generic delete-confirmation dialog state. */
   deleteConfirm: { title: string; message: string; onConfirm: () => void } | null = null;
 
-  /** Revoke-confirmation dialog state. */
   revokeConfirm: { license: License } | null = null;
   revoking = false;
   revokeError = '';
 
   constructor(
     private licenseService: LicenseService,
-    private clientService: ClientService
+    private clientService: ClientService,
+    private billingService: BillingService
   ) {}
 
   ngOnInit(): void {
-    this.loadLicenses();
-    this.clientService.getAll().subscribe(c => this.clients = c);
+    this.loadAll();
   }
 
-  loadLicenses(): void {
+  loadAll(): void {
     this.licenseService.getAll().subscribe(data => this.licenses = data);
+    this.clientService.getAll().subscribe(c => this.clients = c);
+    this.billingService.getAll().subscribe(b => this.billings = b);
   }
 
-  // ─── Filtering & stats ───────────────────────────────────────────────────
+  // ─── Merged rows ─────────────────────────────────────────────────────────
 
-  get filteredLicenses(): License[] {
+  get mergedRows(): MergedRow[] {
+    return this.clients.map(client => {
+      const clientLicenses = this.licenses
+        .filter(l => l.clientCode === client.clientCode)
+        .sort((a, b) => new Date(b.activatedAt).getTime() - new Date(a.activatedAt).getTime());
+      const activeLicense = clientLicenses.find(l => l.status === 'ACTIVE') ?? clientLicenses[0] ?? null;
+      const expired = activeLicense ? this.isExpired(activeLicense) : false;
+      const expiringSoon = activeLicense ? this.isExpiringSoon(activeLicense) : false;
+
+      const clientBillings = this.billings
+        .filter(b => b.clientCode === client.clientCode)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const latestBilling = clientBillings[0] ?? null;
+
+      return {
+        client,
+        license: activeLicense,
+        billing: latestBilling,
+        isExpired: expired,
+        isExpiringSoon: expiringSoon,
+        supportDaysLeft: this.calcSupportDaysLeft(latestBilling)
+      };
+    });
+  }
+
+  get filteredRows(): MergedRow[] {
     const q = this.searchQuery.trim().toLowerCase();
-    let list = this.licenses;
-    if (this.filter === 'active') list = list.filter(l => l.status === 'ACTIVE');
-    else if (this.filter === 'revoked') list = list.filter(l => l.status === 'REVOKED');
-    if (q) {
-      list = list.filter(l =>
-        (l.clientName || '').toLowerCase().includes(q) ||
-        (l.clientCode || '').toLowerCase().includes(q) ||
-        (l.machineId || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
+    return this.mergedRows.filter(row => {
+      if (this.packageFilter && row.client.packageTier !== this.packageFilter) return false;
+      if (this.paymentFilter && row.billing?.paymentStatus !== this.paymentFilter) return false;
+      if (this.licenseFilter) {
+        if (this.licenseFilter === 'ACTIVE' && (row.isExpired || !row.license || row.license.status !== 'ACTIVE')) return false;
+        if (this.licenseFilter === 'EXPIRED' && !row.isExpired) return false;
+        if (this.licenseFilter === 'NONE' && row.license !== null) return false;
+        if (this.licenseFilter === 'REVOKED' && row.license?.status !== 'REVOKED') return false;
+      }
+      if (q) {
+        const haystack = [
+          row.client.appName,
+          row.client.clientCode,
+          row.client.pointOfContact ?? '',
+          row.client.phone ?? '',
+          row.client.email ?? ''
+        ].join(' ').toLowerCase();
+        return haystack.includes(q);
+      }
+      return true;
+    });
   }
 
-  get activeCount(): number {
-    return this.licenses.filter(l => l.status === 'ACTIVE').length;
+  // ─── Stats ───────────────────────────────────────────────────────────────
+
+  get totalRevenue(): number {
+    return this.billings
+      .filter(b => b.paymentStatus === 'PAID')
+      .reduce((sum, b) => sum + (b.amount ? +b.amount : 0), 0);
   }
 
-  get revokedCount(): number {
-    return this.licenses.filter(l => l.status === 'REVOKED').length;
+  get paidCount(): number {
+    return this.mergedRows.filter(r => r.billing?.paymentStatus === 'PAID').length;
   }
 
-  /** Active licenses expiring within the next 30 days (and not already past). */
+  get pendingCount(): number {
+    return this.mergedRows.filter(r =>
+      r.billing?.paymentStatus === 'PENDING' || r.billing?.paymentStatus === 'PARTIAL'
+    ).length;
+  }
+
+  get activeLicenseCount(): number {
+    return this.mergedRows.filter(r => r.license?.status === 'ACTIVE' && !r.isExpired).length;
+  }
+
   get expiringSoonCount(): number {
-    return this.licenses.filter(l => l.status === 'ACTIVE' && this.isExpiringSoon(l)).length;
+    return this.mergedRows.filter(r => r.isExpiringSoon && !r.isExpired).length;
+  }
+
+  // ─── Badge helpers ───────────────────────────────────────────────────────
+
+  packageBadgeClass(tier?: string | null): string {
+    if (tier === 'ULTIMATE') return 'bg-dark';
+    if (tier === 'PRO') return 'bg-primary';
+    if (tier === 'BASIC') return 'bg-secondary';
+    return 'bg-light text-muted';
+  }
+
+  clientStatusBadgeClass(status?: string | null): string {
+    if (status === 'ACTIVE') return 'bg-success';
+    if (status === 'INACTIVE') return 'bg-danger';
+    if (status === 'TRIAL') return 'bg-warning text-dark';
+    return 'bg-light text-muted';
+  }
+
+  paymentBadgeClass(status?: string | null): string {
+    if (status === 'PAID') return 'bg-success';
+    if (status === 'PENDING') return 'bg-warning text-dark';
+    if (status === 'PARTIAL') return 'bg-info text-dark';
+    return 'bg-light text-muted border';
+  }
+
+  licenseBadgeClass(row: MergedRow): string {
+    if (!row.license) return 'bg-light text-muted';
+    if (row.license.status === 'REVOKED') return 'bg-danger';
+    if (row.isExpired) return 'bg-secondary';
+    if (row.isExpiringSoon) return 'bg-warning text-dark';
+    return 'bg-success';
+  }
+
+  licenseLabel(row: MergedRow): string {
+    if (!row.license) return 'None';
+    if (row.license.status === 'REVOKED') return 'Revoked';
+    if (row.isExpired) return 'Expired';
+    if (row.isExpiringSoon) {
+      const d = this.daysUntilExpiry(row.license);
+      return d !== null ? `Expiring (${d}d)` : 'Expiring';
+    }
+    if (!row.license.expiresAt) return 'Active ∞';
+    return 'Active';
   }
 
   // ─── Expiry helpers ──────────────────────────────────────────────────────
 
   isExpiringSoon(l: License): boolean {
-    if (!l.expiresAt) return false;
     const days = this.daysUntilExpiry(l);
     return days !== null && days >= 0 && days <= 30;
   }
 
   isExpired(l: License): boolean {
-    if (!l.expiresAt) return false;
     const days = this.daysUntilExpiry(l);
     return days !== null && days < 0;
   }
 
-  /** Days from today until expiry; null when there's no expiry date. */
   daysUntilExpiry(l: License): number | null {
     if (!l.expiresAt) return null;
     const expiry = new Date(l.expiresAt + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffMs = expiry.getTime() - today.getTime();
-    return Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const today = new Date(); today.setHours(0,0,0,0);
+    return Math.round((expiry.getTime() - today.getTime()) / 86400000);
+  }
+
+  calcSupportDaysLeft(billing: Billing | null): number | null {
+    if (!billing?.supportEndDate) return null;
+    const end = new Date(billing.supportEndDate + 'T00:00:00');
+    const today = new Date(); today.setHours(0,0,0,0);
+    return Math.round((end.getTime() - today.getTime()) / 86400000);
   }
 
   // ─── Generate ────────────────────────────────────────────────────────────
 
-  openGenerateModal(): void {
-    this.generateForm = { machineId: '', clientCode: '', expiresAt: '' };
+  openGenerateModal(clientCode?: string): void {
+    this.generateForm = { machineId: '', clientCode: clientCode ?? '', label: '', expiresAt: '' };
     this.generateResult = null;
     this.generateError = '';
     this.showGenerateModal = true;
@@ -297,9 +312,7 @@ export class LicensesComponent implements OnInit {
 
   closeGenerateModal(): void {
     this.showGenerateModal = false;
-    if (this.generateResult) {
-      this.loadLicenses();
-    }
+    if (this.generateResult) this.loadAll();
   }
 
   generate(): void {
@@ -312,16 +325,11 @@ export class LicensesComponent implements OnInit {
     this.licenseService.generate({
       machineId: this.generateForm.machineId.trim(),
       clientCode: this.generateForm.clientCode,
+      label: this.generateForm.label.trim() || undefined,
       expiresAt: this.generateForm.expiresAt || undefined
     }).subscribe({
-      next: (result) => {
-        this.generating = false;
-        this.generateResult = result;
-      },
-      error: (err) => {
-        this.generating = false;
-        this.generateError = err.error?.error || 'Failed to generate license';
-      }
+      next: (result) => { this.generating = false; this.generateResult = result; },
+      error: (err) => { this.generating = false; this.generateError = err.error?.error || 'Failed to generate license'; }
     });
   }
 
@@ -332,13 +340,9 @@ export class LicensesComponent implements OnInit {
     });
   }
 
-  // ─── Revoke (with confirmation) ──────────────────────────────────────────
+  // ─── Revoke ──────────────────────────────────────────────────────────────
 
   revoke(license: License): void {
-    this.openRevokeConfirm(license);
-  }
-
-  openRevokeConfirm(license: License): void {
     this.revokeError = '';
     this.revokeConfirm = { license };
   }
@@ -352,27 +356,19 @@ export class LicensesComponent implements OnInit {
     if (!this.revokeConfirm || this.revoking) return;
     const license = this.revokeConfirm.license;
     this.revoking = true;
-    this.revokeError = '';
     this.licenseService.revoke(license.id).subscribe({
-      next: () => {
-        this.revoking = false;
-        this.revokeConfirm = null;
-        this.loadLicenses();
-      },
-      error: (err) => {
-        this.revoking = false;
-        this.revokeError = err.error?.message || err.error?.error || 'Failed to revoke license.';
-      }
+      next: () => { this.revoking = false; this.revokeConfirm = null; this.loadAll(); },
+      error: (err) => { this.revoking = false; this.revokeError = err.error?.message || 'Failed to revoke.'; }
     });
   }
 
-  // ─── Delete (with confirmation) ──────────────────────────────────────────
+  // ─── Delete ──────────────────────────────────────────────────────────────
 
   deleteLicense(license: License): void {
     this.deleteConfirm = {
       title: 'Delete License',
-      message: `Permanently delete the license record for "${license.clientName || license.clientCode}"? This cannot be undone.`,
-      onConfirm: () => this.licenseService.delete(license.id).subscribe(() => this.loadLicenses())
+      message: `Permanently delete the license record for "${license.clientName || license.clientCode}"?`,
+      onConfirm: () => this.licenseService.delete(license.id).subscribe(() => this.loadAll())
     };
   }
 
@@ -383,51 +379,40 @@ export class LicensesComponent implements OnInit {
     action();
   }
 
-  cancelDeleteAction(): void {
-    this.deleteConfirm = null;
-  }
+  cancelDeleteAction(): void { this.deleteConfirm = null; }
 
   // ─── Renew ───────────────────────────────────────────────────────────────
-
-  truncateMachineId(id: string): string {
-    return id.length > 20 ? id.substring(0, 20) + '…' : id;
-  }
 
   openRenewModal(license: License): void {
     this.renewModal = { license, expiresAt: '' };
     this.renewError = '';
   }
 
-  closeRenewModal(): void {
-    this.renewModal = null;
-  }
+  closeRenewModal(): void { this.renewModal = null; }
 
   confirmRenew(): void {
     if (!this.renewModal) return;
     this.renewing = true;
     this.renewError = '';
     const { license, expiresAt } = this.renewModal;
-    this.licenseService.renewByClient(license.clientCode, expiresAt || undefined).subscribe({
-      next: () => {
-        this.renewing = false;
-        this.renewModal = null;
-        this.loadLicenses();
-      },
-      error: (err) => {
-        this.renewing = false;
-        this.renewError = err.error?.message || err.error?.error || 'Renew failed.';
-      }
+    this.licenseService.renewById(license.id, expiresAt || undefined).subscribe({
+      next: () => { this.renewing = false; this.renewModal = null; this.loadAll(); },
+      error: (err) => { this.renewing = false; this.renewError = err.error?.message || 'Renew failed.'; }
     });
   }
 
   // ─── Misc ────────────────────────────────────────────────────────────────
 
-  clearFilters(): void {
-    this.searchQuery = '';
-    this.filter = 'all';
+  truncateMachineId(id: string): string {
+    return id.length > 20 ? id.substring(0, 20) + '…' : id;
   }
 
-  trackById(_idx: number, l: License): number {
-    return l.id;
+  clearFilters(): void {
+    this.searchQuery = '';
+    this.packageFilter = '';
+    this.paymentFilter = '';
+    this.licenseFilter = '';
   }
+
+  trackByCode(_i: number, row: MergedRow): string { return row.client.clientCode; }
 }

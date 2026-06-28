@@ -36,6 +36,11 @@ public class ClientConfigDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // Client status & package
+    private String packageTier;
+    private String clientStatus;
+    private String clientNotes;
+
     @Data
     @Builder
     public static class FeaturesDto {

@@ -140,6 +140,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
   searchQuery = '';
   licenseFilter: 'all' | 'active' | 'revoked' | 'none' = 'all';
   expirationFilter: 'all' | 'expiring' | 'expired' | 'never' = 'all';
+  statusFilter: 'all' | 'ACTIVE' | 'INACTIVE' | 'TRIAL' = 'all';
 
   get filteredClients(): ClientConfig[] {
     let list = this.clients;
@@ -148,8 +149,13 @@ export class ClientsComponent implements OnInit, OnDestroy {
       list = list.filter(c =>
         c.clientCode.toLowerCase().includes(q) ||
         c.appName.toLowerCase().includes(q) ||
-        (c.tagline ?? '').toLowerCase().includes(q)
+        (c.tagline ?? '').toLowerCase().includes(q) ||
+        (c.pointOfContact ?? '').toLowerCase().includes(q) ||
+        (c.phone ?? '').toLowerCase().includes(q)
       );
+    }
+    if (this.statusFilter !== 'all') {
+      list = list.filter(c => c.clientStatus === this.statusFilter);
     }
     if (this.licenseFilter !== 'all') {
       list = list.filter(c => {
@@ -189,6 +195,37 @@ export class ClientsComponent implements OnInit, OnDestroy {
       const days = (new Date(lic.expiresAt).getTime() - Date.now()) / 86400000;
       return days >= 0 && days <= 30;
     }).length;
+  }
+
+  get activeClientCount(): number   { return this.clients.filter(c => c.clientStatus === 'ACTIVE').length; }
+  get trialClientCount(): number    { return this.clients.filter(c => c.clientStatus === 'TRIAL').length; }
+  get inactiveClientCount(): number { return this.clients.filter(c => c.clientStatus === 'INACTIVE').length; }
+
+  // ── Contact helpers ──────────────────────────────────────────────────────
+
+  whatsappUrl(phone: string): string {
+    return `https://wa.me/${phone.replace(/[^0-9]/g, '')}`;
+  }
+
+  telegramUrl(phone: string): string {
+    const clean = phone.replace(/[\s\-()]/g, '');
+    return `https://t.me/${clean.startsWith('+') ? clean : '+' + clean}`;
+  }
+
+  // ── Badge helpers ────────────────────────────────────────────────────────
+
+  clientStatusClass(status?: string | null): string {
+    if (status === 'ACTIVE')   return 'bg-success';
+    if (status === 'TRIAL')    return 'bg-warning text-dark';
+    if (status === 'INACTIVE') return 'bg-danger';
+    return 'bg-secondary bg-opacity-50';
+  }
+
+  packageClass(tier?: string | null): string {
+    if (tier === 'ULTIMATE') return 'bg-dark';
+    if (tier === 'PRO')      return 'bg-primary';
+    if (tier === 'BASIC')    return 'bg-secondary';
+    return 'bg-light text-muted border';
   }
 
   // Generic delete confirmation modal
