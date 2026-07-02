@@ -93,5 +93,7 @@ public class ClientConfigExportDto {
         private boolean userManagement;
         /** Invoice Settings card in Settings. */
         private boolean invoiceSettings;
+        /** Quotations / price-quote workflow (عروض الأسعار). */
+        private boolean quotation;
     }
 }

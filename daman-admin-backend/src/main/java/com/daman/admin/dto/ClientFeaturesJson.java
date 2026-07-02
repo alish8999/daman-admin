@@ -53,6 +53,8 @@ public class ClientFeaturesJson {
     private boolean userManagement;
     /** Invoice Settings card in Settings (phones, address, tax number on invoice). Default: off — pro tier. */
     private boolean invoiceSettings;
+    /** Quotations / price-quote workflow (عروض الأسعار). Default: off — pro tier. */
+    private boolean quotation;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

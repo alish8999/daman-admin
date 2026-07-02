@@ -180,6 +180,7 @@ public class ClientConfigService {
             if (patch.getManufacturing()        != null) f.setManufacturing(patch.getManufacturing());
             if (patch.getUserManagement()       != null) f.setUserManagement(patch.getUserManagement());
             if (patch.getInvoiceSettings()      != null) f.setInvoiceSettings(patch.getInvoiceSettings());
+            if (patch.getQuotation()            != null) f.setQuotation(patch.getQuotation());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -210,6 +211,7 @@ public class ClientConfigService {
                 .manufacturing(f.isManufacturing())
                 .userManagement(f.isUserManagement())
                 .invoiceSettings(f.isInvoiceSettings())
+                .quotation(f.isQuotation())
                 .build();
     }
 
@@ -235,6 +237,7 @@ public class ClientConfigService {
                 .manufacturing(f.isManufacturing())
                 .userManagement(f.isUserManagement())
                 .invoiceSettings(f.isInvoiceSettings())
+                .quotation(f.isQuotation())
                 .build();
     }
 

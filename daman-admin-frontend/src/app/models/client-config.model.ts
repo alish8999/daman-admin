@@ -59,6 +59,8 @@ export interface ClientFeatures {
    * every invoice. Default: false — opt-in per client (pro tier).
    */
   invoiceSettings?: boolean;
+  /** Quotations / price-quote workflow (عروض الأسعار). Default: false — opt-in per client (pro tier). */
+  quotation?: boolean;
 }
 
 export interface ClientConfig {

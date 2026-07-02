@@ -32,4 +32,6 @@ public class FeaturesRequest {
     private Boolean userManagement;
     /** Invoice Settings card in Settings. */
     private Boolean invoiceSettings;
+    /** Quotations / price-quote workflow (عروض الأسعار). */
+    private Boolean quotation;
 }

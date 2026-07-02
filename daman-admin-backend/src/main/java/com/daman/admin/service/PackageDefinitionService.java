@@ -65,12 +65,13 @@ public class PackageDefinitionService {
         List<String> pro = List.of(
                 "multiLanguage", "suppliers", "clientLedger", "supplierLedger", "fractionalQuantity",
                 "barcode", "reports", "multiCurrency",
-                "accountStatement", "itemLedger", "batchStocktake", "bulkPriceUpdate", "multiCurrencyPricing");
+                "accountStatement", "itemLedger", "batchStocktake", "bulkPriceUpdate", "multiCurrencyPricing",
+                "quotation");
         List<String> ultimate = List.of(
                 "multiLanguage", "suppliers", "clientLedger", "supplierLedger", "fractionalQuantity",
                 "barcode", "reports", "multiCurrency",
                 "accountStatement", "itemLedger", "batchStocktake", "bulkPriceUpdate", "multiCurrencyPricing",
-                "shifts", "productRecipes");
+                "shifts", "productRecipes", "quotation");
         return new PackageDefinitionsDto(List.of(
                 new PackageDef("basic", basic),
                 new PackageDef("pro", pro),
