@@ -181,6 +181,7 @@ public class ClientConfigService {
             if (patch.getUserManagement()       != null) f.setUserManagement(patch.getUserManagement());
             if (patch.getInvoiceSettings()      != null) f.setInvoiceSettings(patch.getInvoiceSettings());
             if (patch.getQuotation()            != null) f.setQuotation(patch.getQuotation());
+            if (patch.getAccounting()           != null) f.setAccounting(patch.getAccounting());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -212,6 +213,7 @@ public class ClientConfigService {
                 .userManagement(f.isUserManagement())
                 .invoiceSettings(f.isInvoiceSettings())
                 .quotation(f.isQuotation())
+                .accounting(f.isAccounting())
                 .build();
     }
 
@@ -238,6 +240,7 @@ public class ClientConfigService {
                 .userManagement(f.isUserManagement())
                 .invoiceSettings(f.isInvoiceSettings())
                 .quotation(f.isQuotation())
+                .accounting(f.isAccounting())
                 .build();
     }
 

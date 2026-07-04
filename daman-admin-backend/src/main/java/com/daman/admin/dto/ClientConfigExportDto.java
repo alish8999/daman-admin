@@ -95,5 +95,7 @@ public class ClientConfigExportDto {
         private boolean invoiceSettings;
         /** Quotations / price-quote workflow (عروض الأسعار). */
         private boolean quotation;
+        /** Accounting module — double-entry bookkeeping, P&L, Balance Sheet, journal entries. */
+        private boolean accounting;
     }
 }

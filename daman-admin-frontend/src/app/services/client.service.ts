@@ -51,6 +51,10 @@ export class ClientService {
     return this.http.get<BuildLogEntry[]>(`${this.apiUrl}/${clientCode}/build/history`);
   }
 
+  openOutputFolder(clientCode: string): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/${clientCode}/build/open-folder`, {});
+  }
+
   prepareDevConfig(clientCode: string): Observable<{ backendPath: string; frontendPath: string }> {
     return this.http.post<{ backendPath: string; frontendPath: string }>(`${this.apiUrl}/${clientCode}/prepare-config`, {});
   }

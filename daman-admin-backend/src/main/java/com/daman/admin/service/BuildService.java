@@ -556,6 +556,13 @@ public class BuildService {
         }
     }
 
+    public Path getOutputDir(String clientCode) {
+        if (workspacePath == null || workspacePath.isBlank()) return null;
+        String safeClient = clientCode.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+        Path dir = Path.of(workspacePath).resolve("clients-build").resolve(safeClient);
+        return Files.exists(dir) ? dir : null;
+    }
+
     public Path getArtifactFile(String clientCode) {
         // First check in-memory status (current/recent build)
         BuildStatusDto status = buildStatuses.get(clientCode);

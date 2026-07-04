@@ -98,6 +98,19 @@ public class ClientController {
         return buildService.getBuildHistory(clientCode);
     }
 
+    @PostMapping("/{clientCode}/build/open-folder")
+    public ResponseEntity<Void> openOutputFolder(@PathVariable String clientCode) {
+        Path dir = buildService.getOutputDir(clientCode);
+        if (dir == null) return ResponseEntity.notFound().build();
+        try {
+            // Opens the folder in the host OS file manager (Windows Explorer on desktop builds)
+            new ProcessBuilder("explorer.exe", dir.toAbsolutePath().toString()).start();
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @GetMapping("/{clientCode}/build/download")
     public ResponseEntity<Resource> downloadArtifact(@PathVariable String clientCode) {
         Path artifact = buildService.getArtifactFile(clientCode);

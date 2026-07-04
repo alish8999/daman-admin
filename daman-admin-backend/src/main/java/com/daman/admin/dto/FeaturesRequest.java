@@ -34,4 +34,6 @@ public class FeaturesRequest {
     private Boolean invoiceSettings;
     /** Quotations / price-quote workflow (عروض الأسعار). */
     private Boolean quotation;
+    /** Accounting module — double-entry bookkeeping, P&L, Balance Sheet, journal entries. */
+    private Boolean accounting;
 }

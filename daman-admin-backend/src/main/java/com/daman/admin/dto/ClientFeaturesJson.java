@@ -55,6 +55,8 @@ public class ClientFeaturesJson {
     private boolean invoiceSettings;
     /** Quotations / price-quote workflow (عروض الأسعار). Default: off — pro tier. */
     private boolean quotation;
+    /** Accounting module — double-entry bookkeeping, P&L, Balance Sheet, journal entries. Default: off — opt-in per client ($39 add-on). */
+    private boolean accounting;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

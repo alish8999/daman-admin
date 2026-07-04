@@ -61,6 +61,8 @@ export interface ClientFeatures {
   invoiceSettings?: boolean;
   /** Quotations / price-quote workflow (عروض الأسعار). Default: false — opt-in per client (pro tier). */
   quotation?: boolean;
+  /** Accounting module — double-entry ledger, P&L, Balance Sheet, journal entries. Default: false — opt-in per client ($39 add-on). */
+  accounting?: boolean;
 }
 
 export interface ClientConfig {
