@@ -1,16 +1,17 @@
 import { Routes } from '@angular/router';
 import { ClientsComponent } from './pages/clients/clients.component';
 import { ClientFormComponent } from './pages/client-form/client-form.component';
-import { LicensesComponent } from './pages/licenses/licenses.component';
 import { VersionsComponent } from './pages/versions/versions.component';
-import { PackagesComponent } from './pages/packages/packages.component';
+import { DashboardComponent } from './pages/dashboard/dashboard.component';
+import { LoginComponent } from './pages/login/login.component';
+import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
-  { path: '', redirectTo: '/clients', pathMatch: 'full' },
-  { path: 'clients', component: ClientsComponent },
-  { path: 'clients/new', component: ClientFormComponent },
-  { path: 'clients/:clientCode/edit', component: ClientFormComponent },
-  { path: 'packages', component: PackagesComponent },
-  { path: 'licenses', component: LicensesComponent },
-  { path: 'versions', component: VersionsComponent }
+  { path: 'login', component: LoginComponent },
+  { path: '', redirectTo: '/dashboard', pathMatch: 'full' },
+  { path: 'dashboard', component: DashboardComponent, canActivate: [authGuard] },
+  { path: 'clients', component: ClientsComponent, canActivate: [authGuard] },
+  { path: 'clients/new', component: ClientFormComponent, canActivate: [authGuard] },
+  { path: 'clients/:clientCode/edit', component: ClientFormComponent, canActivate: [authGuard] },
+  { path: 'versions', component: VersionsComponent, canActivate: [authGuard] }
 ];

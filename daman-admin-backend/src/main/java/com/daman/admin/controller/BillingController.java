@@ -4,6 +4,7 @@ import com.daman.admin.dto.BillingDto;
 import com.daman.admin.dto.BillingRequest;
 import com.daman.admin.entity.Billing;
 import com.daman.admin.repository.BillingRepository;
+import com.daman.admin.repository.LicenseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 public class BillingController {
 
     private final BillingRepository billingRepository;
+    private final LicenseRepository licenseRepository;
 
     @GetMapping
     public List<BillingDto> getAll() {
@@ -32,19 +34,32 @@ public class BillingController {
     }
 
     @PostMapping("/client/{clientCode}")
-    public BillingDto create(@PathVariable String clientCode, @RequestBody BillingRequest req) {
+    public ResponseEntity<?> create(@PathVariable String clientCode, @RequestBody BillingRequest req) {
+        if (!licenseBelongsToClient(req.getLicenseId(), clientCode)) {
+            return ResponseEntity.badRequest().body("licenseId does not belong to this client");
+        }
         Billing b = new Billing();
         b.setClientCode(clientCode);
         apply(b, req);
-        return toDto(billingRepository.save(b));
+        return ResponseEntity.ok(toDto(billingRepository.save(b)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<BillingDto> update(@PathVariable Long id, @RequestBody BillingRequest req) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody BillingRequest req) {
         Billing b = billingRepository.findById(id).orElse(null);
         if (b == null) return ResponseEntity.notFound().build();
+        if (!licenseBelongsToClient(req.getLicenseId(), b.getClientCode())) {
+            return ResponseEntity.badRequest().body("licenseId does not belong to this client");
+        }
         apply(b, req);
         return ResponseEntity.ok(toDto(billingRepository.save(b)));
+    }
+
+    private boolean licenseBelongsToClient(Long licenseId, String clientCode) {
+        if (licenseId == null) return true;
+        return licenseRepository.findById(licenseId)
+                .map(l -> clientCode.equals(l.getClientCode()))
+                .orElse(false);
     }
 
     @DeleteMapping("/{id}")
@@ -55,7 +70,7 @@ public class BillingController {
     }
 
     private void apply(Billing b, BillingRequest req) {
-        b.setPackageTier(req.getPackageTier());
+        b.setLicenseId(req.getLicenseId());
         b.setAmount(req.getAmount());
         b.setPaymentMethod(req.getPaymentMethod());
         b.setPaymentStatus(req.getPaymentStatus());
@@ -74,7 +89,7 @@ public class BillingController {
         return BillingDto.builder()
                 .id(b.getId())
                 .clientCode(b.getClientCode())
-                .packageTier(b.getPackageTier())
+                .licenseId(b.getLicenseId())
                 .amount(b.getAmount())
                 .paymentMethod(b.getPaymentMethod())
                 .paymentStatus(b.getPaymentStatus())

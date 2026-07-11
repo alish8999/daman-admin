@@ -1,0 +1,31 @@
+@if (translationService.getLanguage$() | async) {
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-mark">D</div>
+    <h4 class="fw-bold mb-1">{{ 'loginTitle' | t }}</h4>
+    <p class="text-muted small mb-4">{{ 'loginSubtitle' | t }}</p>
+
+    <form (ngSubmit)="submit()">
+      <div class="mb-3">
+        <label class="form-label fw-semibold small">{{ 'username' | t }}</label>
+        <input type="text" class="form-control" name="username" [(ngModel)]="username"
+               autocomplete="username" autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold small">{{ 'password' | t }}</label>
+        <input type="password" class="form-control" name="password" [(ngModel)]="password"
+               autocomplete="current-password">
+      </div>
+
+      @if (error) {
+        <div class="alert alert-danger py-2 small mb-3">{{ error }}</div>
+      }
+
+      <button type="submit" class="btn btn-primary w-100" [disabled]="loading || !username.trim() || !password.trim()">
+        @if (loading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        {{ 'loginSubmit' | t }}
+      </button>
+    </form>
+  </div>
+</div>
+}

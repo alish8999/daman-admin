@@ -97,9 +97,8 @@ export interface ClientConfig {
   createdAt?: string;
   updatedAt?: string;
 
-  // Client status & package (billing details live in the Billing table)
-  packageTier?: 'BASIC' | 'PRO' | 'ULTIMATE' | null;
-  clientStatus?: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | null;
+  // Client status (billing details live in the Billing table)
+  clientStatus?: 'ACTIVE' | 'TRIAL' | 'DUMMY' | null;
   clientNotes?: string | null;
 }
 

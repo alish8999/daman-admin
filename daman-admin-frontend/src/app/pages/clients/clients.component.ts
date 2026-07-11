@@ -4,8 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ClientService } from '../../services/client.service';
 import { LicenseService, License } from '../../services/license.service';
+import { BillingService } from '../../services/billing.service';
+import { Billing } from '../../models/billing.model';
 import { AppVersionService, AppVersion } from '../../services/app-version.service';
 import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-config.model';
+import { addonValue } from '../../models/feature-catalog';
+import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
 
 @Component({
   selector: 'app-clients',
@@ -24,14 +28,12 @@ import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-co
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
+      direction: ltr;
+      text-align: left;
     }
     .feature-badge {
       font-size: 0.7rem;
       padding: 0.2em 0.5em;
-    }
-    .page-scroll-container {
-      height: calc(100vh - 56px);
-      overflow-y: auto;
     }
     .clients-grid {
       display: grid;
@@ -41,6 +43,7 @@ import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-co
     .client-card {
       background: #fff;
       border-radius: 12px;
+      border-inline-start: 4px solid transparent;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       overflow: hidden;
       display: flex;
@@ -50,6 +53,14 @@ import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-co
     .client-card:hover {
       box-shadow: 0 6px 20px rgba(0,0,0,0.13);
       transform: translateY(-2px);
+    }
+    .client-card--active {
+      background: #b8e4c6;
+      border-inline-start-color: #16a34a;
+    }
+    .client-card--active .client-card-footer {
+      background: #e8faf0;
+      border-top-color: #d7f3e2;
     }
     .client-card-header {
       padding: 14px 16px 12px;
@@ -82,65 +93,37 @@ import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-co
       display: inline-block;
       border: 1px solid rgba(0,0,0,0.12);
     }
-    .filter-bar {
-      background: #fff;
-      border-radius: 10px;
-      padding: 12px 16px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-    }
-    .stat-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 20px;
-      padding: 2px 10px;
-      font-size: 0.78rem;
-      backdrop-filter: blur(4px);
-    }
     .license-row {
       border-top: 1px dashed #e8e8e8;
       margin-top: 8px;
       padding-top: 7px;
     }
-    .btn-xs {
-      padding: 0.12em 0.5em;
-      font-size: 0.72rem;
-      line-height: 1.5;
-    }
-    .page-hero {
-      background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin-bottom: 1.25rem;
-      color: #fff;
-    }
-    .search-input-wrap {
-      position: relative;
-    }
-    .search-input-wrap .search-icon {
-      position: absolute;
-      left: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #aaa;
-      pointer-events: none;
-    }
-    .search-input-wrap input {
-      padding-left: 32px;
-    }
   `]
 })
 export class ClientsComponent implements OnInit, OnDestroy {
   clients: ClientConfig[] = [];
-  licenseMap: Record<string, License> = {};
+  licenses: License[] = [];
+  billings: Billing[] = [];
   versions: AppVersion[] = [];
 
   // Search & filter
   searchQuery = '';
   licenseFilter: 'all' | 'active' | 'revoked' | 'none' = 'all';
   expirationFilter: 'all' | 'expiring' | 'expired' | 'never' = 'all';
-  statusFilter: 'all' | 'ACTIVE' | 'INACTIVE' | 'TRIAL' = 'all';
+  statusFilter: 'all' | 'ACTIVE' | 'TRIAL' | 'DUMMY' = 'all';
+
+  /** Client status is computed from license + billing data — see models/client-status.ts. */
+  statusOf(client: ClientConfig): ClientStatusResult {
+    return computeClientStatus(client, this.licenses, this.billings);
+  }
+
+  /** The client's most-recently-activated license, if any (a client can have several, e.g. multi-machine). */
+  primaryLicenseOf(clientCode: string): License | undefined {
+    const list = this.licenses.filter(l => l.clientCode === clientCode);
+    return list.length
+      ? [...list].sort((a, b) => new Date(b.activatedAt).getTime() - new Date(a.activatedAt).getTime())[0]
+      : undefined;
+  }
 
   get filteredClients(): ClientConfig[] {
     let list = this.clients;
@@ -155,18 +138,18 @@ export class ClientsComponent implements OnInit, OnDestroy {
       );
     }
     if (this.statusFilter !== 'all') {
-      list = list.filter(c => c.clientStatus === this.statusFilter);
+      list = list.filter(c => this.statusOf(c).status === this.statusFilter);
     }
     if (this.licenseFilter !== 'all') {
       list = list.filter(c => {
-        const lic = this.licenseMap[c.clientCode];
+        const lic = this.primaryLicenseOf(c.clientCode);
         if (this.licenseFilter === 'none') return !lic;
         return lic?.status === this.licenseFilter.toUpperCase();
       });
     }
     if (this.expirationFilter !== 'all') {
       list = list.filter(c => {
-        const lic = this.licenseMap[c.clientCode];
+        const lic = this.primaryLicenseOf(c.clientCode);
         if (!lic) return false;
         if (this.expirationFilter === 'never') return !lic.expiresAt;
         if (this.expirationFilter === 'expiring') {
@@ -181,25 +164,56 @@ export class ClientsComponent implements OnInit, OnDestroy {
         return true;
       });
     }
-    return list;
+    return this.sortClients(list);
+  }
+
+  /** Active clients first, then Trial, then Dummy; newest-added first within each group. */
+  private sortClients(list: ClientConfig[]): ClientConfig[] {
+    const rank: Record<string, number> = { ACTIVE: 0, TRIAL: 1, DUMMY: 2 };
+    return [...list].sort((a, b) => {
+      const rankDiff = rank[this.statusOf(a).status] - rank[this.statusOf(b).status];
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+    });
   }
 
   get licensedActiveCount(): number {
-    return this.clients.filter(c => this.licenseMap[c.clientCode]?.status === 'ACTIVE').length;
+    return this.licenses.filter(l => l.status === 'ACTIVE').length;
   }
 
   get expiringSoonCount(): number {
-    return this.clients.filter(c => {
-      const lic = this.licenseMap[c.clientCode];
-      if (!lic?.expiresAt) return false;
-      const days = (new Date(lic.expiresAt).getTime() - Date.now()) / 86400000;
+    return this.licenses.filter(l => {
+      if (!l.expiresAt) return false;
+      const days = (new Date(l.expiresAt).getTime() - Date.now()) / 86400000;
       return days >= 0 && days <= 30;
     }).length;
   }
 
-  get activeClientCount(): number   { return this.clients.filter(c => c.clientStatus === 'ACTIVE').length; }
-  get trialClientCount(): number    { return this.clients.filter(c => c.clientStatus === 'TRIAL').length; }
-  get inactiveClientCount(): number { return this.clients.filter(c => c.clientStatus === 'INACTIVE').length; }
+  get activeClientCount(): number { return this.clients.filter(c => this.statusOf(c).status === 'ACTIVE').length; }
+  get trialClientCount(): number  { return this.clients.filter(c => this.statusOf(c).status === 'TRIAL').length; }
+  get dummyClientCount(): number  { return this.clients.filter(c => this.statusOf(c).status === 'DUMMY').length; }
+
+  // ── Billing / revenue stats (absorbed from the old standalone Licenses page) ──
+
+  get totalRevenue(): number {
+    return this.billings
+      .filter(b => b.paymentStatus === 'PAID')
+      .reduce((sum, b) => sum + (b.amount ? +b.amount : 0), 0);
+  }
+
+  get pendingPaymentsCount(): number {
+    const codes = new Set(
+      this.billings
+        .filter(b => b.paymentStatus === 'PENDING' || b.paymentStatus === 'PARTIAL')
+        .map(b => b.clientCode)
+    );
+    return codes.size;
+  }
+
+  /** Sum of priced add-ons currently enabled for this client, using the shared feature catalog. */
+  clientAddonValue(client: ClientConfig): number {
+    return addonValue(client.features ?? {});
+  }
 
   // ── Contact helpers ──────────────────────────────────────────────────────
 
@@ -215,17 +229,15 @@ export class ClientsComponent implements OnInit, OnDestroy {
   // ── Badge helpers ────────────────────────────────────────────────────────
 
   clientStatusClass(status?: string | null): string {
-    if (status === 'ACTIVE')   return 'bg-success';
-    if (status === 'TRIAL')    return 'bg-warning text-dark';
-    if (status === 'INACTIVE') return 'bg-danger';
+    if (status === 'ACTIVE') return 'bg-success';
+    if (status === 'TRIAL')  return 'bg-warning text-dark';
     return 'bg-secondary bg-opacity-50';
   }
 
-  packageClass(tier?: string | null): string {
-    if (tier === 'ULTIMATE') return 'bg-dark';
-    if (tier === 'PRO')      return 'bg-primary';
-    if (tier === 'BASIC')    return 'bg-secondary';
-    return 'bg-light text-muted border';
+  clientStatusLabel(status: string): string {
+    if (status === 'ACTIVE') return 'Active';
+    if (status === 'TRIAL') return 'Trial';
+    return 'Dummy';
   }
 
   // Generic delete confirmation modal
@@ -263,12 +275,6 @@ export class ClientsComponent implements OnInit, OnDestroy {
   historyClientCode = '';
   buildHistory: BuildLogEntry[] = [];
 
-  // License revoke confirmation
-  revokeConfirm: { clientCode: string } | null = null;
-
-  // License renew confirmation
-  renewConfirm: { clientCode: string; expiresAt: string } | null = null;
-
   @ViewChild('buildLogContainer') buildLogContainer?: ElementRef<HTMLPreElement>;
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -279,13 +285,19 @@ export class ClientsComponent implements OnInit, OnDestroy {
   constructor(
     public clientService: ClientService,
     private licenseService: LicenseService,
+    private billingService: BillingService,
     private appVersionService: AppVersionService
   ) {}
 
   ngOnInit(): void {
     this.load();
     this.loadLicenses();
+    this.loadBillings();
     this.loadVersions();
+  }
+
+  loadBillings(): void {
+    this.billingService.getAll().subscribe(data => this.billings = data);
   }
 
   ngOnDestroy(): void {
@@ -302,10 +314,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
   }
 
   loadLicenses(): void {
-    this.licenseService.getAll().subscribe(licenses => {
-      this.licenseMap = {};
-      licenses.forEach(l => this.licenseMap[l.clientCode] = l);
-    });
+    this.licenseService.getAll().subscribe(licenses => this.licenses = licenses);
   }
 
   loadVersions(): void {
@@ -381,61 +390,6 @@ export class ClientsComponent implements OnInit, OnDestroy {
       { label: 'Recipes/BOM',    icon: '☕', on: !!f?.productRecipes },
       { label: 'Demo Data',      icon: '🌱', on: !!f?.seedDemoData }
     ];
-  }
-
-  // -- License helpers --
-
-  licenseOf(clientCode: string): License | undefined {
-    return this.licenseMap[clientCode];
-  }
-
-  openRevokeConfirm(clientCode: string): void {
-    this.revokeConfirm = { clientCode };
-  }
-
-  cancelRevoke(): void {
-    this.revokeConfirm = null;
-  }
-
-  confirmRevoke(): void {
-    if (!this.revokeConfirm) return;
-    const { clientCode } = this.revokeConfirm;
-    this.revokeConfirm = null;
-    this.licenseService.revokeByClient(clientCode).subscribe({
-      next: () => this.loadLicenses(),
-      error: (err) => alert(`Revoke failed: ${err.error?.message || err.message}`)
-    });
-  }
-
-  openRenewConfirm(clientCode: string): void {
-    this.renewConfirm = { clientCode, expiresAt: '' };
-  }
-
-  cancelRenew(): void {
-    this.renewConfirm = null;
-  }
-
-  confirmRenew(): void {
-    if (!this.renewConfirm) return;
-    const { clientCode, expiresAt } = this.renewConfirm;
-    this.renewConfirm = null;
-    this.licenseService.renewByClient(clientCode, expiresAt || undefined).subscribe({
-      next: () => this.loadLicenses(),
-      error: (err) => alert(`Renew failed: ${err.error?.message || err.message}`)
-    });
-  }
-
-  deleteLicense(clientCode: string): void {
-    const lic = this.licenseMap[clientCode];
-    if (!lic) return;
-    this.deleteConfirm = {
-      title: 'Delete License',
-      message: `Permanently delete the license for "${clientCode}"? The client will need a new license to activate.`,
-      onConfirm: () => this.licenseService.delete(lic.id).subscribe({
-        next: () => this.loadLicenses(),
-        error: (err) => alert(`Delete failed: ${err.error?.message || err.message}`)
-      })
-    };
   }
 
   // -- Dropdown --

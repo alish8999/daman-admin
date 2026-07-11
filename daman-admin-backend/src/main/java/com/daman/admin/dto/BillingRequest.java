@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 
 @Data
 public class BillingRequest {
-    private String packageTier;
+    private Long licenseId;
     private BigDecimal amount;
     private String paymentMethod;
     private String paymentStatus;

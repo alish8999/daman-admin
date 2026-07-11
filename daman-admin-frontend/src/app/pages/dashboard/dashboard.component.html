@@ -1,0 +1,170 @@
+<div class="admin-content-inner">
+
+  <div class="page-hero">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h3 class="mb-1 fw-bold">Dashboard</h3>
+        <p class="text-white-50 mb-0">Revenue and client health at a glance.</p>
+      </div>
+      <div class="text-end">
+        <div class="text-white-50 small text-uppercase" style="letter-spacing:.06em">Total revenue</div>
+        <div class="fw-bold" style="font-size:2rem">${{ totalRevenue | number:'1.0-2' }}</div>
+      </div>
+    </div>
+  </div>
+
+  @if (!loading) {
+    <!-- Stat tiles -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-lg-2">
+        <div class="stat-tile">
+          <div class="stat-tile-label">
+            <span class="stat-tile-icon" style="background:#eef0ff;color:#6366f1"><i class="bi bi-people-fill"></i></span>
+            Clients
+          </div>
+          <div class="stat-tile-value">{{ clients.length }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-2">
+        <div class="stat-tile">
+          <div class="stat-tile-label">
+            <span class="stat-tile-icon" style="background:#dcfce7;color:#15803d"><i class="bi bi-check-circle-fill"></i></span>
+            Active
+          </div>
+          <div class="stat-tile-value">{{ activeCount }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-2">
+        <div class="stat-tile">
+          <div class="stat-tile-label">
+            <span class="stat-tile-icon" style="background:#fef3c7;color:#b45309"><i class="bi bi-hourglass-split"></i></span>
+            Trial
+          </div>
+          <div class="stat-tile-value">{{ trialCount }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-2">
+        <div class="stat-tile">
+          <div class="stat-tile-label">
+            <span class="stat-tile-icon" style="background:#f1f1f8;color:#6b7280"><i class="bi bi-circle"></i></span>
+            Dummy
+          </div>
+          <div class="stat-tile-value">{{ dummyCount }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-2">
+        <div class="stat-tile">
+          <div class="stat-tile-label">
+            <span class="stat-tile-icon" style="background:#e0f2fe;color:#0369a1"><i class="bi bi-key-fill"></i></span>
+            Licenses
+          </div>
+          <div class="stat-tile-value">{{ activeLicenseCount }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-2">
+        <div class="stat-tile">
+          <div class="stat-tile-label">
+            <span class="stat-tile-icon" style="background:#fee2e2;color:#b91c1c"><i class="bi bi-exclamation-triangle-fill"></i></span>
+            Pending pay
+          </div>
+          <div class="stat-tile-value">{{ pendingPaymentsCount }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <!-- Revenue by month -->
+      <div class="col-lg-7">
+        <div class="surface-card p-4 h-100">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0">Revenue — last 6 months</h6>
+          </div>
+          @if (totalRevenue === 0) {
+            <p class="text-muted small mb-0">No paid billing records yet.</p>
+          } @else {
+            <div class="d-flex align-items-end gap-3" style="height:180px">
+              @for (m of revenueByMonth; track m.label) {
+                <div class="d-flex flex-column align-items-center flex-grow-1" style="height:100%">
+                  <div class="d-flex align-items-end flex-grow-1 w-100 justify-content-center">
+                    <div [style.height.%]="m.heightPct"
+                         [title]="m.label + ': $' + (m.amount | number:'1.0-2')"
+                         style="width:34px;background:var(--admin-accent);border-radius:6px 6px 3px 3px;min-height:4px;transition:height .2s ease">
+                    </div>
+                  </div>
+                  <div class="text-muted small mt-2">{{ m.label }}</div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Expiring licenses -->
+      <div class="col-lg-5">
+        <div class="surface-card p-4 h-100">
+          <h6 class="fw-bold mb-3">Expiring in 30 days</h6>
+          @if (expiringLicenses.length === 0) {
+            <p class="text-muted small mb-0">Nothing expiring soon.</p>
+          } @else {
+            <div class="d-flex flex-column gap-2">
+              @for (item of expiringLicenses; track item.clientCode) {
+                <a [routerLink]="['/clients', item.clientCode, 'edit']"
+                   class="d-flex justify-content-between align-items-center text-decoration-none px-2 py-2 rounded"
+                   style="background:#fafafd">
+                  <span class="text-truncate small fw-semibold" style="color:var(--admin-text)">{{ item.appName }}</span>
+                  <span class="badge" [class.bg-danger]="item.daysLeft <= 7" [class.bg-warning]="item.daysLeft > 7"
+                        [class.text-dark]="item.daysLeft > 7">{{ item.daysLeft }}d</span>
+                </a>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-12">
+        <div class="surface-card p-4">
+          <h6 class="fw-bold mb-3">Recent payments</h6>
+          @if (recentPayments.length === 0) {
+            <p class="text-muted small mb-0">No billing records yet.</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm table-hover mb-0">
+                <thead>
+                  <tr class="text-muted small text-uppercase">
+                    <th>Client</th>
+                    <th>Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (b of recentPayments; track b.id) {
+                    <tr>
+                      <td>
+                        <a [routerLink]="['/clients', b.clientCode, 'edit']" class="text-decoration-none fw-semibold">
+                          {{ clientNameOf(b.clientCode) }}
+                        </a>
+                      </td>
+                      <td class="text-muted small">{{ (b.paymentDate ?? b.createdAt) | date:'dd MMM yyyy' }}</td>
+                      <td class="fw-semibold">${{ b.amount ?? 0 | number:'1.0-2' }}</td>
+                      <td>
+                        <span class="badge"
+                              [class.bg-success]="b.paymentStatus === 'PAID'"
+                              [class.bg-warning]="b.paymentStatus === 'PENDING'"
+                              [class.text-dark]="b.paymentStatus !== 'PAID'"
+                              [class.bg-info]="b.paymentStatus === 'PARTIAL'">{{ b.paymentStatus }}</span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+</div>

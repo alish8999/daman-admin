@@ -141,7 +141,6 @@ public class ClientConfigService {
         if (request.getDefaultBuildTarget() != null && !request.getDefaultBuildTarget().isBlank()) {
             entity.setDefaultBuildTarget(request.getDefaultBuildTarget());
         }
-        entity.setPackageTier(request.getPackageTier());
         entity.setClientStatus(request.getClientStatus());
         entity.setClientNotes(request.getClientNotes());
         mergeFeatures(entity, request.getFeatures());
@@ -317,7 +316,6 @@ public class ClientConfigService {
                 .features(toDtoFeatures(c.getFeaturesJson()))
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
-                .packageTier(c.getPackageTier())
                 .clientStatus(c.getClientStatus())
                 .clientNotes(c.getClientNotes())
                 .build();

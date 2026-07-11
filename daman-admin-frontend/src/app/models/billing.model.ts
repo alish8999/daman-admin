@@ -1,7 +1,7 @@
 export interface Billing {
   id: number;
   clientCode: string;
-  packageTier?: string | null;
+  licenseId?: number | null;
   amount?: number | null;
   paymentMethod?: string | null;
   paymentStatus?: string | null;
@@ -14,7 +14,7 @@ export interface Billing {
 }
 
 export interface BillingRequest {
-  packageTier?: string;
+  licenseId?: number | null;
   amount?: number | null;
   paymentMethod?: string;
   paymentStatus?: string;

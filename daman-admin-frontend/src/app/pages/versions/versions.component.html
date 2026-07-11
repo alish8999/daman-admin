@@ -1,10 +1,10 @@
-<div class="container-fluid p-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="admin-content-inner">
+  <div class="page-header">
     <div>
-      <h4 class="mb-1">App Versions</h4>
-      <p class="text-muted mb-0 small">Manage release versions and changelogs used during builds.</p>
+      <h3>App Versions</h3>
+      <p>Manage release versions and changelogs used during builds.</p>
     </div>
-    <button class="btn btn-primary btn-sm" (click)="openCreate()">+ New Version</button>
+    <button class="btn btn-primary fw-semibold" (click)="openCreate()"><i class="bi bi-plus-lg me-1"></i>New Version</button>
   </div>
 
   @if (versions.length === 0) {
@@ -13,8 +13,8 @@
       <button class="btn btn-outline-primary btn-sm" (click)="openCreate()">Create Version</button>
     </div>
   } @else {
-    <div class="table-responsive">
-      <table class="table table-hover align-middle bg-white rounded shadow-sm">
+    <div class="surface-card table-responsive">
+      <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
             <th style="width:140px">Version</th>

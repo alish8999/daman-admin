@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 public class BillingDto {
     private Long id;
     private String clientCode;
-    private String packageTier;
+    private Long licenseId;
     private BigDecimal amount;
     private String paymentMethod;
     private String paymentStatus;

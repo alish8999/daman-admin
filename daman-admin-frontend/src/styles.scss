@@ -1,5 +1,477 @@
+// ── Admin design system ─────────────────────────────────────────────────────
+// Shared tokens + components used across the whole admin (sidebar shell,
+// dashboard, clients, client form, versions, login) so it reads as one
+// cohesive, modern product instead of a pile of ad-hoc Bootstrap pages.
+
+:root {
+  --admin-sidebar-from: #131427;
+  --admin-sidebar-to: #1f2142;
+  --admin-bg: #f4f5fb;
+  --admin-surface: #ffffff;
+  --admin-border: #e7e8f2;
+  --admin-text: #17182b;
+  --admin-text-muted: #6b6b84;
+  --admin-accent: #6366f1;
+  --admin-accent-hover: #4f46e5;
+  --admin-accent-soft: #eef0ff;
+  --admin-accent-2: #8b5cf6;
+  --admin-radius-lg: 16px;
+  --admin-radius-md: 12px;
+  --admin-radius-sm: 8px;
+  --admin-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --admin-shadow-md: 0 4px 18px rgba(16, 24, 40, 0.07);
+  --admin-shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.14);
+}
+
+* { box-sizing: border-box; }
+
 body {
-  background-color: #f8f9fa;
+  background-color: var(--admin-bg);
+  color: var(--admin-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+// ── Buttons / inputs — soften the raw Bootstrap defaults ───────────────────
+
+.btn {
+  border-radius: var(--admin-radius-sm);
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+
+.btn-primary {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+
+  &:hover, &:focus { background: var(--admin-accent-hover); border-color: var(--admin-accent-hover); }
+}
+
+.btn-outline-primary {
+  color: var(--admin-accent);
+  border-color: var(--admin-accent);
+
+  &:hover { background: var(--admin-accent); border-color: var(--admin-accent); }
+}
+
+.form-control, .form-select {
+  border-radius: var(--admin-radius-sm);
+  border-color: var(--admin-border);
+  font-size: 0.9rem;
+
+  &:focus {
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+}
+
+.nav-tabs {
+  border-bottom-color: var(--admin-border);
+
+  .nav-link {
+    border: none;
+    color: var(--admin-text-muted);
+    font-weight: 600;
+    font-size: 0.88rem;
+    border-radius: 0;
+    padding: 10px 16px;
+
+    &.active { color: var(--admin-accent); border-bottom: 2px solid var(--admin-accent); background: transparent; }
+    &:hover:not(.active) { color: var(--admin-text); }
+  }
+}
+
+// ── Generic surface card ────────────────────────────────────────────────────
+
+.surface-card {
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius-lg);
+  box-shadow: var(--admin-shadow-sm);
+  border: 1px solid var(--admin-border);
+}
+
+// ── App shell: sidebar + content ────────────────────────────────────────────
+
+.admin-shell {
+  display: flex;
+  min-height: 100vh;
+  align-items: stretch;
+}
+
+.admin-sidebar {
+  width: 248px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, var(--admin-sidebar-from) 0%, var(--admin-sidebar-to) 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.admin-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 22px 18px;
+  font-weight: 800;
+  font-size: 1.02rem;
+}
+
+.admin-sidebar-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--admin-accent) 0%, var(--admin-accent-2) 100%);
+  font-weight: 800;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.admin-sidebar-nav {
+  flex: 1;
+  padding: 6px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.admin-sidebar-section {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 14px 12px 6px;
+}
+
+.admin-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: none;
+  font-size: 0.87rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+
+  i { font-size: 0.95rem; width: 18px; text-align: center; }
+
+  &:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+
+  &.admin-sidebar-link--active {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-weight: 700;
+  }
+}
+
+.admin-sidebar-footer {
+  padding: 14px 16px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-lang-toggle {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+
+  button {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 0;
+
+    &.active { background: var(--admin-accent); border-color: var(--admin-accent); color: #fff; }
+  }
+}
+
+.admin-logout-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.75);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &:hover { background: rgba(220, 53, 69, 0.25); border-color: rgba(220, 53, 69, 0.4); color: #fff; }
+}
+
+.admin-content {
+  flex: 1;
+  min-width: 0;
+  background: var(--admin-bg);
+}
+
+.admin-content-inner {
+  padding: 28px 32px 48px;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+
+  h3 { font-weight: 800; margin-bottom: 2px; color: var(--admin-text); }
+  p { color: var(--admin-text-muted); margin: 0; font-size: 0.9rem; }
+}
+
+// ── Login page ───────────────────────────────────────────────────────────
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 20% 20%, #232455 0%, var(--admin-sidebar-from) 45%, #0d0e1c 100%);
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius-lg);
+  box-shadow: var(--admin-shadow-lg);
+  padding: 36px 32px;
+}
+
+.login-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--admin-accent) 0%, var(--admin-accent-2) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+}
+
+// ── Stat tiles (Dashboard) ──────────────────────────────────────────────────
+
+.stat-tile {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--admin-shadow-sm);
+}
+
+.stat-tile-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--admin-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-tile-value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--admin-text);
+  margin-top: 6px;
+  line-height: 1.1;
+}
+
+.stat-tile-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+// ── Page hero (Dashboard anchor) ────────────────────────────────────────────
+
+.admin-hero-gradient {
+  background: linear-gradient(135deg, var(--admin-sidebar-from) 0%, var(--admin-sidebar-to) 100%);
+}
+
+.page-hero {
+  @extend .admin-hero-gradient;
+  border-radius: var(--admin-radius-lg);
+  padding: 24px 28px;
+  margin-bottom: 1.25rem;
+  color: #fff;
+  box-shadow: var(--admin-shadow-lg);
+}
+
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+  backdrop-filter: blur(4px);
+}
+
+.filter-bar {
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius-md);
+  padding: 12px 16px;
+  box-shadow: var(--admin-shadow-sm);
+  border: 1px solid var(--admin-border);
+}
+
+.search-input-wrap {
+  position: relative;
+
+  .search-icon {
+    position: absolute;
+    inset-inline-start: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #aaa;
+    pointer-events: none;
+  }
+
+  input {
+    padding-inline-start: 32px;
+  }
+}
+
+// Isolates LTR content (prices, phone numbers, codes) so it doesn't get
+// visually reordered by the bidi algorithm when embedded in RTL text.
+.ltr-num {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
+// Bootstrap's compiled CSS only ships physical border-radius/margin for
+// .btn-group (e.g. the License filter group and the Build split button) —
+// there's no bootstrap.rtl.css loaded, so those edges stay LTR-shaped even
+// in Arabic. Re-declare the same rules with logical properties, same
+// selectors as bootstrap.css so they win on cascade order (this file loads
+// after bootstrap.min.css) and resolve to the mirrored physical corner
+// automatically under [dir="rtl"].
+.btn-group > :not(.btn-check:first-child) + .btn,
+.btn-group > .btn-group:not(:first-child) {
+  margin-inline-start: calc(-1 * var(--bs-border-width));
+}
+.btn-group > .btn:not(:last-child):not(.dropdown-toggle),
+.btn-group > .btn.dropdown-toggle-split:first-child,
+.btn-group > .btn-group:not(:last-child) > .btn {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.btn-group > .btn:nth-child(n+3),
+.btn-group > :not(.btn-check) + .btn,
+.btn-group > .btn-group:not(:first-child) > .btn {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+// Segmented status tabs (Clients page: All / Active / Trial / Dummy)
+.status-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-tab {
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  color: var(--admin-text-muted);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+
+  &:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  .status-tab-count {
+    background: #f1f1f8;
+    color: #6b6b82;
+    border-radius: 999px;
+    padding: 0 7px;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  &.status-tab--active {
+    background: var(--admin-sidebar-from);
+    border-color: var(--admin-sidebar-from);
+    color: #fff;
+
+    .status-tab-count { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  }
+
+  &.status-tab--active-color.status-tab--active { background: #15803d; border-color: #15803d; }
+  &.status-tab--trial-color.status-tab--active   { background: #b45309; border-color: #b45309; }
+  &.status-tab--dummy-color.status-tab--active    { background: #6b7280; border-color: #6b7280; }
+}
+
+// Priced feature cards (Client Form → Features tab)
+.feature-card {
+  cursor: pointer;
+  background: var(--admin-surface);
+  border-color: var(--admin-border) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+
+  &:hover { border-color: #c7c9f5 !important; box-shadow: 0 2px 10px rgba(99, 102, 241, 0.08); }
+
+  &.feature-card--on {
+    border-color: var(--admin-accent) !important;
+    background: linear-gradient(180deg, var(--admin-accent-soft) 0%, #ffffff 100%);
+  }
+
+  .feature-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: var(--admin-accent-soft);
+    color: var(--admin-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+  }
+
+  .form-check-input {
+    cursor: pointer;
+  }
+}
+
+.addon-summary {
+  background: var(--admin-accent-soft);
+  border: 1px solid #dcdffc;
+  border-radius: var(--admin-radius-md);
+  padding: 8px 16px;
 }
 
 .color-swatch {
@@ -32,70 +504,6 @@ body {
   padding: 0.18rem 0.55rem;
   font-size: 0.72rem;
   border-radius: 6px;
-}
-
-// ── Billing section ─────────────────────────────────────────────────────────
-
-.billing-status-banner {
-  border: 1px solid transparent;
-
-  &.banner-active  { background: #f0fdf4; border-color: #bbf7d0; }
-  &.banner-trial   { background: #fffbeb; border-color: #fde68a; }
-  &.banner-inactive { background: #f9fafb; border-color: #e5e7eb; }
-}
-
-.billing-badge {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: #e5e7eb;
-  color: #374151;
-
-  &.tier          { background: #1e1e2e; color: #fff; }
-  &.status-active  { background: #dcfce7; color: #166534; }
-  &.status-trial   { background: #fef9c3; color: #713f12; }
-  &.status-inactive { background: #fee2e2; color: #991b1b; }
-  &.pay-paid    { background: #d1fae5; color: #065f46; }
-  &.pay-pending { background: #fef3c7; color: #92400e; }
-  &.pay-partial { background: #dbeafe; color: #1e40af; }
-}
-
-.tier-card {
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 14px 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color .15s, box-shadow .15s;
-
-  .tier-name { font-weight: 700; font-size: .85rem; margin-bottom: 2px; }
-  .tier-desc { font-size: .72rem; color: #6b7280; line-height: 1.3; }
-
-  &:hover { border-color: #6366f1; }
-
-  &.tier-basic.selected   { border-color: #6b7280; background: #f9fafb; }
-  &.tier-pro.selected     { border-color: #6366f1; background: #eef2ff; .tier-name { color: #4338ca; } }
-  &.tier-ultimate.selected { border-color: #1e1e2e; background: #1e1e2e; .tier-name, .tier-desc { color: #fff; } }
-}
-
-.billing-sub-section {
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 16px;
-  height: 100%;
-
-  .billing-sub-title {
-    font-size: .7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: #6b7280;
-    margin-bottom: 14px;
-  }
 }
 
 .color-input-group {

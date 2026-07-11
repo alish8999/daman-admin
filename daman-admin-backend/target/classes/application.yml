@@ -23,3 +23,10 @@ spring:
 
 daman:
   workspace: ${DAMAN_WORKSPACE:D:/Daman/src}
+  admin:
+    # Only used the very first time the app runs (admin_users table is empty) to
+    # seed the single admin login row — see AdminUserSeeder. Has no effect once
+    # that row exists; change the password by updating admin_users.password_hash
+    # directly (bcrypt) instead.
+    seed-username: ${DAMAN_ADMIN_USERNAME:admin}
+    seed-password: ${DAMAN_ADMIN_PASSWORD:ChangeMe123!}

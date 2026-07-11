@@ -66,8 +66,7 @@ public class ClientConfigRequest {
 
     private FeaturesRequest features;
 
-    // Client status & package
-    private String packageTier;
+    // Client status
     private String clientStatus;
     private String clientNotes;
 }

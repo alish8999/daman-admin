@@ -36,8 +36,7 @@ public class ClientConfigDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    // Client status & package
-    private String packageTier;
+    // Client status
     private String clientStatus;
     private String clientNotes;
 

@@ -21,8 +21,9 @@ public class Billing {
     @Column(nullable = false)
     private String clientCode;
 
-    @Column(name = "package_tier", length = 20)
-    private String packageTier;
+    /** Optional link to the License this payment funded/renewed. Nullable for legacy records. */
+    @Column(name = "license_id")
+    private Long licenseId;
 
     @Column(name = "amount", precision = 12, scale = 2)
     private BigDecimal amount;

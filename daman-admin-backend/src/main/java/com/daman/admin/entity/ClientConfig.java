@@ -95,13 +95,9 @@ public class ClientConfig {
     @Column(name = "features_json", columnDefinition = "TEXT")
     private String featuresJson;
 
-    // ── Client status & package ──────────────────────────────────────────────
+    // ── Client status ──────────────────────────────────────────────────────
 
-    /** Current package tier for this client: BASIC, PRO, ULTIMATE */
-    @Column(name = "package_tier", length = 20)
-    private String packageTier;
-
-    /** Overall client status: ACTIVE, INACTIVE, TRIAL */
+    /** Overall client status: ACTIVE, TRIAL, DUMMY */
     @Column(name = "client_status", length = 20)
     private String clientStatus;
 

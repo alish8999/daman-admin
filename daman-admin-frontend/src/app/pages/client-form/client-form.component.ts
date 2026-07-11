@@ -6,11 +6,12 @@ import { AsyncPipe } from '@angular/common';
 import { ClientService } from '../../services/client.service';
 import { TranslationService } from '../../services/translation.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-import { PackageService } from '../../services/package.service';
-import { PackageDef, DEFAULT_PACKAGE_DEFINITIONS } from '../../models/package-definition.model';
 import { LicenseService, License, GenerateLicenseResponse } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing, BillingRequest } from '../../models/billing.model';
+import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup, addonValue } from '../../models/feature-catalog';
+import { ClientFeatures } from '../../models/client-config.model';
+import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
 
 @Component({
   selector: 'app-client-form',
@@ -55,7 +56,8 @@ export class ClientFormComponent implements OnInit {
   showBillingForm = false;
   billingEditTarget: Billing | null = null;
   billingForm = {
-    packageTier: '', amount: null as number | null, paymentMethod: 'CASH',
+    licenseId: null as number | null,
+    amount: null as number | null, paymentMethod: 'CASH',
     paymentStatus: 'PENDING', invoiceRef: '', paymentDate: '',
     supportStartDate: '', supportEndDate: '', notes: ''
   };
@@ -65,24 +67,49 @@ export class ClientFormComponent implements OnInit {
   readonly storeTypeValues = ['mobile', 'grocery', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
   readonly baseCurrencyValues = ['USD', 'SYP', 'SYP_OLD'];
   readonly buildTargetValues = ['win', 'win7', 'mac', 'linux'];
-  readonly packageTierValues = ['BASIC', 'PRO', 'ULTIMATE'];
   readonly paymentMethodValues = ['CASH', 'SHAM_CASH', 'BANK_TRANSFER', 'WESTERN_UNION', 'OTHER'];
   readonly paymentMethodLabels: Record<string, string> = {
     CASH: 'Cash', SHAM_CASH: 'شام كاش', BANK_TRANSFER: 'Bank Transfer',
     WESTERN_UNION: 'Western Union', OTHER: 'Other'
   };
   readonly paymentStatusValues = ['PAID', 'PENDING', 'PARTIAL'];
-  readonly clientStatusValues = ['ACTIVE', 'INACTIVE', 'TRIAL'];
-  readonly billingPackageTierValues = ['BASIC', 'PRO', 'ULTIMATE'];
 
-  packageDefs: PackageDef[] = DEFAULT_PACKAGE_DEFINITIONS.packages;
+  /** Client status is computed from license + billing data, not manually set — see models/client-status.ts. */
+  get computedStatus(): ClientStatusResult {
+    if (!this.clientCode) return { status: 'DUMMY', lapsed: false };
+    return computeClientStatus({ clientCode: this.clientCode }, this.clientLicenses, this.clientBillings);
+  }
 
-  private readonly featureKeys = [
-    'multiLanguage', 'barcode', 'reports', 'suppliers', 'seedDemoData', 'multiCurrency',
-    'shifts', 'clientLedger', 'supplierLedger', 'fractionalQuantity', 'multiCurrencyPricing',
-    'accountStatement', 'itemLedger', 'batchStocktake', 'bulkPriceUpdate', 'productRecipes',
-    'manufacturing', 'userManagement', 'invoiceSettings', 'quotation', 'accounting'
-  ];
+  statusBadgeClass(status: string): string {
+    if (status === 'ACTIVE') return 'bg-success';
+    if (status === 'TRIAL') return 'bg-warning text-dark';
+    return 'bg-secondary';
+  }
+
+  // ── Feature catalog (replaces package-tier presets) ─────────────────────
+  readonly featureCatalog = FEATURE_CATALOG;
+  readonly featureGroupOrder = FEATURE_GROUP_ORDER;
+
+  featureGroupEntries(group: FeatureGroup) {
+    return this.featureCatalog.filter(f => f.group === group);
+  }
+
+  featureBadge(price: number | null): string | null {
+    if (price === null) return null;
+    return price === 0 ? 'free' : `$${price}`;
+  }
+
+  get enabledAddonCount(): number {
+    const features = this.form?.get('features')?.value as ClientFeatures | undefined;
+    if (!features) return 0;
+    return this.featureCatalog.filter(f => f.group === 'addons' && f.price && features[f.key]).length;
+  }
+
+  get addonTotalValue(): number {
+    const features = this.form?.get('features')?.value as ClientFeatures | undefined;
+    if (!features) return 0;
+    return addonValue(features);
+  }
 
   readonly colorFields = [
     { key: 'colorPrimary',   labelKey: 'colorPrimary' },
@@ -100,7 +127,6 @@ export class ClientFormComponent implements OnInit {
     private billingService: BillingService,
     private route: ActivatedRoute,
     private router: Router,
-    private packageService: PackageService,
     public translationService: TranslationService
   ) {}
 
@@ -129,8 +155,6 @@ export class ClientFormComponent implements OnInit {
       email:                 [''],
       pointOfContact:        [''],
       defaultBuildTarget:    ['win'],
-      packageTier:           [''],
-      clientStatus:          ['ACTIVE'],
       clientNotes:           [''],
       features: this.fb.group({
         multiLanguage:        [false],
@@ -158,11 +182,6 @@ export class ClientFormComponent implements OnInit {
     });
     this.passwordVisible = false;
 
-    this.packageService.getDefinitions().subscribe({
-      next: (d) => { if (d?.packages?.length) this.packageDefs = d.packages; },
-      error: () => {}
-    });
-
     this.clientCode = this.route.snapshot.paramMap.get('clientCode');
     this.isEditMode = !!this.clientCode;
 
@@ -177,8 +196,6 @@ export class ClientFormComponent implements OnInit {
           email:             client.email              ?? '',
           pointOfContact:    client.pointOfContact     ?? '',
           defaultBuildTarget: client.defaultBuildTarget ?? 'win',
-          packageTier:       client.packageTier        ?? '',
-          clientStatus:      client.clientStatus       ?? 'ACTIVE',
           clientNotes:       client.clientNotes        ?? '',
           features: {
             multiLanguage:        client.features?.multiLanguage        ?? false,
@@ -205,6 +222,10 @@ export class ClientFormComponent implements OnInit {
           }
         });
       });
+      // Loaded eagerly (not just on tab switch) so the read-only computed
+      // status badge on the Business tab has license/billing data available.
+      this.loadClientLicenses();
+      this.loadClientBillings();
     }
   }
 
@@ -212,38 +233,6 @@ export class ClientFormComponent implements OnInit {
 
   switchTab(tab: 'business' | 'branding' | 'features' | 'billing' | 'license'): void {
     this.activeTab = tab;
-    if (tab === 'license' && !this.licensesLoaded) {
-      this.loadClientLicenses();
-    }
-    if (tab === 'billing' && !this.billingsLoaded) {
-      this.loadClientBillings();
-    }
-  }
-
-  // ── Package presets ──────────────────────────────────────────────────────────
-
-  selectPackage(key: string): void {
-    const def = this.packageDefs.find(p => p.key === key);
-    const on = new Set(def?.features ?? []);
-    const features = this.form.get('features') as FormGroup;
-    for (const k of this.featureKeys) {
-      if (k === 'seedDemoData') continue;
-      features.get(k)?.setValue(on.has(k));
-    }
-    features.markAsDirty();
-  }
-
-  get selectedTier(): string | null {
-    const features = this.form?.get('features') as FormGroup | null;
-    if (!features) return null;
-    for (const def of this.packageDefs) {
-      const on = new Set(def.features);
-      const matches = this.featureKeys.every(key =>
-        key === 'seedDemoData' || !!features.get(key)?.value === on.has(key)
-      );
-      if (matches) return def.key;
-    }
-    return null;
   }
 
   // ── Image upload ─────────────────────────────────────────────────────────────
@@ -415,6 +404,11 @@ export class ClientFormComponent implements OnInit {
     return id?.length > len ? id.substring(0, len) + '…' : id;
   }
 
+  licenseLabelById(id: number): string | undefined {
+    const lic = this.clientLicenses.find(l => l.id === id);
+    return lic ? (lic.label || this.truncate(lic.machineId, 16)) : undefined;
+  }
+
   isLicenseExpired(l: License): boolean {
     if (!l.expiresAt) return false;
     return new Date(l.expiresAt + 'T00:00:00') < new Date();
@@ -444,7 +438,7 @@ export class ClientFormComponent implements OnInit {
   openAddBillingForm(): void {
     this.billingEditTarget = null;
     this.billingForm = {
-      packageTier: this.form.get('packageTier')?.value ?? '',
+      licenseId: null,
       amount: null, paymentMethod: 'CASH', paymentStatus: 'PENDING',
       invoiceRef: '', paymentDate: '', supportStartDate: '', supportEndDate: '', notes: ''
     };
@@ -455,7 +449,7 @@ export class ClientFormComponent implements OnInit {
   openEditBillingForm(b: Billing): void {
     this.billingEditTarget = b;
     this.billingForm = {
-      packageTier: b.packageTier ?? '',
+      licenseId: b.licenseId ?? null,
       amount: b.amount ?? null,
       paymentMethod: b.paymentMethod ?? 'CASH',
       paymentStatus: b.paymentStatus ?? 'PENDING',
@@ -480,7 +474,7 @@ export class ClientFormComponent implements OnInit {
     this.billingSaving = true;
     this.billingError = '';
     const req: BillingRequest = {
-      packageTier: this.billingForm.packageTier || undefined,
+      licenseId: this.billingForm.licenseId ?? undefined,
       amount: this.billingForm.amount ?? undefined,
       paymentMethod: this.billingForm.paymentMethod || undefined,
       paymentStatus: this.billingForm.paymentStatus || undefined,
@@ -544,7 +538,6 @@ export class ClientFormComponent implements OnInit {
       contact: 'جهة الاتصال',
       phone: 'الهاتف',
       email: 'البريد الإلكتروني',
-      package: 'الباقة',
       amount: 'المبلغ المدفوع',
       paymentMethod: 'طريقة الدفع',
       paymentStatus: 'حالة الدفع',
@@ -570,7 +563,6 @@ export class ClientFormComponent implements OnInit {
       contact: 'Contact Person',
       phone: 'Phone',
       email: 'Email',
-      package: 'Package',
       amount: 'Amount Paid',
       paymentMethod: 'Payment Method',
       paymentStatus: 'Payment Status',
@@ -833,7 +825,6 @@ export class ClientFormComponent implements OnInit {
     <div class="section-label">${L.billingSection}</div>
     <div class="card">
       <table>
-        ${b.packageTier ? row(L.package, b.packageTier) : ''}
         ${row(L.date, ltr(fmt(b.paymentDate)))}
         ${row(L.paymentMethod, methodLabel)}
         ${b.invoiceRef ? row(L.invoiceRefLabel, ltr(b.invoiceRef), true) : ''}

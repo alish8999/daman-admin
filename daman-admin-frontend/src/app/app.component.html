@@ -1,17 +1,40 @@
 @if (translationService.getLanguage$() | async) {
-  <nav class="navbar navbar-dark bg-dark px-4">
-    <span class="navbar-brand fw-bold">{{ 'appTitle' | t }}</span>
-    <div class="d-flex align-items-center gap-3 ms-auto">
-      <a routerLink="/clients" routerLinkActive="text-white" class="nav-link text-secondary">{{ 'navClients' | t }}</a>
-      <a routerLink="/packages" routerLinkActive="text-white" class="nav-link text-secondary">{{ 'navPackages' | t }}</a>
-      <a routerLink="/licenses" routerLinkActive="text-white" class="nav-link text-secondary">{{ 'navLicenses' | t }}</a>
-      <a routerLink="/versions" routerLinkActive="text-white" class="nav-link text-secondary">{{ 'navVersions' | t }}</a>
-      <div class="btn-group btn-group-sm" role="group">
-        <button type="button" class="btn btn-outline-light" [class.active]="isActiveLang('en')" (click)="setLanguage('en')">{{ 'langEn' | t }}</button>
-        <button type="button" class="btn btn-outline-light" [class.active]="isActiveLang('ar')" (click)="setLanguage('ar')">{{ 'langAr' | t }}</button>
+  @if (showShell) {
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="admin-sidebar-brand">
+          <span class="admin-sidebar-mark">D</span>
+          <span>{{ 'appTitle' | t }}</span>
+        </div>
+
+        <nav class="admin-sidebar-nav">
+          <a routerLink="/dashboard" routerLinkActive="admin-sidebar-link--active" class="admin-sidebar-link">
+            <i class="bi bi-grid-1x2-fill"></i>{{ 'navDashboard' | t }}
+          </a>
+          <a routerLink="/clients" routerLinkActive="admin-sidebar-link--active" class="admin-sidebar-link">
+            <i class="bi bi-people-fill"></i>{{ 'navClients' | t }}
+          </a>
+          <a routerLink="/versions" routerLinkActive="admin-sidebar-link--active" class="admin-sidebar-link">
+            <i class="bi bi-box-seam"></i>{{ 'navVersions' | t }}
+          </a>
+        </nav>
+
+        <div class="admin-sidebar-footer">
+          <div class="admin-lang-toggle">
+            <button type="button" [class.active]="isActiveLang('en')" (click)="setLanguage('en')">{{ 'langEn' | t }}</button>
+            <button type="button" [class.active]="isActiveLang('ar')" (click)="setLanguage('ar')">{{ 'langAr' | t }}</button>
+          </div>
+          <button type="button" class="admin-logout-btn" (click)="logout()" [title]="'logout' | t">
+            <i class="bi bi-box-arrow-right"></i>
+          </button>
+        </div>
+      </aside>
+
+      <div class="admin-content">
+        <router-outlet></router-outlet>
       </div>
     </div>
-  </nav>
+  } @else {
+    <router-outlet></router-outlet>
+  }
 }
-
-<router-outlet></router-outlet>
