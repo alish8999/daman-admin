@@ -149,7 +149,7 @@ export class TranslationService {
       defaultBuildTargetHint: 'This is the pre-selected platform when triggering a build for this client.',
       footer: 'Footer',
       developerName: 'Developer Name',
-      developerNamePlaceholder: 'Eng. Ali Shaaban',
+      developerNamePlaceholder: 'DamanSoft',
       developerUrl: 'Developer URL',
       developerUrlPlaceholder: 'https://linkedin.com/in/...',
       saving: 'Saving...',

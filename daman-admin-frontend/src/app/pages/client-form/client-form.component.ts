@@ -144,7 +144,7 @@ export class ClientFormComponent implements OnInit {
       colorDanger:           ['#dc3545', Validators.required],
       colorWarning:          ['#f59e0b', Validators.required],
       colorInfo:             ['#4facfe', Validators.required],
-      footerDeveloper:       ['Eng. Ali Shaaban'],
+      footerDeveloper:       ['DamanSoft'],
       footerUrl:             ['https://alish8999.github.io/daman/'],
       storeType:             ['mobile'],
       baseCurrency:          ['USD'],
