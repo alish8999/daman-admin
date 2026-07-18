@@ -64,7 +64,7 @@ export class ClientFormComponent implements OnInit {
   billingSaving = false;
   billingError = '';
 
-  readonly storeTypeValues = ['mobile', 'grocery', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
+  readonly storeTypeValues = ['mobile', 'grocery', 'packaging', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
   readonly baseCurrencyValues = ['USD', 'SYP', 'SYP_OLD'];
   readonly buildTargetValues = ['win', 'win7', 'mac', 'linux'];
   readonly paymentMethodValues = ['CASH', 'SHAM_CASH', 'BANK_TRANSFER', 'WESTERN_UNION', 'OTHER'];
@@ -145,7 +145,7 @@ export class ClientFormComponent implements OnInit {
       colorWarning:          ['#f59e0b', Validators.required],
       colorInfo:             ['#4facfe', Validators.required],
       footerDeveloper:       ['DamanSoft'],
-      footerUrl:             ['https://alish8999.github.io/daman/'],
+      footerUrl:             ['https://damansoft.com/'],
       storeType:             ['mobile'],
       baseCurrency:          ['USD'],
       dashboardHeaderImage:  [''],
@@ -156,26 +156,31 @@ export class ClientFormComponent implements OnInit {
       pointOfContact:        [''],
       defaultBuildTarget:    ['win'],
       clientNotes:           [''],
+      // Defaults for a NEW client: every feature enabled except seedDemoData
+      // (opt-in only, per-client demo data) and the paid add-ons (shifts $29,
+      // productRecipes $39, manufacturing $20 (marginal — $59 bundle w/ BOM),
+      // userManagement $20, quotation $15, accounting $39 — see daman-frontend's
+      // /features page) which the client must explicitly purchase.
       features: this.fb.group({
-        multiLanguage:        [false],
-        barcode:              [false],
-        reports:              [false],
-        suppliers:            [false],
+        multiLanguage:        [true],
+        barcode:              [true],
+        reports:              [true],
+        suppliers:            [true],
         seedDemoData:         [false],
         multiCurrency:        [true],
         shifts:               [false],
-        clientLedger:         [false],
-        supplierLedger:       [false],
-        fractionalQuantity:   [false],
-        multiCurrencyPricing: [false],
-        accountStatement:     [false],
-        itemLedger:           [false],
-        batchStocktake:       [false],
-        bulkPriceUpdate:      [false],
+        clientLedger:         [true],
+        supplierLedger:       [true],
+        fractionalQuantity:   [true],
+        multiCurrencyPricing: [true],
+        accountStatement:     [true],
+        itemLedger:           [true],
+        batchStocktake:       [true],
+        bulkPriceUpdate:      [true],
         productRecipes:       [false],
         manufacturing:        [false],
         userManagement:       [false],
-        invoiceSettings:      [false],
+        invoiceSettings:      [true],
         quotation:            [false],
         accounting:           [false]
       })

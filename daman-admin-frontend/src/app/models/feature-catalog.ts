@@ -50,7 +50,10 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'shifts',          group: 'addons', icon: 'bi-clock-history',        price: 29, labelKey: 'featShifts',          descKey: 'featShiftsDesc' },
   { key: 'accounting',      group: 'addons', icon: 'bi-journal-bookmark',     price: 39, labelKey: 'featAccounting',      descKey: 'featAccountingDesc' },
   { key: 'productRecipes',  group: 'addons', icon: 'bi-cup-hot',              price: 39, labelKey: 'featProductRecipes',  descKey: 'featProductRecipesDesc' },
-  { key: 'manufacturing',   group: 'addons', icon: 'bi-gear-wide-connected',  price: 39, labelKey: 'featManufacturing',   descKey: 'featManufacturingDesc' },
+  // Manufacturing requires productRecipes (BOM) to function, so its price is the
+  // marginal $20 on top of BOM's $39 — enabling both totals the $59 bundle price
+  // shown on the client-facing features page, rather than double-charging $39+$39.
+  { key: 'manufacturing',   group: 'addons', icon: 'bi-gear-wide-connected',  price: 20, labelKey: 'featManufacturing',   descKey: 'featManufacturingDesc' },
 ];
 
 export const FEATURE_GROUP_ORDER: FeatureGroup[] = ['core', 'operations', 'reports', 'addons'];

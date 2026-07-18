@@ -398,10 +398,14 @@ public class BuildService {
                 ? mvnwPath.toString()
                 : (isWin ? "mvn.cmd" : "mvn");
 
+        // -Pdesktop-client excludes the H2/PostgreSQL JDBC drivers from the fat
+        // jar (see daman-backend/pom.xml) — every build this service produces
+        // ships as a desktop client installer, which only ever connects via
+        // SQLite, so bundling either driver is pure dead weight in the .exe.
         if (isWin) {
-            return new String[]{"cmd.exe", "/c", executable, "clean", "package", "-DskipTests"};
+            return new String[]{"cmd.exe", "/c", executable, "clean", "package", "-DskipTests", "-Pdesktop-client"};
         }
-        return new String[]{executable, "clean", "package", "-DskipTests"};
+        return new String[]{executable, "clean", "package", "-DskipTests", "-Pdesktop-client"};
     }
 
     private String[] shellCommand(String... args) {
