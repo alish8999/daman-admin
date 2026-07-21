@@ -157,10 +157,12 @@ export class ClientFormComponent implements OnInit {
       defaultBuildTarget:    ['win'],
       clientNotes:           [''],
       // Defaults for a NEW client: every feature enabled except seedDemoData
-      // (opt-in only, per-client demo data) and the paid add-ons (shifts $29,
-      // productRecipes $39, manufacturing $20 (marginal — $59 bundle w/ BOM),
-      // userManagement $20, quotation $15, accounting $39 — see daman-frontend's
-      // /features page) which the client must explicitly purchase.
+      // (opt-in only, per-client demo data), scaleBarcodes (opt-in only,
+      // relevant only to clients with actual scale hardware), and the paid
+      // add-ons (shifts $29, productRecipes $39, manufacturing $20 (marginal
+      // — $59 bundle w/ BOM), userManagement $20, quotation $15, accounting
+      // $39 — see daman-frontend's /features page) which the client must
+      // explicitly purchase.
       features: this.fb.group({
         multiLanguage:        [true],
         barcode:              [true],
@@ -182,7 +184,9 @@ export class ClientFormComponent implements OnInit {
         userManagement:       [false],
         invoiceSettings:      [true],
         quotation:            [false],
-        accounting:           [false]
+        accounting:           [false],
+        scaleBarcodes:        [false],
+        autoBackup:           [true]
       })
     });
     this.passwordVisible = false;
@@ -223,7 +227,9 @@ export class ClientFormComponent implements OnInit {
             userManagement:       client.features?.userManagement       ?? false,
             invoiceSettings:      client.features?.invoiceSettings      ?? false,
             quotation:            client.features?.quotation            ?? false,
-            accounting:           client.features?.accounting           ?? false
+            accounting:           client.features?.accounting           ?? false,
+            scaleBarcodes:        client.features?.scaleBarcodes        ?? false,
+            autoBackup:           client.features?.autoBackup           ?? true
           }
         });
       });

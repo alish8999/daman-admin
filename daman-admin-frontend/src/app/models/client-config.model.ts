@@ -63,6 +63,20 @@ export interface ClientFeatures {
   quotation?: boolean;
   /** Accounting module — double-entry ledger, P&L, Balance Sheet, journal entries. Default: false — opt-in per client ($39 add-on). */
   accounting?: boolean;
+  /**
+   * Variable-weight scale barcode support (CAS/Rongta/Aclas/Bizerba-style
+   * EAN-13 with an embedded PLU + weight/price). Default: false — opt-in
+   * per client, relevant mainly to grocery/nuts-dairy style stores with
+   * actual scale hardware. See Docs/SCALE_BARCODE_PLAN.md.
+   */
+  scaleBarcodes?: boolean;
+  /**
+   * Automatic daily local backup of the desktop SQLite database. Free — like
+   * invoiceSettings, shown with a $0 badge, not a paid tier. Default: true
+   * (unlike every other flag here) so existing clients don't lose backup
+   * protection the moment this ships.
+   */
+  autoBackup?: boolean;
 }
 
 export interface ClientConfig {

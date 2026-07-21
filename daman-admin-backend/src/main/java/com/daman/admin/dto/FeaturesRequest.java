@@ -36,4 +36,8 @@ public class FeaturesRequest {
     private Boolean quotation;
     /** Accounting module — double-entry bookkeeping, P&L, Balance Sheet, journal entries. */
     private Boolean accounting;
+    /** Variable-weight scale barcode support (CAS/Rongta/Aclas/Bizerba-style EAN-13 with embedded PLU + weight/price). */
+    private Boolean scaleBarcodes;
+    /** Automatic daily local backup of the desktop SQLite database. Free; defaults ON. */
+    private Boolean autoBackup;
 }

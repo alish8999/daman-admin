@@ -181,6 +181,8 @@ public class ClientConfigService {
             if (patch.getInvoiceSettings()      != null) f.setInvoiceSettings(patch.getInvoiceSettings());
             if (patch.getQuotation()            != null) f.setQuotation(patch.getQuotation());
             if (patch.getAccounting()           != null) f.setAccounting(patch.getAccounting());
+            if (patch.getScaleBarcodes()        != null) f.setScaleBarcodes(patch.getScaleBarcodes());
+            if (patch.getAutoBackup()           != null) f.setAutoBackup(patch.getAutoBackup());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -213,6 +215,8 @@ public class ClientConfigService {
                 .invoiceSettings(f.isInvoiceSettings())
                 .quotation(f.isQuotation())
                 .accounting(f.isAccounting())
+                .scaleBarcodes(f.isScaleBarcodes())
+                .autoBackup(f.isAutoBackup())
                 .build();
     }
 
@@ -240,6 +244,8 @@ public class ClientConfigService {
                 .invoiceSettings(f.isInvoiceSettings())
                 .quotation(f.isQuotation())
                 .accounting(f.isAccounting())
+                .scaleBarcodes(f.isScaleBarcodes())
+                .autoBackup(f.isAutoBackup())
                 .build();
     }
 

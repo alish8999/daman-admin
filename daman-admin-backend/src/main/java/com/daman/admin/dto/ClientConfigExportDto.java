@@ -97,5 +97,9 @@ public class ClientConfigExportDto {
         private boolean quotation;
         /** Accounting module — double-entry bookkeeping, P&L, Balance Sheet, journal entries. */
         private boolean accounting;
+        /** Variable-weight scale barcode support (CAS/Rongta/Aclas/Bizerba-style EAN-13 with embedded PLU + weight/price). */
+        private boolean scaleBarcodes;
+        /** Automatic daily local backup of the desktop SQLite database. Free; defaults ON. */
+        private boolean autoBackup;
     }
 }

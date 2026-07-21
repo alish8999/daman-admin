@@ -57,6 +57,22 @@ public class ClientFeaturesJson {
     private boolean quotation;
     /** Accounting module — double-entry bookkeeping, P&L, Balance Sheet, journal entries. Default: off — opt-in per client ($39 add-on). */
     private boolean accounting;
+    /**
+     * Variable-weight scale barcode support (CAS/Rongta/Aclas/Bizerba-style
+     * EAN-13 with an embedded PLU + weight/price). Default: off — opt-in per
+     * client, relevant mainly to grocery/nuts-dairy style stores with actual
+     * scale hardware.
+     */
+    private boolean scaleBarcodes;
+    /**
+     * Automatic daily local backup of the desktop SQLite database (VACUUM INTO,
+     * see DatabaseBackupService). Free — shown with a $0 badge like
+     * invoiceSettings, not a paid tier. Default: ON (unlike every other flag in
+     * this class) so existing clients don't silently lose backup protection the
+     * moment this ships; the toggle exists mainly so it CAN be turned off (e.g.
+     * a machine with very limited disk space), not as an opt-in gate.
+     */
+    private boolean autoBackup = true;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

@@ -38,6 +38,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'batchStocktake',       group: 'operations', icon: 'bi-clipboard-check',  price: null, labelKey: 'featBatchStocktake',       descKey: 'featBatchStocktakeDesc' },
   { key: 'bulkPriceUpdate',      group: 'operations', icon: 'bi-tags',             price: null, labelKey: 'featBulkPriceUpdate',      descKey: 'featBulkPriceUpdateDesc' },
   { key: 'seedDemoData',         group: 'operations', icon: 'bi-flower1',          price: null, labelKey: 'featSeedDemoData',         descKey: 'featSeedDemoDataDesc' },
+  { key: 'scaleBarcodes',        group: 'operations', icon: 'bi-upc',              price: null, labelKey: 'featScaleBarcodes',        descKey: 'featScaleBarcodesDesc' },
 
   // ── Reports & statements ─────────────────────────────────────────────
   { key: 'accountStatement', group: 'reports', icon: 'bi-file-earmark-text', price: null, labelKey: 'featAccountStatement', descKey: 'featAccountStatementDesc' },
@@ -45,6 +46,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
 
   // ── Paid add-ons (priced individually, matches features.component.html) ─
   { key: 'invoiceSettings', group: 'addons', icon: 'bi-receipt-cutoff',       price: 0,  labelKey: 'featInvoiceSettings', descKey: 'featInvoiceSettingsDesc' },
+  { key: 'autoBackup',      group: 'addons', icon: 'bi-cloud-arrow-down',     price: 0,  labelKey: 'featAutoBackup',      descKey: 'featAutoBackupDesc' },
   { key: 'quotation',       group: 'addons', icon: 'bi-file-earmark-ruled',   price: 15, labelKey: 'featQuotation',       descKey: 'featQuotationDesc' },
   { key: 'userManagement',  group: 'addons', icon: 'bi-people',               price: 20, labelKey: 'featUserManagement',  descKey: 'featUserManagementDesc' },
   { key: 'shifts',          group: 'addons', icon: 'bi-clock-history',        price: 29, labelKey: 'featShifts',          descKey: 'featShiftsDesc' },
