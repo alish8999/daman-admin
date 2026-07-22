@@ -40,4 +40,6 @@ public class FeaturesRequest {
     private Boolean scaleBarcodes;
     /** Automatic daily local backup of the desktop SQLite database. Free; defaults ON. */
     private Boolean autoBackup;
+    /** Multi-terminal POS mode — allows more than one cashier till per client. $29 add-on, same tier as shifts. */
+    private Boolean posTerminals;
 }

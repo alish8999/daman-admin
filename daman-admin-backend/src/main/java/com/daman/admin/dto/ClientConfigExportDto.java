@@ -101,5 +101,7 @@ public class ClientConfigExportDto {
         private boolean scaleBarcodes;
         /** Automatic daily local backup of the desktop SQLite database. Free; defaults ON. */
         private boolean autoBackup;
+        /** Multi-terminal POS mode — allows more than one cashier till per client. $29 add-on, same tier as shifts. */
+        private boolean posTerminals;
     }
 }

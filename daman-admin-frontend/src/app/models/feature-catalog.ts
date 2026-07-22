@@ -50,6 +50,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'quotation',       group: 'addons', icon: 'bi-file-earmark-ruled',   price: 15, labelKey: 'featQuotation',       descKey: 'featQuotationDesc' },
   { key: 'userManagement',  group: 'addons', icon: 'bi-people',               price: 20, labelKey: 'featUserManagement',  descKey: 'featUserManagementDesc' },
   { key: 'shifts',          group: 'addons', icon: 'bi-clock-history',        price: 29, labelKey: 'featShifts',          descKey: 'featShiftsDesc' },
+  { key: 'posTerminals',    group: 'addons', icon: 'bi-window-stack',         price: 29, labelKey: 'featPosTerminals',    descKey: 'featPosTerminalsDesc' },
   { key: 'accounting',      group: 'addons', icon: 'bi-journal-bookmark',     price: 39, labelKey: 'featAccounting',      descKey: 'featAccountingDesc' },
   { key: 'productRecipes',  group: 'addons', icon: 'bi-cup-hot',              price: 39, labelKey: 'featProductRecipes',  descKey: 'featProductRecipesDesc' },
   // Manufacturing requires productRecipes (BOM) to function, so its price is the

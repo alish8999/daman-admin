@@ -73,6 +73,14 @@ public class ClientFeaturesJson {
      * a machine with very limited disk space), not as an opt-in gate.
      */
     private boolean autoBackup = true;
+    /**
+     * Multi-terminal POS mode — allows more than one cashier till per client
+     * (each terminal identified via the X-Daman-Terminal header; enforced by
+     * TerminalContextFilter in daman-backend, which rejects the header with
+     * 403 when this is off). Default: off — opt-in per client, $29 add-on,
+     * same tier as shifts.
+     */
+    private boolean posTerminals;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

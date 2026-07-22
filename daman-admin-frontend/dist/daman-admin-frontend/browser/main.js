@@ -40979,6 +40979,7 @@ var FEATURE_CATALOG = [
   { key: "quotation", group: "addons", icon: "bi-file-earmark-ruled", price: 15, labelKey: "featQuotation", descKey: "featQuotationDesc" },
   { key: "userManagement", group: "addons", icon: "bi-people", price: 20, labelKey: "featUserManagement", descKey: "featUserManagementDesc" },
   { key: "shifts", group: "addons", icon: "bi-clock-history", price: 29, labelKey: "featShifts", descKey: "featShiftsDesc" },
+  { key: "posTerminals", group: "addons", icon: "bi-window-stack", price: 29, labelKey: "featPosTerminals", descKey: "featPosTerminalsDesc" },
   { key: "accounting", group: "addons", icon: "bi-journal-bookmark", price: 39, labelKey: "featAccounting", descKey: "featAccountingDesc" },
   { key: "productRecipes", group: "addons", icon: "bi-cup-hot", price: 39, labelKey: "featProductRecipes", descKey: "featProductRecipesDesc" },
   // Manufacturing requires productRecipes (BOM) to function, so its price is the
@@ -42662,6 +42663,9 @@ var TranslationService = class _TranslationService {
         featSupplierLedgerDesc: "Track credit purchases and supplier payments.",
         featShifts: "Shift management (cashier sessions with opening/closing cash)",
         featShiftsDesc: "Cashier shift sessions with opening/closing cash counts.",
+        featPosTerminals: "Multi-terminal POS mode",
+        featPosTerminalsDesc: "Run more than one cashier till for this client.",
+        featPosTerminalsHint: "Allows more than one POS terminal/till to be used by this client at once, each identified via the X-Daman-Terminal header. Enforced server-side \u2014 requests carrying that header are rejected with 403 when this is off. Same tier as Shifts.",
         featAccountStatement: "Client & Supplier Account Statement page",
         featAccountStatementDesc: "Per-client / per-supplier balance history & date filters.",
         featAccountStatementHint: "Adds the Account Statement nav link \u2014 per-client / per-supplier balance history with opening balance, running balance, and date filters.",
@@ -42912,6 +42916,9 @@ var TranslationService = class _TranslationService {
         featMultiCurrencyDesc: "\u0642\u0628\u0648\u0644 \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A \u0648\u062A\u0642\u0627\u0631\u064A\u0631\u0647\u0627 \u0628\u0639\u062F\u0629 \u0639\u0645\u0644\u0627\u062A.",
         featShifts: "\u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0648\u0631\u062F\u064A\u0627\u062A (\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u0635\u0646\u062F\u0648\u0642 \u0645\u0639 \u0641\u062A\u062D/\u0625\u063A\u0644\u0627\u0642 \u0627\u0644\u0646\u0642\u062F)",
         featShiftsDesc: "\u062C\u0644\u0633\u0627\u062A \u0648\u0631\u062F\u064A\u0627\u062A \u0627\u0644\u0635\u0646\u062F\u0648\u0642 \u0645\u0639 \u0641\u062A\u062D \u0648\u0625\u063A\u0644\u0627\u0642 \u0627\u0644\u0646\u0642\u062F.",
+        featPosTerminals: "\u0648\u0636\u0639 \u0646\u0642\u0627\u0637 \u0627\u0644\u0628\u064A\u0639 \u0627\u0644\u0645\u062A\u0639\u062F\u062F\u0629",
+        featPosTerminalsDesc: "\u062A\u0634\u063A\u064A\u0644 \u0623\u0643\u062B\u0631 \u0645\u0646 \u0635\u0646\u062F\u0648\u0642 \u0643\u0627\u0634\u064A\u0631 \u0644\u0647\u0630\u0627 \u0627\u0644\u0639\u0645\u064A\u0644.",
+        featPosTerminalsHint: "\u064A\u0633\u0645\u062D \u0628\u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0623\u0643\u062B\u0631 \u0645\u0646 \u062C\u0647\u0627\u0632 \u0646\u0642\u0637\u0629 \u0628\u064A\u0639 (\u0643\u0627\u0634\u064A\u0631) \u0641\u064A \u0648\u0642\u062A \u0648\u0627\u062D\u062F \u0644\u0647\u0630\u0627 \u0627\u0644\u0639\u0645\u064A\u0644\u060C \u064A\u064F\u0639\u0631\u064E\u0651\u0641 \u0643\u0644 \u062C\u0647\u0627\u0632 \u0639\u0628\u0631 \u062A\u0631\u0648\u064A\u0633\u0629 X-Daman-Terminal. \u064A\u064F\u0641\u0631\u0636 \u0645\u0646 \u062C\u0647\u0629 \u0627\u0644\u062E\u0627\u062F\u0645 \u2014 \u062A\u064F\u0631\u0641\u0636 \u0627\u0644\u0637\u0644\u0628\u0627\u062A \u0627\u0644\u062A\u064A \u062A\u062D\u0645\u0644 \u0647\u0630\u0647 \u0627\u0644\u062A\u0631\u0648\u064A\u0633\u0629 \u0628\u0631\u0645\u0632 403 \u0639\u0646\u062F\u0645\u0627 \u062A\u0643\u0648\u0646 \u0647\u0630\u0647 \u0627\u0644\u0645\u064A\u0632\u0629 \u0645\u0648\u0642\u0641\u0629. \u0628\u0646\u0641\u0633 \u0641\u0626\u0629 \u062A\u0633\u0639\u064A\u0631 \u0627\u0644\u0648\u0631\u062F\u064A\u0627\u062A.",
         featClientLedger: "\u062F\u0641\u062A\u0631 \u062F\u064A\u0648\u0646 \u0627\u0644\u0639\u0645\u0644\u0627\u0621 (\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A \u063A\u064A\u0631 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629 \u0648\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A)",
         featClientLedgerDesc: "\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A \u063A\u064A\u0631 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629 \u0648\u0645\u062F\u0641\u0648\u0639\u0627\u062A \u0627\u0644\u0639\u0645\u0644\u0627\u0621.",
         featSupplierLedger: "\u062F\u0641\u062A\u0631 \u0623\u0631\u0635\u062F\u0629 \u0627\u0644\u0645\u0648\u0631\u062F\u064A\u0646 (\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0634\u062A\u0631\u064A\u0627\u062A \u0627\u0644\u0622\u062C\u0644\u0629 \u0648\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A)",
@@ -45518,10 +45525,10 @@ var ClientFormComponent = class _ClientFormComponent {
       // Defaults for a NEW client: every feature enabled except seedDemoData
       // (opt-in only, per-client demo data), scaleBarcodes (opt-in only,
       // relevant only to clients with actual scale hardware), and the paid
-      // add-ons (shifts $29, productRecipes $39, manufacturing $20 (marginal
-      // — $59 bundle w/ BOM), userManagement $20, quotation $15, accounting
-      // $39 — see daman-frontend's /features page) which the client must
-      // explicitly purchase.
+      // add-ons (shifts $29, posTerminals $29, productRecipes $39,
+      // manufacturing $20 (marginal — $59 bundle w/ BOM), userManagement
+      // $20, quotation $15, accounting $39 — see daman-frontend's /features
+      // page) which the client must explicitly purchase.
       features: this.fb.group({
         multiLanguage: [true],
         barcode: [true],
@@ -45545,7 +45552,8 @@ var ClientFormComponent = class _ClientFormComponent {
         quotation: [false],
         accounting: [false],
         scaleBarcodes: [false],
-        autoBackup: [true]
+        autoBackup: [true],
+        posTerminals: [false]
       })
     });
     this.passwordVisible = false;
@@ -45585,7 +45593,8 @@ var ClientFormComponent = class _ClientFormComponent {
             quotation: client.features?.quotation ?? false,
             accounting: client.features?.accounting ?? false,
             scaleBarcodes: client.features?.scaleBarcodes ?? false,
-            autoBackup: client.features?.autoBackup ?? true
+            autoBackup: client.features?.autoBackup ?? true,
+            posTerminals: client.features?.posTerminals ?? false
           }
         }));
       });

@@ -183,6 +183,7 @@ public class ClientConfigService {
             if (patch.getAccounting()           != null) f.setAccounting(patch.getAccounting());
             if (patch.getScaleBarcodes()        != null) f.setScaleBarcodes(patch.getScaleBarcodes());
             if (patch.getAutoBackup()           != null) f.setAutoBackup(patch.getAutoBackup());
+            if (patch.getPosTerminals()          != null) f.setPosTerminals(patch.getPosTerminals());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -217,6 +218,7 @@ public class ClientConfigService {
                 .accounting(f.isAccounting())
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
+                .posTerminals(f.isPosTerminals())
                 .build();
     }
 
@@ -246,6 +248,7 @@ public class ClientConfigService {
                 .accounting(f.isAccounting())
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
+                .posTerminals(f.isPosTerminals())
                 .build();
     }
 
