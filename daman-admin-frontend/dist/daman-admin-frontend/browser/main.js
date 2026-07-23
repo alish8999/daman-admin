@@ -40980,6 +40980,8 @@ var FEATURE_CATALOG = [
   { key: "userManagement", group: "addons", icon: "bi-people", price: 20, labelKey: "featUserManagement", descKey: "featUserManagementDesc" },
   { key: "shifts", group: "addons", icon: "bi-clock-history", price: 29, labelKey: "featShifts", descKey: "featShiftsDesc" },
   { key: "posTerminals", group: "addons", icon: "bi-window-stack", price: 29, labelKey: "featPosTerminals", descKey: "featPosTerminalsDesc" },
+  { key: "tableOrders", group: "addons", icon: "bi-grid-3x3-gap", price: 29, labelKey: "featTableOrders", descKey: "featTableOrdersDesc" },
+  { key: "quickPickCards", group: "addons", icon: "bi-card-checklist", price: 15, labelKey: "featQuickPickCards", descKey: "featQuickPickCardsDesc" },
   { key: "accounting", group: "addons", icon: "bi-journal-bookmark", price: 39, labelKey: "featAccounting", descKey: "featAccountingDesc" },
   { key: "productRecipes", group: "addons", icon: "bi-cup-hot", price: 39, labelKey: "featProductRecipes", descKey: "featProductRecipesDesc" },
   // Manufacturing requires productRecipes (BOM) to function, so its price is the
@@ -42666,6 +42668,12 @@ var TranslationService = class _TranslationService {
         featPosTerminals: "Multi-terminal POS mode",
         featPosTerminalsDesc: "Run more than one cashier till for this client.",
         featPosTerminalsHint: "Allows more than one POS terminal/till to be used by this client at once, each identified via the X-Daman-Terminal header. Enforced server-side \u2014 requests carrying that header are rejected with 403 when this is off. Same tier as Shifts.",
+        featTableOrders: "Table Orders (Running Tabs)",
+        featTableOrdersDesc: "Open a table, add items over time, close it out as a sale.",
+        featTableOrdersHint: "Lets a cashier open a running tab for a physical table, add items to it incrementally as the customer orders more, and close it out into a normal sale when the customer asks for the check. Cafe/restaurant-specific.",
+        featQuickPickCards: "Quick-Pick POS Cards",
+        featQuickPickCardsDesc: "Tappable category cards for a small, curated menu.",
+        featQuickPickCardsHint: "Adds a tappable category-card item picker (e.g. Juices/Coffee/Snacks) to the POS screen, alongside the existing search \u2014 faster entry for a small, curated catalog. Most clients with large SKU counts won't want this.",
         featAccountStatement: "Client & Supplier Account Statement page",
         featAccountStatementDesc: "Per-client / per-supplier balance history & date filters.",
         featAccountStatementHint: "Adds the Account Statement nav link \u2014 per-client / per-supplier balance history with opening balance, running balance, and date filters.",
@@ -42919,6 +42927,12 @@ var TranslationService = class _TranslationService {
         featPosTerminals: "\u0648\u0636\u0639 \u0646\u0642\u0627\u0637 \u0627\u0644\u0628\u064A\u0639 \u0627\u0644\u0645\u062A\u0639\u062F\u062F\u0629",
         featPosTerminalsDesc: "\u062A\u0634\u063A\u064A\u0644 \u0623\u0643\u062B\u0631 \u0645\u0646 \u0635\u0646\u062F\u0648\u0642 \u0643\u0627\u0634\u064A\u0631 \u0644\u0647\u0630\u0627 \u0627\u0644\u0639\u0645\u064A\u0644.",
         featPosTerminalsHint: "\u064A\u0633\u0645\u062D \u0628\u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0623\u0643\u062B\u0631 \u0645\u0646 \u062C\u0647\u0627\u0632 \u0646\u0642\u0637\u0629 \u0628\u064A\u0639 (\u0643\u0627\u0634\u064A\u0631) \u0641\u064A \u0648\u0642\u062A \u0648\u0627\u062D\u062F \u0644\u0647\u0630\u0627 \u0627\u0644\u0639\u0645\u064A\u0644\u060C \u064A\u064F\u0639\u0631\u064E\u0651\u0641 \u0643\u0644 \u062C\u0647\u0627\u0632 \u0639\u0628\u0631 \u062A\u0631\u0648\u064A\u0633\u0629 X-Daman-Terminal. \u064A\u064F\u0641\u0631\u0636 \u0645\u0646 \u062C\u0647\u0629 \u0627\u0644\u062E\u0627\u062F\u0645 \u2014 \u062A\u064F\u0631\u0641\u0636 \u0627\u0644\u0637\u0644\u0628\u0627\u062A \u0627\u0644\u062A\u064A \u062A\u062D\u0645\u0644 \u0647\u0630\u0647 \u0627\u0644\u062A\u0631\u0648\u064A\u0633\u0629 \u0628\u0631\u0645\u0632 403 \u0639\u0646\u062F\u0645\u0627 \u062A\u0643\u0648\u0646 \u0647\u0630\u0647 \u0627\u0644\u0645\u064A\u0632\u0629 \u0645\u0648\u0642\u0641\u0629. \u0628\u0646\u0641\u0633 \u0641\u0626\u0629 \u062A\u0633\u0639\u064A\u0631 \u0627\u0644\u0648\u0631\u062F\u064A\u0627\u062A.",
+        featTableOrders: "\u0637\u0644\u0628\u0627\u062A \u0627\u0644\u0637\u0627\u0648\u0644\u0627\u062A (\u062D\u0633\u0627\u0628 \u0645\u0641\u062A\u0648\u062D)",
+        featTableOrdersDesc: "\u0627\u0641\u062A\u062D \u0637\u0627\u0648\u0644\u0629\u060C \u0623\u0636\u0641 \u0623\u0635\u0646\u0627\u0641\u0627\u064B \u0628\u0645\u0631\u0648\u0631 \u0627\u0644\u0648\u0642\u062A\u060C \u062B\u0645 \u0623\u063A\u0644\u0642\u0647\u0627 \u0643\u0641\u0627\u062A\u0648\u0631\u0629 \u0628\u064A\u0639.",
+        featTableOrdersHint: "\u064A\u062A\u064A\u062D \u0644\u0644\u0643\u0627\u0634\u064A\u0631 \u0641\u062A\u062D \u062D\u0633\u0627\u0628 \u062C\u0627\u0631\u064D \u0644\u0637\u0627\u0648\u0644\u0629 \u0645\u0639\u064A\u0646\u0629\u060C \u0648\u0625\u0636\u0627\u0641\u0629 \u0623\u0635\u0646\u0627\u0641 \u0625\u0644\u064A\u0647 \u062A\u0628\u0627\u0639\u0627\u064B \u0645\u0639 \u0637\u0644\u0628 \u0627\u0644\u0632\u0628\u0648\u0646 \u0644\u0644\u0645\u0632\u064A\u062F\u060C \u062B\u0645 \u0625\u063A\u0644\u0627\u0642\u0647 \u0643\u0641\u0627\u062A\u0648\u0631\u0629 \u0628\u064A\u0639 \u0639\u0627\u062F\u064A\u0629 \u0639\u0646\u062F \u0637\u0644\u0628 \u0627\u0644\u062D\u0633\u0627\u0628. \u062E\u0627\u0635 \u0628\u0627\u0644\u0645\u0642\u0627\u0647\u064A \u0648\u0627\u0644\u0645\u0637\u0627\u0639\u0645.",
+        featQuickPickCards: "\u0628\u0637\u0627\u0642\u0627\u062A \u0627\u062E\u062A\u064A\u0627\u0631 \u0633\u0631\u064A\u0639 \u0644\u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064A\u0639",
+        featQuickPickCardsDesc: "\u0628\u0637\u0627\u0642\u0627\u062A \u0641\u0626\u0627\u062A \u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u0646\u0642\u0631 \u0644\u0642\u0627\u0626\u0645\u0629 \u0635\u063A\u064A\u0631\u0629 \u0648\u0645\u062D\u062F\u062F\u0629.",
+        featQuickPickCardsHint: "\u064A\u0636\u064A\u0641 \u0623\u062F\u0627\u0629 \u0627\u062E\u062A\u064A\u0627\u0631 \u0633\u0631\u064A\u0639 \u0628\u0628\u0637\u0627\u0642\u0627\u062A \u0641\u0626\u0627\u062A (\u0645\u062B\u0644 \u0639\u0635\u0627\u0626\u0631/\u0642\u0647\u0648\u0629/\u0648\u062C\u0628\u0627\u062A \u062E\u0641\u064A\u0641\u0629) \u0625\u0644\u0649 \u0634\u0627\u0634\u0629 \u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064A\u0639\u060C \u0625\u0644\u0649 \u062C\u0627\u0646\u0628 \u0627\u0644\u0628\u062D\u062B \u0627\u0644\u062D\u0627\u0644\u064A \u2014 \u0625\u062F\u062E\u0627\u0644 \u0623\u0633\u0631\u0639 \u0644\u0642\u0627\u0626\u0645\u0629 \u0635\u063A\u064A\u0631\u0629 \u0648\u0645\u062D\u062F\u062F\u0629. \u0644\u0627 \u064A\u0646\u0627\u0633\u0628 \u0627\u0644\u0639\u0645\u0644\u0627\u0621 \u0630\u0648\u064A \u0639\u062F\u062F \u0643\u0628\u064A\u0631 \u0645\u0646 \u0627\u0644\u0623\u0635\u0646\u0627\u0641.",
         featClientLedger: "\u062F\u0641\u062A\u0631 \u062F\u064A\u0648\u0646 \u0627\u0644\u0639\u0645\u0644\u0627\u0621 (\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A \u063A\u064A\u0631 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629 \u0648\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A)",
         featClientLedgerDesc: "\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A \u063A\u064A\u0631 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629 \u0648\u0645\u062F\u0641\u0648\u0639\u0627\u062A \u0627\u0644\u0639\u0645\u0644\u0627\u0621.",
         featSupplierLedger: "\u062F\u0641\u062A\u0631 \u0623\u0631\u0635\u062F\u0629 \u0627\u0644\u0645\u0648\u0631\u062F\u064A\u0646 (\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0634\u062A\u0631\u064A\u0627\u062A \u0627\u0644\u0622\u062C\u0644\u0629 \u0648\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A)",
@@ -45527,8 +45541,9 @@ var ClientFormComponent = class _ClientFormComponent {
       // relevant only to clients with actual scale hardware), and the paid
       // add-ons (shifts $29, posTerminals $29, productRecipes $39,
       // manufacturing $20 (marginal — $59 bundle w/ BOM), userManagement
-      // $20, quotation $15, accounting $39 — see daman-frontend's /features
-      // page) which the client must explicitly purchase.
+      // $20, quotation $15, accounting $39, tableOrders $29, quickPickCards
+      // $15 — see daman-frontend's /features page) which the client must
+      // explicitly purchase.
       features: this.fb.group({
         multiLanguage: [true],
         barcode: [true],
@@ -45553,7 +45568,9 @@ var ClientFormComponent = class _ClientFormComponent {
         accounting: [false],
         scaleBarcodes: [false],
         autoBackup: [true],
-        posTerminals: [false]
+        posTerminals: [false],
+        tableOrders: [false],
+        quickPickCards: [false]
       })
     });
     this.passwordVisible = false;
@@ -45594,7 +45611,9 @@ var ClientFormComponent = class _ClientFormComponent {
             accounting: client.features?.accounting ?? false,
             scaleBarcodes: client.features?.scaleBarcodes ?? false,
             autoBackup: client.features?.autoBackup ?? true,
-            posTerminals: client.features?.posTerminals ?? false
+            posTerminals: client.features?.posTerminals ?? false,
+            tableOrders: client.features?.tableOrders ?? false,
+            quickPickCards: client.features?.quickPickCards ?? false
           }
         }));
       });
