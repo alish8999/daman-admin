@@ -184,6 +184,8 @@ public class ClientConfigService {
             if (patch.getScaleBarcodes()        != null) f.setScaleBarcodes(patch.getScaleBarcodes());
             if (patch.getAutoBackup()           != null) f.setAutoBackup(patch.getAutoBackup());
             if (patch.getPosTerminals()          != null) f.setPosTerminals(patch.getPosTerminals());
+            if (patch.getTableOrders()          != null) f.setTableOrders(patch.getTableOrders());
+            if (patch.getQuickPickCards()        != null) f.setQuickPickCards(patch.getQuickPickCards());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -219,6 +221,8 @@ public class ClientConfigService {
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())
+                .tableOrders(f.isTableOrders())
+                .quickPickCards(f.isQuickPickCards())
                 .build();
     }
 
@@ -249,6 +253,8 @@ public class ClientConfigService {
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())
+                .tableOrders(f.isTableOrders())
+                .quickPickCards(f.isQuickPickCards())
                 .build();
     }
 

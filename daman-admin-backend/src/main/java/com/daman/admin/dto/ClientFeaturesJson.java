@@ -81,6 +81,10 @@ public class ClientFeaturesJson {
      * same tier as shifts.
      */
     private boolean posTerminals;
+    /** Cafe-style running tabs. Default: off — opt-in per client, cafe/restaurant-specific. */
+    private boolean tableOrders;
+    /** Tappable category-card item picker. Default: off — most clients have far more SKUs than fit a card grid. */
+    private boolean quickPickCards;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;

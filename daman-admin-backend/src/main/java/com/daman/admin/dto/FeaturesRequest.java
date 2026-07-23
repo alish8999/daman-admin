@@ -42,4 +42,8 @@ public class FeaturesRequest {
     private Boolean autoBackup;
     /** Multi-terminal POS mode — allows more than one cashier till per client. $29 add-on, same tier as shifts. */
     private Boolean posTerminals;
+    /** Cafe-style running tabs — open a table, add items over time, close out as a normal Sale. */
+    private Boolean tableOrders;
+    /** Tappable category-card item picker for small/curated menus. */
+    private Boolean quickPickCards;
 }
