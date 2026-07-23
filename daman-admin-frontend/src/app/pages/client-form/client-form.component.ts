@@ -161,8 +161,9 @@ export class ClientFormComponent implements OnInit {
       // relevant only to clients with actual scale hardware), and the paid
       // add-ons (shifts $29, posTerminals $29, productRecipes $39,
       // manufacturing $20 (marginal — $59 bundle w/ BOM), userManagement
-      // $20, quotation $15, accounting $39 — see daman-frontend's /features
-      // page) which the client must explicitly purchase.
+      // $20, quotation $15, accounting $39, tableOrders $29, quickPickCards
+      // $15 — see daman-frontend's /features page) which the client must
+      // explicitly purchase.
       features: this.fb.group({
         multiLanguage:        [true],
         barcode:              [true],
