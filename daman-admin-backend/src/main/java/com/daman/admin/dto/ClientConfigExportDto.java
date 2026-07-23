@@ -107,5 +107,7 @@ public class ClientConfigExportDto {
         private boolean tableOrders;
         /** Tappable category-card item picker for small/curated menus. */
         private boolean quickPickCards;
+        /** Cafe presentation mode — tables page as landing + slim nav. Presentational only. */
+        private boolean cafeMode;
     }
 }

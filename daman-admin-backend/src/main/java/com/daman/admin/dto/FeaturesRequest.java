@@ -46,4 +46,6 @@ public class FeaturesRequest {
     private Boolean tableOrders;
     /** Tappable category-card item picker for small/curated menus. */
     private Boolean quickPickCards;
+    /** Cafe presentation mode — tables page as landing + slim nav. Presentational only. */
+    private Boolean cafeMode;
 }

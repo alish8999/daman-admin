@@ -85,6 +85,8 @@ public class ClientFeaturesJson {
     private boolean tableOrders;
     /** Tappable category-card item picker. Default: off — most clients have far more SKUs than fit a card grid. */
     private boolean quickPickCards;
+    /** Cafe presentation mode — tables page as landing + slim nav. Default: off — presentational, opt-in per client. */
+    private boolean cafeMode;
 
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;
