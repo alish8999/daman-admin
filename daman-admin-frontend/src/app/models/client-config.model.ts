@@ -88,6 +88,8 @@ export interface ClientFeatures {
   tableOrders?: boolean;
   /** Tappable category-card item picker. Default: false — most clients have far more SKUs than fit a card grid. */
   quickPickCards?: boolean;
+  /** Cafe presentation mode — tables page as landing + slim nav. Default: false — presentational, opt-in per client. */
+  cafeMode?: boolean;
 }
 
 export interface ClientConfig {
