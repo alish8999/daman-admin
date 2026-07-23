@@ -187,7 +187,9 @@ export class ClientFormComponent implements OnInit {
         accounting:           [false],
         scaleBarcodes:        [false],
         autoBackup:           [true],
-        posTerminals:         [false]
+        posTerminals:         [false],
+        tableOrders:          [false],
+        quickPickCards:       [false]
       })
     });
     this.passwordVisible = false;
@@ -231,7 +233,9 @@ export class ClientFormComponent implements OnInit {
             accounting:           client.features?.accounting           ?? false,
             scaleBarcodes:        client.features?.scaleBarcodes        ?? false,
             autoBackup:           client.features?.autoBackup           ?? true,
-            posTerminals:         client.features?.posTerminals         ?? false
+            posTerminals:         client.features?.posTerminals         ?? false,
+            tableOrders:          client.features?.tableOrders          ?? false,
+            quickPickCards:       client.features?.quickPickCards       ?? false
           }
         });
       });

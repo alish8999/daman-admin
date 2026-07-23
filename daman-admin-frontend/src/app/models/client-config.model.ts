@@ -84,6 +84,10 @@ export interface ClientFeatures {
    * false — opt-in per client, $29 add-on, same tier as shifts.
    */
   posTerminals?: boolean;
+  /** Cafe-style running tabs. Default: false — opt-in per client, cafe/restaurant-specific. */
+  tableOrders?: boolean;
+  /** Tappable category-card item picker. Default: false — most clients have far more SKUs than fit a card grid. */
+  quickPickCards?: boolean;
 }
 
 export interface ClientConfig {
