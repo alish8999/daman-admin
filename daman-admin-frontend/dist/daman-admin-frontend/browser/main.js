@@ -40982,6 +40982,7 @@ var FEATURE_CATALOG = [
   { key: "posTerminals", group: "addons", icon: "bi-window-stack", price: 29, labelKey: "featPosTerminals", descKey: "featPosTerminalsDesc" },
   { key: "tableOrders", group: "addons", icon: "bi-grid-3x3-gap", price: 29, labelKey: "featTableOrders", descKey: "featTableOrdersDesc" },
   { key: "quickPickCards", group: "addons", icon: "bi-card-checklist", price: 15, labelKey: "featQuickPickCards", descKey: "featQuickPickCardsDesc" },
+  { key: "cafeMode", group: "addons", icon: "bi-shop", price: 0, labelKey: "featCafeMode", descKey: "featCafeModeDesc" },
   { key: "accounting", group: "addons", icon: "bi-journal-bookmark", price: 39, labelKey: "featAccounting", descKey: "featAccountingDesc" },
   { key: "productRecipes", group: "addons", icon: "bi-cup-hot", price: 39, labelKey: "featProductRecipes", descKey: "featProductRecipesDesc" },
   // Manufacturing requires productRecipes (BOM) to function, so its price is the
@@ -42674,6 +42675,9 @@ var TranslationService = class _TranslationService {
         featQuickPickCards: "Quick-Pick POS Cards",
         featQuickPickCardsDesc: "Tappable category cards for a small, curated menu.",
         featQuickPickCardsHint: "Adds a tappable category-card item picker (e.g. Juices/Coffee/Snacks) to the POS screen, alongside the existing search \u2014 faster entry for a small, curated catalog. Most clients with large SKU counts won't want this.",
+        featCafeMode: "Cafe Mode (Simplified Home)",
+        featCafeModeDesc: "Tables page as the home screen with a slimmed-down menu.",
+        featCafeModeHint: 'Turns the app into a cafe-first experience: the open-tables page becomes the landing screen instead of the dashboard, and the sidebar is slimmed to Tables / New Sale / Transactions / Products with everything else under a collapsible "More" group. Presentational only \u2014 nothing is removed or restricted, the owner can still reach every page. Requires Table Orders to be enabled.',
         featAccountStatement: "Client & Supplier Account Statement page",
         featAccountStatementDesc: "Per-client / per-supplier balance history & date filters.",
         featAccountStatementHint: "Adds the Account Statement nav link \u2014 per-client / per-supplier balance history with opening balance, running balance, and date filters.",
@@ -42933,6 +42937,9 @@ var TranslationService = class _TranslationService {
         featQuickPickCards: "\u0628\u0637\u0627\u0642\u0627\u062A \u0627\u062E\u062A\u064A\u0627\u0631 \u0633\u0631\u064A\u0639 \u0644\u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064A\u0639",
         featQuickPickCardsDesc: "\u0628\u0637\u0627\u0642\u0627\u062A \u0641\u0626\u0627\u062A \u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u0646\u0642\u0631 \u0644\u0642\u0627\u0626\u0645\u0629 \u0635\u063A\u064A\u0631\u0629 \u0648\u0645\u062D\u062F\u062F\u0629.",
         featQuickPickCardsHint: "\u064A\u0636\u064A\u0641 \u0623\u062F\u0627\u0629 \u0627\u062E\u062A\u064A\u0627\u0631 \u0633\u0631\u064A\u0639 \u0628\u0628\u0637\u0627\u0642\u0627\u062A \u0641\u0626\u0627\u062A (\u0645\u062B\u0644 \u0639\u0635\u0627\u0626\u0631/\u0642\u0647\u0648\u0629/\u0648\u062C\u0628\u0627\u062A \u062E\u0641\u064A\u0641\u0629) \u0625\u0644\u0649 \u0634\u0627\u0634\u0629 \u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064A\u0639\u060C \u0625\u0644\u0649 \u062C\u0627\u0646\u0628 \u0627\u0644\u0628\u062D\u062B \u0627\u0644\u062D\u0627\u0644\u064A \u2014 \u0625\u062F\u062E\u0627\u0644 \u0623\u0633\u0631\u0639 \u0644\u0642\u0627\u0626\u0645\u0629 \u0635\u063A\u064A\u0631\u0629 \u0648\u0645\u062D\u062F\u062F\u0629. \u0644\u0627 \u064A\u0646\u0627\u0633\u0628 \u0627\u0644\u0639\u0645\u0644\u0627\u0621 \u0630\u0648\u064A \u0639\u062F\u062F \u0643\u0628\u064A\u0631 \u0645\u0646 \u0627\u0644\u0623\u0635\u0646\u0627\u0641.",
+        featCafeMode: "\u0648\u0636\u0639 \u0627\u0644\u0645\u0642\u0647\u0649 (\u0634\u0627\u0634\u0629 \u0631\u0626\u064A\u0633\u064A\u0629 \u0645\u0628\u0633\u0651\u0637\u0629)",
+        featCafeModeDesc: "\u0635\u0641\u062D\u0629 \u0627\u0644\u0637\u0627\u0648\u0644\u0627\u062A \u0643\u0634\u0627\u0634\u0629 \u0631\u0626\u064A\u0633\u064A\u0629 \u0645\u0639 \u0642\u0627\u0626\u0645\u0629 \u0645\u0628\u0633\u0651\u0637\u0629.",
+        featCafeModeHint: '\u064A\u062D\u0648\u0651\u0644 \u0627\u0644\u062A\u0637\u0628\u064A\u0642 \u0625\u0644\u0649 \u062A\u062C\u0631\u0628\u0629 \u0645\u062E\u0635\u0651\u0635\u0629 \u0644\u0644\u0645\u0642\u0627\u0647\u064A: \u062A\u0635\u0628\u062D \u0635\u0641\u062D\u0629 \u0627\u0644\u0637\u0627\u0648\u0644\u0627\u062A \u0627\u0644\u0645\u0641\u062A\u0648\u062D\u0629 \u0647\u064A \u0627\u0644\u0634\u0627\u0634\u0629 \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629 \u0628\u062F\u0644\u0627\u064B \u0645\u0646 \u0644\u0648\u062D\u0629 \u0627\u0644\u062A\u062D\u0643\u0645\u060C \u0648\u062A\u064F\u062E\u062A\u0635\u0631 \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u062C\u0627\u0646\u0628\u064A\u0629 \u0625\u0644\u0649 \u0627\u0644\u0637\u0627\u0648\u0644\u0627\u062A / \u0628\u064A\u0639 \u062C\u062F\u064A\u062F / \u0627\u0644\u0639\u0645\u0644\u064A\u0627\u062A / \u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A \u0645\u0639 \u0648\u0636\u0639 \u0628\u0642\u064A\u0629 \u0627\u0644\u0635\u0641\u062D\u0627\u062A \u0636\u0645\u0646 \u0645\u062C\u0645\u0648\u0639\u0629 "\u0627\u0644\u0645\u0632\u064A\u062F" \u0627\u0644\u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u0637\u064A. \u0644\u0644\u0639\u0631\u0636 \u0641\u0642\u0637 \u2014 \u0644\u0627 \u064A\u064F\u062D\u0630\u0641 \u0623\u0648 \u064A\u064F\u0642\u064A\u0651\u062F \u0623\u064A \u0634\u064A\u0621\u060C \u0648\u064A\u0628\u0642\u0649 \u0628\u0625\u0645\u0643\u0627\u0646 \u0627\u0644\u0645\u0627\u0644\u0643 \u0627\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0643\u0644 \u0627\u0644\u0635\u0641\u062D\u0627\u062A. \u064A\u062A\u0637\u0644\u0628 \u062A\u0641\u0639\u064A\u0644 \u0645\u064A\u0632\u0629 \u0637\u0644\u0628\u0627\u062A \u0627\u0644\u0637\u0627\u0648\u0644\u0627\u062A.',
         featClientLedger: "\u062F\u0641\u062A\u0631 \u062F\u064A\u0648\u0646 \u0627\u0644\u0639\u0645\u0644\u0627\u0621 (\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A \u063A\u064A\u0631 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629 \u0648\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A)",
         featClientLedgerDesc: "\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A \u063A\u064A\u0631 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629 \u0648\u0645\u062F\u0641\u0648\u0639\u0627\u062A \u0627\u0644\u0639\u0645\u0644\u0627\u0621.",
         featSupplierLedger: "\u062F\u0641\u062A\u0631 \u0623\u0631\u0635\u062F\u0629 \u0627\u0644\u0645\u0648\u0631\u062F\u064A\u0646 (\u062A\u062A\u0628\u0639 \u0627\u0644\u0645\u0634\u062A\u0631\u064A\u0627\u062A \u0627\u0644\u0622\u062C\u0644\u0629 \u0648\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A)",
@@ -45570,7 +45577,8 @@ var ClientFormComponent = class _ClientFormComponent {
         autoBackup: [true],
         posTerminals: [false],
         tableOrders: [false],
-        quickPickCards: [false]
+        quickPickCards: [false],
+        cafeMode: [false]
       })
     });
     this.passwordVisible = false;
@@ -45613,7 +45621,8 @@ var ClientFormComponent = class _ClientFormComponent {
             autoBackup: client.features?.autoBackup ?? true,
             posTerminals: client.features?.posTerminals ?? false,
             tableOrders: client.features?.tableOrders ?? false,
-            quickPickCards: client.features?.quickPickCards ?? false
+            quickPickCards: client.features?.quickPickCards ?? false,
+            cafeMode: client.features?.cafeMode ?? false
           }
         }));
       });
