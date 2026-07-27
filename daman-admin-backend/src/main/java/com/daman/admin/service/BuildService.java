@@ -118,28 +118,33 @@ public class BuildService {
 
     private void executeBuild(String clientCode, String platform, String versionNumber) {
         BuildStatusDto status = buildStatuses.get(clientCode);
+        boolean isPos = platform.equalsIgnoreCase("pos");
         try {
             Path workspace = Path.of(workspacePath);
             Path backendRoot = workspace.resolve("daman-backend");
             Path frontendRoot = workspace.resolve("daman-frontend");
 
             addLog(status, "Writing client configuration...");
-            ClientConfigExportDto exportDto = writeClientConfig(clientCode, backendRoot, frontendRoot, status);
+            ClientConfigExportDto exportDto = writeClientConfig(clientCode, backendRoot, frontendRoot, isPos, status);
             addLog(status, "Configuration written");
 
-            addLog(status, "Embedding license public key & build metadata...");
-            writePublicKey(backendRoot);
-            writeClientMeta(backendRoot, clientCode, versionNumber);
-            addLog(status, "License binding written for clientCode=" + clientCode);
+            if (!isPos) {
+                addLog(status, "Embedding license public key & build metadata...");
+                writePublicKey(backendRoot);
+                writeClientMeta(backendRoot, clientCode, versionNumber);
+                addLog(status, "License binding written for clientCode=" + clientCode);
 
-            String[] mvnCmd = mavenCommand(backendRoot);
-            addLog(status, "Building backend JAR (Maven) using: " + mvnCmd[isWindows() ? 2 : 0]);
-            runProcess(backendRoot, mvnCmd, status);
-            addLog(status, "Backend built");
+                String[] mvnCmd = mavenCommand(backendRoot);
+                addLog(status, "Building backend JAR (Maven) using: " + mvnCmd[isWindows() ? 2 : 0]);
+                runProcess(backendRoot, mvnCmd, status);
+                addLog(status, "Backend built");
 
-            addLog(status, "Copying backend JAR...");
-            copyBackendJar(backendRoot, frontendRoot);
-            addLog(status, "JAR copied");
+                addLog(status, "Copying backend JAR...");
+                copyBackendJar(backendRoot, frontendRoot);
+                addLog(status, "JAR copied");
+            } else {
+                addLog(status, "POS build — skipping backend Maven build, JAR copy, and license binding (no bundled backend in this variant)");
+            }
 
             if (!Files.exists(frontendRoot.resolve("node_modules"))) {
                 addLog(status, "Installing npm dependencies...");
@@ -155,9 +160,10 @@ public class BuildService {
                     ? "win7 — Electron 22.3.27 (Windows 7/8 compatible)"
                     : platform;
 
-            // Wipe dist-electron BEFORE electron-builder runs so we can never
+            // Wipe the platform's own dist dir BEFORE electron-builder runs so we can never
             // pick up a stale installer from a previous client's build.
-            Path distDir = frontendRoot.resolve("dist-electron");
+            String distDirName = isPos ? "dist-electron-pos" : "dist-electron";
+            Path distDir = frontendRoot.resolve(distDirName);
             addLog(status, "Cleaning previous Electron output...");
             cleanDirectory(distDir, status);
 
@@ -168,16 +174,16 @@ public class BuildService {
             String rawArtifact = findArtifact(frontendRoot, platform);
             if (rawArtifact != null) {
                 String finalArtifact = relocateArtifact(
-                        rawArtifact, clientCode, exportDto.getAppName(), versionNumber, workspace, status);
+                        rawArtifact, clientCode, exportDto.getAppName(), versionNumber, workspace, platform, status);
                 status.setArtifactPath(finalArtifact);
                 status.setArtifactName(Path.of(finalArtifact).getFileName().toString());
 
                 // Now that the installer lives in clients-build/, free up disk
                 // and ensure no leftovers leak into the next client's build.
-                addLog(status, "Cleaning dist-electron...");
+                addLog(status, "Cleaning " + distDirName + "...");
                 cleanDirectory(distDir, status);
             } else {
-                addLog(status, "Warning: no installer artifact found in dist-electron");
+                addLog(status, "Warning: no installer artifact found in " + distDirName);
             }
 
             status.setStatus("SUCCESS");
@@ -195,12 +201,13 @@ public class BuildService {
     }
 
     private String relocateArtifact(String rawPath, String clientCode, String appName,
-                                     String versionNumber, Path workspace, BuildStatusDto status) throws IOException {
+                                     String versionNumber, Path workspace, String platform,
+                                     BuildStatusDto status) throws IOException {
         // Use only ASCII-safe parts for the filename. The previous version derived
         // the leading segment from the (potentially Arabic) appName, which produced
         // ugly "_______" prefixes once non-ASCII characters were stripped. Pin the
         // brand prefix instead so the output is always something like:
-        //   Daman_1.0.0_viora.exe
+        //   Daman_1.0.0_viora.exe (full app) or DamanPOS_1.0.0_viora.exe (POS variant)
         String safeClient = clientCode.replaceAll("[^a-zA-Z0-9_-]", "_");
         String safeVer    = (versionNumber != null && !versionNumber.isBlank())
                 ? versionNumber.replaceAll("[^a-zA-Z0-9._-]", "_")
@@ -211,7 +218,8 @@ public class BuildService {
         int dotIdx = originalName.lastIndexOf('.');
         String ext = dotIdx >= 0 ? originalName.substring(dotIdx) : "";
 
-        String newName = "Daman_" + safeVer + "_" + safeClient + ext;
+        String prefix = platform.equalsIgnoreCase("pos") ? "DamanPOS_" : "Daman_";
+        String newName = prefix + safeVer + "_" + safeClient + ext;
 
         Path outDir = workspace.resolve("clients-build").resolve(safeClient);
         Files.createDirectories(outDir);
@@ -274,7 +282,7 @@ public class BuildService {
     // ------------------------------------------------------------------
 
     private ClientConfigExportDto writeClientConfig(String clientCode, Path backendRoot, Path frontendRoot,
-                                                     BuildStatusDto status) throws IOException {
+                                                     boolean skipBackendCopy, BuildStatusDto status) throws IOException {
         ClientConfigExportDto exportDto = clientConfigService.export(clientCode);
 
         extractImages(exportDto, clientCode, frontendRoot);
@@ -283,8 +291,10 @@ public class BuildService {
 
         String json = objectMapper.writeValueAsString(exportDto);
 
-        Path backendDest = backendRoot.resolve("src/main/resources/client.config.json");
-        Files.writeString(backendDest, json);
+        if (!skipBackendCopy) {
+            Path backendDest = backendRoot.resolve("src/main/resources/client.config.json");
+            Files.writeString(backendDest, json);
+        }
 
         Path frontendAssets = frontendRoot.resolve("src/assets");
         Files.createDirectories(frontendAssets);
@@ -435,6 +445,17 @@ public class BuildService {
                 args.add("--publish");
                 args.add("never");
             }
+            case "pos" -> {
+                // POS build: a separate electron-builder config (different appId/productName,
+                // no bundled backend jar/JRE, output dir dist-electron-pos). --win is explicit
+                // even though the config only defines a Windows target, so this never silently
+                // depends on electron-builder's host-OS auto-detection.
+                args.add("--config");
+                args.add("electron-builder.pos.json");
+                args.add("--win");
+                args.add("--publish");
+                args.add("never");
+            }
             default -> { args.add("--win"); args.add("--publish"); args.add("never"); }
         }
 
@@ -531,13 +552,14 @@ public class BuildService {
     }
 
     private String findArtifact(Path frontendRoot, String platform) {
-        Path distDir = frontendRoot.resolve("dist-electron");
+        String distDirName = platform.equalsIgnoreCase("pos") ? "dist-electron-pos" : "dist-electron";
+        Path distDir = frontendRoot.resolve(distDirName);
         if (!Files.exists(distDir)) return null;
 
         String ext = switch (platform.toLowerCase()) {
             case "mac" -> ".dmg";
             case "linux" -> ".AppImage";
-            default -> ".exe"; // covers "win" and "win7"
+            default -> ".exe"; // covers "win", "win7", and "pos"
         };
 
         try (Stream<Path> files = Files.list(distDir)) {

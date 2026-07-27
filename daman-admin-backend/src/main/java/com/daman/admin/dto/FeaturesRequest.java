@@ -42,4 +42,11 @@ public class FeaturesRequest {
     private Boolean autoBackup;
     /** Multi-terminal POS mode — allows more than one cashier till per client. $29 add-on, same tier as shifts. */
     private Boolean posTerminals;
+    /**
+     * Browser-only testing override — when a plain browser tab (ng serve, no
+     * Electron) has no window.daman, getMode() falls back to this flag
+     * instead of always returning 'full'. Never affects a real Electron
+     * build in either direction (real window.daman.mode always wins).
+     */
+    private Boolean simulatePosMode;
 }

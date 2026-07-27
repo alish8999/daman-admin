@@ -417,6 +417,16 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.openDropdown = null;
   }
 
+  /** The Build dropdown's "POS (Windows)" option only appears for a client licensed
+   *  for multi-terminal POS — building a POS installer for a client whose backend
+   *  rejects X-Daman-Terminal requests (TerminalContextFilter, daman-backend) would
+   *  only ever produce a non-functional installer. */
+  isPosBuildAllowed(clientCode: string | null): boolean {
+    if (!clientCode) return false;
+    const client = this.clients.find(c => c.clientCode === clientCode);
+    return !!client?.features?.posTerminals;
+  }
+
   // -- Build --
 
   private static readonly PLATFORM_META: Record<string, { label: string; electronVersion: string; outputExt: string; fileExt: string }> = {
@@ -424,6 +434,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     win7:  { label: 'Windows 7/8 (.exe)', electronVersion: '22.3.27',       outputExt: 'NSIS installer (.exe)', fileExt: 'exe' },
     mac:   { label: 'macOS (.dmg)',       electronVersion: '28.x (latest)', outputExt: 'Disk image (.dmg)',     fileExt: 'dmg' },
     linux: { label: 'Linux (.AppImage)',  electronVersion: '28.x (latest)', outputExt: 'AppImage (.AppImage)',  fileExt: 'AppImage' },
+    pos:   { label: 'POS (Windows)',      electronVersion: '28.x (latest)', outputExt: 'NSIS installer (.exe)', fileExt: 'exe' },
   };
 
   requestBuild(clientCode: string, platform: string): void {

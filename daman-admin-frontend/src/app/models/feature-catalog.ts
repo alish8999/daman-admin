@@ -1,6 +1,6 @@
 import { ClientFeatures } from './client-config.model';
 
-export type FeatureGroup = 'core' | 'operations' | 'reports' | 'addons';
+export type FeatureGroup = 'core' | 'operations' | 'reports' | 'addons' | 'developer';
 
 export interface FeatureCatalogEntry {
   /** Matches a boolean key on ClientFeatures. */
@@ -57,9 +57,12 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   // marginal $20 on top of BOM's $39 — enabling both totals the $59 bundle price
   // shown on the client-facing features page, rather than double-charging $39+$39.
   { key: 'manufacturing',   group: 'addons', icon: 'bi-gear-wide-connected',  price: 20, labelKey: 'featManufacturing',   descKey: 'featManufacturingDesc' },
+
+  // ── Developer / testing (not a purchasable client feature) ──────────────
+  { key: 'simulatePosMode', group: 'developer', icon: 'bi-window-fullscreen', price: 0, labelKey: 'featSimulatePosMode', descKey: 'featSimulatePosModeDesc' },
 ];
 
-export const FEATURE_GROUP_ORDER: FeatureGroup[] = ['core', 'operations', 'reports', 'addons'];
+export const FEATURE_GROUP_ORDER: FeatureGroup[] = ['core', 'operations', 'reports', 'addons', 'developer'];
 
 /** Sum of prices for the given enabled feature keys (0 counts as free, null is excluded). */
 export function addonValue(enabled: Partial<Record<keyof ClientFeatures, boolean>>): number {

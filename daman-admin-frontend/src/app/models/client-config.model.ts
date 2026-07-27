@@ -84,6 +84,13 @@ export interface ClientFeatures {
    * false — opt-in per client, $29 add-on, same tier as shifts.
    */
   posTerminals?: boolean;
+  /**
+   * Browser-only POS-mode testing override — when running `ng serve`/`npm start`
+   * (no Electron at all), getMode() falls back to this flag instead of always
+   * returning 'full'. Never affects a real Electron POS/full-app installer in
+   * either direction. Not a purchasable feature — a developer/testing convenience.
+   */
+  simulatePosMode?: boolean;
 }
 
 export interface ClientConfig {

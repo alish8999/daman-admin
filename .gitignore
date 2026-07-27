@@ -2,3 +2,5 @@
 daman-admin-frontend/node_modules
 daman-admin-frontend/.angular
 .worktrees
+daman-admin-backend/target
+daman-admin-frontend/dist
