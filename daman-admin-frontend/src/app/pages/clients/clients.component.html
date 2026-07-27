@@ -237,6 +237,10 @@
     </li>
     <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'mac'); closeDropdown()">macOS (.dmg)</button></li>
     <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'linux'); closeDropdown()">Linux (.AppImage)</button></li>
+    <li *ngIf="isPosBuildAllowed(openDropdown)"><hr class="dropdown-divider"></li>
+    <li *ngIf="isPosBuildAllowed(openDropdown)">
+      <button class="dropdown-item" (click)="requestBuild(openDropdown!, 'pos'); closeDropdown()">POS (Windows)</button>
+    </li>
     <li><hr class="dropdown-divider"></li>
     <li><button class="dropdown-item" (click)="showHistory(openDropdown!); closeDropdown()">Build History</button></li>
   </ul>
@@ -296,7 +300,7 @@
                 <tr>
                   <td class="text-muted fw-semibold">Artifact</td>
                   <td class="font-monospace small text-break">
-                    Daman_{{ buildConfirmation.versionNumber }}_{{ buildConfirmation.clientCode }}.{{ buildConfirmation.fileExt }}
+                    {{ buildConfirmation.platform === 'pos' ? 'DamanPOS_' : 'Daman_' }}{{ buildConfirmation.versionNumber }}_{{ buildConfirmation.clientCode }}.{{ buildConfirmation.fileExt }}
                   </td>
                 </tr>
               }
