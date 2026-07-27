@@ -103,5 +103,7 @@ public class ClientConfigExportDto {
         private boolean autoBackup;
         /** Multi-terminal POS mode — allows more than one cashier till per client. $29 add-on, same tier as shifts. */
         private boolean posTerminals;
+        /** Browser-only POS-mode testing override — see ClientFeaturesJson.simulatePosMode. */
+        private boolean simulatePosMode;
     }
 }

@@ -1,5 +1,6 @@
 package com.daman.admin.dto;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -81,7 +82,22 @@ public class ClientFeaturesJson {
      * same tier as shifts.
      */
     private boolean posTerminals;
+    /**
+     * Browser-only testing override — when a plain browser tab (ng serve, no
+     * Electron) has no window.daman, getMode() falls back to this flag
+     * instead of always returning 'full'. Never affects a real Electron
+     * build in either direction (real window.daman.mode always wins).
+     * Default: off — this is a developer convenience, not a client feature.
+     */
+    private boolean simulatePosMode;
 
+    // Explicitly disabled as a Jackson creator: Jackson 3's implicit-constructor
+    // detection (with -parameters compiled classes) would otherwise pick this
+    // 3-arg constructor as the deserialization creator over the no-args one
+    // above, binding any JSON missing multiLanguage/barcode/reports to null and
+    // throwing MismatchedInputException on primitive booleans (e.g. a persisted
+    // features_json blob containing only a subset of keys).
+    @JsonCreator(mode = JsonCreator.Mode.DISABLED)
     public ClientFeaturesJson(boolean multiLanguage, boolean barcode, boolean reports) {
         this.multiLanguage = multiLanguage;
         this.barcode = barcode;

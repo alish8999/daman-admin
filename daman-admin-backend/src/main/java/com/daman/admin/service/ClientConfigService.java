@@ -184,6 +184,7 @@ public class ClientConfigService {
             if (patch.getScaleBarcodes()        != null) f.setScaleBarcodes(patch.getScaleBarcodes());
             if (patch.getAutoBackup()           != null) f.setAutoBackup(patch.getAutoBackup());
             if (patch.getPosTerminals()          != null) f.setPosTerminals(patch.getPosTerminals());
+            if (patch.getSimulatePosMode()       != null) f.setSimulatePosMode(patch.getSimulatePosMode());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -219,6 +220,7 @@ public class ClientConfigService {
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())
+                .simulatePosMode(f.isSimulatePosMode())
                 .build();
     }
 
@@ -249,6 +251,7 @@ public class ClientConfigService {
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())
+                .simulatePosMode(f.isSimulatePosMode())
                 .build();
     }
 
