@@ -49,14 +49,14 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'autoBackup',      group: 'addons', icon: 'bi-cloud-arrow-down',     price: 0,  labelKey: 'featAutoBackup',      descKey: 'featAutoBackupDesc' },
   { key: 'quotation',       group: 'addons', icon: 'bi-file-earmark-ruled',   price: 15, labelKey: 'featQuotation',       descKey: 'featQuotationDesc' },
   { key: 'userManagement',  group: 'addons', icon: 'bi-people',               price: 20, labelKey: 'featUserManagement',  descKey: 'featUserManagementDesc' },
-  { key: 'shifts',          group: 'addons', icon: 'bi-clock-history',        price: 29, labelKey: 'featShifts',          descKey: 'featShiftsDesc' },
-  { key: 'posTerminals',    group: 'addons', icon: 'bi-window-stack',         price: 29, labelKey: 'featPosTerminals',    descKey: 'featPosTerminalsDesc' },
-  { key: 'accounting',      group: 'addons', icon: 'bi-journal-bookmark',     price: 39, labelKey: 'featAccounting',      descKey: 'featAccountingDesc' },
-  { key: 'productRecipes',  group: 'addons', icon: 'bi-cup-hot',              price: 39, labelKey: 'featProductRecipes',  descKey: 'featProductRecipesDesc' },
+  { key: 'shifts',          group: 'addons', icon: 'bi-clock-history',        price: 25, labelKey: 'featShifts',          descKey: 'featShiftsDesc' },
+  { key: 'posTerminals',    group: 'addons', icon: 'bi-window-stack',         price: 75, labelKey: 'featPosTerminals',    descKey: 'featPosTerminalsDesc' },
+  { key: 'accounting',      group: 'addons', icon: 'bi-journal-bookmark',     price: 25, labelKey: 'featAccounting',      descKey: 'featAccountingDesc' },
+  { key: 'productRecipes',  group: 'addons', icon: 'bi-cup-hot',              price: 25, labelKey: 'featProductRecipes',  descKey: 'featProductRecipesDesc' },
   // Manufacturing requires productRecipes (BOM) to function, so its price is the
-  // marginal $20 on top of BOM's $39 — enabling both totals the $59 bundle price
-  // shown on the client-facing features page, rather than double-charging $39+$39.
-  { key: 'manufacturing',   group: 'addons', icon: 'bi-gear-wide-connected',  price: 20, labelKey: 'featManufacturing',   descKey: 'featManufacturingDesc' },
+  // marginal $25 on top of BOM's $25 — enabling both totals the $50 bundle price
+  // shown on the client-facing features page, rather than double-charging $25+$25.
+  { key: 'manufacturing',   group: 'addons', icon: 'bi-gear-wide-connected',  price: 25, labelKey: 'featManufacturing',   descKey: 'featManufacturingDesc' },
 
   // ── Developer / testing (not a purchasable client feature) ──────────────
   { key: 'simulatePosMode', group: 'developer', icon: 'bi-window-fullscreen', price: 0, labelKey: 'featSimulatePosMode', descKey: 'featSimulatePosModeDesc' },
