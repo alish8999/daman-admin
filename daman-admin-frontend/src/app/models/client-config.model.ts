@@ -91,6 +91,12 @@ export interface ClientFeatures {
    * either direction. Not a purchasable feature — a developer/testing convenience.
    */
   simulatePosMode?: boolean;
+  /** Cafe-style running tabs. Default: false — opt-in per client, cafe/restaurant-specific. */
+  tableOrders?: boolean;
+  /** Tappable category-card item picker. Default: false — most clients have far more SKUs than fit a card grid. */
+  quickPickCards?: boolean;
+  /** Cafe presentation mode — tables page as landing + slim nav. Default: false — presentational, opt-in per client. */
+  cafeMode?: boolean;
 }
 
 export interface ClientConfig {

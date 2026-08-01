@@ -185,6 +185,9 @@ public class ClientConfigService {
             if (patch.getAutoBackup()           != null) f.setAutoBackup(patch.getAutoBackup());
             if (patch.getPosTerminals()          != null) f.setPosTerminals(patch.getPosTerminals());
             if (patch.getSimulatePosMode()       != null) f.setSimulatePosMode(patch.getSimulatePosMode());
+            if (patch.getTableOrders()          != null) f.setTableOrders(patch.getTableOrders());
+            if (patch.getQuickPickCards()        != null) f.setQuickPickCards(patch.getQuickPickCards());
+            if (patch.getCafeMode()             != null) f.setCafeMode(patch.getCafeMode());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -221,6 +224,9 @@ public class ClientConfigService {
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())
                 .simulatePosMode(f.isSimulatePosMode())
+                .tableOrders(f.isTableOrders())
+                .quickPickCards(f.isQuickPickCards())
+                .cafeMode(f.isCafeMode())
                 .build();
     }
 
@@ -252,6 +258,9 @@ public class ClientConfigService {
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())
                 .simulatePosMode(f.isSimulatePosMode())
+                .tableOrders(f.isTableOrders())
+                .quickPickCards(f.isQuickPickCards())
+                .cafeMode(f.isCafeMode())
                 .build();
     }
 

@@ -49,4 +49,10 @@ public class FeaturesRequest {
      * build in either direction (real window.daman.mode always wins).
      */
     private Boolean simulatePosMode;
+    /** Cafe-style running tabs — open a table, add items over time, close out as a normal Sale. */
+    private Boolean tableOrders;
+    /** Tappable category-card item picker for small/curated menus. */
+    private Boolean quickPickCards;
+    /** Cafe presentation mode — tables page as landing + slim nav. Presentational only. */
+    private Boolean cafeMode;
 }

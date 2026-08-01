@@ -105,5 +105,11 @@ public class ClientConfigExportDto {
         private boolean posTerminals;
         /** Browser-only POS-mode testing override — see ClientFeaturesJson.simulatePosMode. */
         private boolean simulatePosMode;
+        /** Cafe-style running tabs — open a table, add items over time, close out as a normal Sale. */
+        private boolean tableOrders;
+        /** Tappable category-card item picker for small/curated menus. */
+        private boolean quickPickCards;
+        /** Cafe presentation mode — tables page as landing + slim nav. Presentational only. */
+        private boolean cafeMode;
     }
 }

@@ -90,6 +90,12 @@ public class ClientFeaturesJson {
      * Default: off — this is a developer convenience, not a client feature.
      */
     private boolean simulatePosMode;
+    /** Cafe-style running tabs. Default: off — opt-in per client, cafe/restaurant-specific. */
+    private boolean tableOrders;
+    /** Tappable category-card item picker. Default: off — most clients have far more SKUs than fit a card grid. */
+    private boolean quickPickCards;
+    /** Cafe presentation mode — tables page as landing + slim nav. Default: off — presentational, opt-in per client. */
+    private boolean cafeMode;
 
     // Explicitly disabled as a Jackson creator: Jackson 3's implicit-constructor
     // detection (with -parameters compiled classes) would otherwise pick this
