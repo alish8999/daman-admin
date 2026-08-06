@@ -181,6 +181,8 @@ public class ClientConfigService {
             if (patch.getInvoiceSettings()      != null) f.setInvoiceSettings(patch.getInvoiceSettings());
             if (patch.getQuotation()            != null) f.setQuotation(patch.getQuotation());
             if (patch.getAccounting()           != null) f.setAccounting(patch.getAccounting());
+            if (patch.getCurrencyExchange()     != null) f.setCurrencyExchange(patch.getCurrencyExchange());
+            if (patch.getKitchenPrinter()       != null) f.setKitchenPrinter(patch.getKitchenPrinter());
             if (patch.getScaleBarcodes()        != null) f.setScaleBarcodes(patch.getScaleBarcodes());
             if (patch.getAutoBackup()           != null) f.setAutoBackup(patch.getAutoBackup());
             if (patch.getPosTerminals()          != null) f.setPosTerminals(patch.getPosTerminals());
@@ -220,6 +222,8 @@ public class ClientConfigService {
                 .invoiceSettings(f.isInvoiceSettings())
                 .quotation(f.isQuotation())
                 .accounting(f.isAccounting())
+                .currencyExchange(f.isCurrencyExchange())
+                .kitchenPrinter(f.isKitchenPrinter())
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())
@@ -254,6 +258,8 @@ public class ClientConfigService {
                 .invoiceSettings(f.isInvoiceSettings())
                 .quotation(f.isQuotation())
                 .accounting(f.isAccounting())
+                .currencyExchange(f.isCurrencyExchange())
+                .kitchenPrinter(f.isKitchenPrinter())
                 .scaleBarcodes(f.isScaleBarcodes())
                 .autoBackup(f.isAutoBackup())
                 .posTerminals(f.isPosTerminals())

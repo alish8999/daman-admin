@@ -64,6 +64,24 @@ export interface ClientFeatures {
   /** Accounting module — double-entry ledger, P&L, Balance Sheet, journal entries. Default: false — opt-in per client ($39 add-on). */
   accounting?: boolean;
   /**
+   * Vault currency exchange — record a physical cash exchange between
+   * currencies (e.g. USD cash exchanged for SYP cash at a money-changer),
+   * posting a realized FX gain/loss. Independent of `accounting`: the
+   * backend always journalises regardless of that flag (it only gates the
+   * ledger/reports UI), so a client can get accurate per-currency vault
+   * tracking from this feature without buying full Accounting visibility.
+   * Default: false — opt-in per client ($10 add-on).
+   */
+  currencyExchange?: boolean;
+  /**
+   * Kitchen printer (device selection + master on/off) in the Settings page —
+   * gates both the "Kitchen Printer Settings" card (Electron-only, picks the
+   * physical printer) and the "Kitchen Printing" card (the enable/disable
+   * toggle that turns on Quick Sale's auto-print and Table Orders' "Send to
+   * Kitchen" button). Default: false — opt-in per client ($10 add-on).
+   */
+  kitchenPrinter?: boolean;
+  /**
    * Variable-weight scale barcode support (CAS/Rongta/Aclas/Bizerba-style
    * EAN-13 with an embedded PLU + weight/price). Default: false — opt-in
    * per client, relevant mainly to grocery/nuts-dairy style stores with

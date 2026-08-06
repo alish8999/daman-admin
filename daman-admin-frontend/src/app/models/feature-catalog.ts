@@ -55,6 +55,8 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'quickPickCards',  group: 'addons', icon: 'bi-card-checklist',        price: 15, labelKey: 'featQuickPickCards',  descKey: 'featQuickPickCardsDesc' },
   { key: 'cafeMode',        group: 'addons', icon: 'bi-shop',                 price: 0,  labelKey: 'featCafeMode',        descKey: 'featCafeModeDesc' },
   { key: 'accounting',      group: 'addons', icon: 'bi-journal-bookmark',     price: 25, labelKey: 'featAccounting',      descKey: 'featAccountingDesc' },
+  { key: 'currencyExchange', group: 'addons', icon: 'bi-arrow-left-right',    price: 10, labelKey: 'featCurrencyExchange', descKey: 'featCurrencyExchangeDesc' },
+  { key: 'kitchenPrinter',  group: 'addons', icon: 'bi-printer',              price: 10, labelKey: 'featKitchenPrinter',   descKey: 'featKitchenPrinterDesc' },
   { key: 'productRecipes',  group: 'addons', icon: 'bi-cup-hot',              price: 25, labelKey: 'featProductRecipes',  descKey: 'featProductRecipesDesc' },
   // Manufacturing requires productRecipes (BOM) to function, so its price is the
   // marginal $25 on top of BOM's $25 — enabling both totals the $50 bundle price

@@ -59,6 +59,22 @@ public class ClientFeaturesJson {
     /** Accounting module — double-entry bookkeeping, P&L, Balance Sheet, journal entries. Default: off — opt-in per client ($39 add-on). */
     private boolean accounting;
     /**
+     * Vault currency exchange — record a physical cash exchange between
+     * currencies (e.g. USD cash exchanged for SYP cash), posting a realized
+     * FX gain/loss. Independent of {@code accounting}: the backend always
+     * journalises regardless of that flag, so a client can get accurate
+     * per-currency vault tracking from this feature without buying full
+     * Accounting/ledger visibility. Default: off — opt-in per client ($10 add-on).
+     */
+    private boolean currencyExchange;
+    /**
+     * Kitchen printer (device selection + master on/off) in the Settings page —
+     * gates both the printer-selection card (Electron-only) and the
+     * enable/disable card that turns on Quick Sale's auto-print and Table
+     * Orders' "Send to Kitchen" button. Default: off — opt-in per client ($10 add-on).
+     */
+    private boolean kitchenPrinter;
+    /**
      * Variable-weight scale barcode support (CAS/Rongta/Aclas/Bizerba-style
      * EAN-13 with an embedded PLU + weight/price). Default: off — opt-in per
      * client, relevant mainly to grocery/nuts-dairy style stores with actual
