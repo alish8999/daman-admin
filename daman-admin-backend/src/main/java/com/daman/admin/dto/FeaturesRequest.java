@@ -59,4 +59,6 @@ public class FeaturesRequest {
     private Boolean quickPickCards;
     /** Cafe presentation mode — tables page as landing + slim nav. Presentational only. */
     private Boolean cafeMode;
+    /** Consignment / commission sales (الكمسيون) for wholesale produce markets. */
+    private Boolean consignment;
 }

@@ -115,6 +115,8 @@ export interface ClientFeatures {
   quickPickCards?: boolean;
   /** Cafe presentation mode — tables page as landing + slim nav. Default: false — presentational, opt-in per client. */
   cafeMode?: boolean;
+  /** Consignment / commission sales (الكمسيون) for wholesale produce markets. Default: false — opt-in per client, $29 add-on. */
+  consignment?: boolean;
 }
 
 export interface ClientConfig {

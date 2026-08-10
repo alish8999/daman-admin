@@ -62,6 +62,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   // marginal $25 on top of BOM's $25 — enabling both totals the $50 bundle price
   // shown on the client-facing features page, rather than double-charging $25+$25.
   { key: 'manufacturing',   group: 'addons', icon: 'bi-gear-wide-connected',  price: 25, labelKey: 'featManufacturing',   descKey: 'featManufacturingDesc' },
+  { key: 'consignment',     group: 'addons', icon: 'bi-truck-flatbed',       price: 29, labelKey: 'featConsignment',     descKey: 'featConsignmentDesc' },
 
   // ── Developer / testing (not a purchasable client feature) ──────────────
   { key: 'simulatePosMode', group: 'developer', icon: 'bi-window-fullscreen', price: 0, labelKey: 'featSimulatePosMode', descKey: 'featSimulatePosModeDesc' },

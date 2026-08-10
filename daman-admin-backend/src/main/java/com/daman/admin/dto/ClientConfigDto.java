@@ -93,5 +93,7 @@ public class ClientConfigDto {
         private boolean quickPickCards;
         /** Cafe presentation mode — tables page as landing + slim nav. Presentational only. */
         private boolean cafeMode;
+        /** Consignment / commission sales (الكمسيون) for wholesale produce markets. */
+        private boolean consignment;
     }
 }

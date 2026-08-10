@@ -112,6 +112,12 @@ public class ClientFeaturesJson {
     private boolean quickPickCards;
     /** Cafe presentation mode — tables page as landing + slim nav. Default: off — presentational, opt-in per client. */
     private boolean cafeMode;
+    /**
+     * Consignment / commission sales (الكمسيون) for wholesale produce markets —
+     * lot intake, FIFO sale allocation against open lots, and supplier
+     * settlement statements. Default: off — opt-in per client, $29 add-on.
+     */
+    private boolean consignment;
 
     // Explicitly disabled as a Jackson creator: Jackson 3's implicit-constructor
     // detection (with -parameters compiled classes) would otherwise pick this
