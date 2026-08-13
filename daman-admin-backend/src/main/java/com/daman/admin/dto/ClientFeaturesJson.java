@@ -118,6 +118,14 @@ public class ClientFeaturesJson {
      * settlement statements. Default: off — opt-in per client, $29 add-on.
      */
     private boolean consignment;
+    /**
+     * Shareholder / partner equity tracking — contributions, withdrawals,
+     * and Period Close profit/loss split by ownership %. Independent of
+     * {@code accounting}: like currencyExchange, the backend always
+     * journalises regardless of that flag. Default: off — opt-in per
+     * client ($20 add-on).
+     */
+    private boolean shareholders;
 
     // Explicitly disabled as a Jackson creator: Jackson 3's implicit-constructor
     // detection (with -parameters compiled classes) would otherwise pick this

@@ -95,5 +95,7 @@ public class ClientConfigDto {
         private boolean cafeMode;
         /** Consignment / commission sales (الكمسيون) for wholesale produce markets. */
         private boolean consignment;
+        /** Shareholder / partner equity tracking. Independent of accounting. */
+        private boolean shareholders;
     }
 }

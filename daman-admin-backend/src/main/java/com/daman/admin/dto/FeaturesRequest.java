@@ -61,4 +61,6 @@ public class FeaturesRequest {
     private Boolean cafeMode;
     /** Consignment / commission sales (الكمسيون) for wholesale produce markets. */
     private Boolean consignment;
+    /** Shareholder / partner equity tracking. Independent of accounting. */
+    private Boolean shareholders;
 }

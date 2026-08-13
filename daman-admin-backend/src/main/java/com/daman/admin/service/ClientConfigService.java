@@ -191,6 +191,7 @@ public class ClientConfigService {
             if (patch.getQuickPickCards()        != null) f.setQuickPickCards(patch.getQuickPickCards());
             if (patch.getCafeMode()             != null) f.setCafeMode(patch.getCafeMode());
             if (patch.getConsignment()          != null) f.setConsignment(patch.getConsignment());
+            if (patch.getShareholders()         != null) f.setShareholders(patch.getShareholders());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -233,6 +234,7 @@ public class ClientConfigService {
                 .quickPickCards(f.isQuickPickCards())
                 .cafeMode(f.isCafeMode())
                 .consignment(f.isConsignment())
+                .shareholders(f.isShareholders())
                 .build();
     }
 
@@ -270,6 +272,7 @@ public class ClientConfigService {
                 .quickPickCards(f.isQuickPickCards())
                 .cafeMode(f.isCafeMode())
                 .consignment(f.isConsignment())
+                .shareholders(f.isShareholders())
                 .build();
     }
 
