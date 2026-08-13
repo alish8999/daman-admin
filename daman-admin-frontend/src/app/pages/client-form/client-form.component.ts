@@ -205,7 +205,8 @@ export class ClientFormComponent implements OnInit {
         tableOrders:          [false],
         quickPickCards:       [false],
         cafeMode:             [false],
-        consignment:          [false]
+        consignment:          [false],
+        shareholders:         [false]
       })
     });
     this.passwordVisible = false;
@@ -256,7 +257,8 @@ export class ClientFormComponent implements OnInit {
             tableOrders:          client.features?.tableOrders          ?? false,
             quickPickCards:       client.features?.quickPickCards       ?? false,
             cafeMode:             client.features?.cafeMode             ?? false,
-            consignment:          client.features?.consignment          ?? false
+            consignment:          client.features?.consignment          ?? false,
+            shareholders:         client.features?.shareholders         ?? false
           }
         });
       });

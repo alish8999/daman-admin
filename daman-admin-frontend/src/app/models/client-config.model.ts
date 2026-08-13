@@ -117,6 +117,12 @@ export interface ClientFeatures {
   cafeMode?: boolean;
   /** Consignment / commission sales (الكمسيون) for wholesale produce markets. Default: false — opt-in per client, $29 add-on. */
   consignment?: boolean;
+  /**
+   * Shareholder / partner equity tracking — contributions, withdrawals,
+   * and Period Close profit/loss split by ownership %. Independent of
+   * `accounting`. Default: false — opt-in per client (paid add-on, $20).
+   */
+  shareholders?: boolean;
 }
 
 export interface ClientConfig {
