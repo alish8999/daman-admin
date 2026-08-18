@@ -202,7 +202,7 @@ export class TranslationService {
       'storeType.general': '🏪 General Retail',
 
       'baseCurrency.USD': 'USD — US Dollar',
-      'baseCurrency.SYP': 'SYP — Syrian Pound (New)',
+      'baseCurrency.SYP': 'SYP — Syrian Pound',
 
       'buildTarget.win': 'Windows 10/11 (.exe)',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',
@@ -486,7 +486,7 @@ export class TranslationService {
       'storeType.general': '🏪 تجزئة عامة',
 
       'baseCurrency.USD': 'USD — دولار أمريكي',
-      'baseCurrency.SYP': 'SYP — ليرة سورية (جديدة)',
+      'baseCurrency.SYP': 'SYP — ليرة سورية',
 
       'buildTarget.win': 'Windows 10/11 (.exe)',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',
