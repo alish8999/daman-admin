@@ -80,7 +80,7 @@ export class TranslationService {
       featReportsDesc: 'Sales, profit, and inventory reports.',
       featSuppliers: 'Suppliers & Purchases management',
       featSuppliersDesc: 'Track suppliers and purchase orders.',
-      featMultiCurrency: 'Multi-currency support (USD / SYP / SYP_OLD)',
+      featMultiCurrency: 'Multi-currency support (USD / SYP)',
       featMultiCurrencyDesc: 'Accept and report sales in multiple currencies.',
       featClientLedger: 'Client debt ledger (track unpaid sales & record client payments)',
       featClientLedgerDesc: 'Track unpaid sales and client debt payments.',
@@ -203,7 +203,6 @@ export class TranslationService {
 
       'baseCurrency.USD': 'USD — US Dollar',
       'baseCurrency.SYP': 'SYP — Syrian Pound (New)',
-      'baseCurrency.SYP_OLD': 'SYP_OLD — Syrian Pound (Old)',
 
       'buildTarget.win': 'Windows 10/11 (.exe)',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',
@@ -369,7 +368,7 @@ export class TranslationService {
       featSeedDemoDataDesc: 'يزرع بيانات تجريبية عند أول تشغيل (لأغراض التطوير/العرض فقط).',
       featScaleBarcodes: 'دعم باركود ميزان الوزن (PLU)',
       featScaleBarcodesDesc: 'تحليل باركود موازين الوزن المتغير (بصيغة EAN-13 مع رمز PLU والوزن/السعر المضمّن، بأسلوب CAS/Rongta/Aclas/Bizerba). فعّل هذه الميزة فقط للعملاء الذين يملكون ميزان وزن فعلي.',
-      featMultiCurrency: 'دعم العملات المتعددة (USD / SYP / SYP_OLD)',
+      featMultiCurrency: 'دعم العملات المتعددة (USD / SYP)',
       featMultiCurrencyDesc: 'قبول المبيعات وتقاريرها بعدة عملات.',
       featShifts: 'إدارة الورديات (جلسات الصندوق مع فتح/إغلاق النقد)',
       featShiftsDesc: 'جلسات ورديات الصندوق مع فتح وإغلاق النقد.',
@@ -488,7 +487,6 @@ export class TranslationService {
 
       'baseCurrency.USD': 'USD — دولار أمريكي',
       'baseCurrency.SYP': 'SYP — ليرة سورية (جديدة)',
-      'baseCurrency.SYP_OLD': 'SYP_OLD — ليرة سورية (قديمة)',
 
       'buildTarget.win': 'Windows 10/11 (.exe)',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',

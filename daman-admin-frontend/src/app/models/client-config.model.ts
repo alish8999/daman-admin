@@ -143,7 +143,7 @@ export interface ClientConfig {
   footerUrl: string;
   /** Store type for demo data seeder selection. */
   storeType?: string;
-  /** Base currency for all financial records. One of: USD, SYP, SYP_OLD. */
+  /** Base currency for all financial records. One of: USD, SYP. */
   baseCurrency?: string;
   /** Optional data-URL or asset path for the dashboard header background image. */
   dashboardHeaderImage?: string;

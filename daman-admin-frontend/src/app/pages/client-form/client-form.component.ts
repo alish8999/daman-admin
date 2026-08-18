@@ -65,17 +65,7 @@ export class ClientFormComponent implements OnInit {
   billingError = '';
 
   readonly storeTypeValues = ['mobile', 'grocery', 'packaging', 'nutsdairy', 'variety', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
-  /**
-   * SYP_OLD is no longer offered as a NEW choice (it stopped circulating) —
-   * but stays selectable while a loaded client's baseCurrency is already
-   * SYP_OLD, so the dropdown doesn't silently show a blank/wrong selection
-   * for a legacy client.
-   */
-  get baseCurrencyValues(): string[] {
-    return this.form?.get('baseCurrency')?.value === 'SYP_OLD'
-      ? ['USD', 'SYP', 'SYP_OLD']
-      : ['USD', 'SYP'];
-  }
+  readonly baseCurrencyValues: string[] = ['USD', 'SYP'];
   readonly buildTargetValues = ['win', 'win7', 'mac', 'linux'];
   readonly paymentMethodValues = ['CASH', 'SHAM_CASH', 'BANK_TRANSFER', 'WESTERN_UNION', 'OTHER'];
   readonly paymentMethodLabels: Record<string, string> = {
