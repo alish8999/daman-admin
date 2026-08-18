@@ -47,7 +47,7 @@ public class ClientConfigRequest {
     /** Store type — selects the demo data seeder. One of: mobile, grocery, clothing, pharmacy, hardware, bookstore, cafe, general */
     private String storeType;
 
-    /** Base currency for all financial records. One of: USD, SYP, SYP_OLD. Defaults to USD. */
+    /** Base currency for all financial records. One of: USD, SYP. Defaults to USD. */
     private String baseCurrency;
 
     /** Optional data-URL or asset path for the dashboard header background image. */

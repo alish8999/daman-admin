@@ -70,7 +70,7 @@ public class ClientConfig {
     /**
      * Base currency for all financial records in this client's deployment.
      * All prices (products, sales, purchases) are stored in this currency.
-     * One of: "USD", "SYP", "SYP_OLD". Defaults to "USD".
+     * One of: "USD", "SYP". Defaults to "USD".
      */
     @Column(name = "base_currency", length = 10, columnDefinition = "varchar(10) default 'USD'")
     private String baseCurrency = "USD";
