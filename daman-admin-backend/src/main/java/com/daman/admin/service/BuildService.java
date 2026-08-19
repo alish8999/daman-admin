@@ -448,15 +448,23 @@ public class BuildService {
                 args.add("never");
             }
             case "winx86" -> {
-                // 32-bit-only Windows build: package.json's win target declares
-                // arch: ["x64","ia32"] (a plain "win" build already produces one
-                // NSIS installer covering both, since NSIS merges multi-arch
-                // targets into a single arch-detecting installer) — passing
-                // --ia32 here restricts this invocation to just the 32-bit
-                // payload, for a genuinely 32-bit-only installer on request
-                // (smaller, and doesn't require a 64-bit-capable target machine).
-                // Needs jre/win-ia32 (a real 32-bit JRE) present in the frontend
-                // checkout, matching package.json's jre/win-${arch} templating.
+                // 32-bit-only Windows build: a separate electron-builder config
+                // (electron-builder.win-x86.json) declaring arch: ["ia32"] only —
+                // NOT the --ia32 CLI flag against the main package.json config.
+                // Verified empirically: electron-builder's --ia32/--x64 CLI flags
+                // ADD that architecture to whatever's already going to be built
+                // rather than replacing the config's declared arch list, so
+                // "--win --ia32" against a config that already lists x64 (or
+                // defaults to it) produces a combined x64+ia32 installer, not
+                // an ia32-only one — same mistake package.json's own win.target
+                // briefly made (arch: ["x64","ia32"] as the *default* for every
+                // plain "win" build, silently doubling every Windows installer's
+                // size, JRE included, whether or not anyone asked for 32-bit).
+                // A dedicated config, same shape as electron-builder.pos.json's
+                // precedent, is the only reliable way to get an exclusively
+                // 32-bit payload. Needs jre/win-ia32 (a real 32-bit JRE) present
+                // in the frontend checkout, matching this config's jre/win-${arch}
+                // templating.
                 //
                 // Pinned to the same Electron 22.3.27 as "win7": a genuinely
                 // 32-bit-only CPU is realistically old hardware that may well
@@ -465,8 +473,9 @@ public class BuildService {
                 // 22.3.27 still publishes a win32-ia32 build, so pinning it
                 // here costs nothing on newer Windows while covering the
                 // oldest machines too.
+                args.add("--config");
+                args.add("electron-builder.win-x86.json");
                 args.add("--win");
-                args.add("--ia32");
                 args.add("--config.electronVersion=22.3.27");
                 args.add("--publish");
                 args.add("never");
