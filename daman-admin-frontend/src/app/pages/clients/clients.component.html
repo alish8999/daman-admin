@@ -228,6 +228,7 @@
       [style.z-index]="1080"
       [style.min-width.px]="200">
     <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'win'); closeDropdown()">Windows (.exe)</button></li>
+    <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'winx86'); closeDropdown()">Windows x86 (32-bit) (.exe)</button></li>
     <li>
       <button class="dropdown-item d-flex align-items-center gap-2"
               (click)="requestBuild(openDropdown!, 'win7'); closeDropdown()">

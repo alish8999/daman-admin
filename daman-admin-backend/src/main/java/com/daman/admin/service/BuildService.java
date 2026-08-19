@@ -156,9 +156,11 @@ public class BuildService {
             runProcess(frontendRoot, shellCommand("npx", "ng", "build", "--configuration", "production"), status);
             addLog(status, "Frontend built");
 
-            String platformLabel = platform.equalsIgnoreCase("win7")
-                    ? "win7 — Electron 22.3.27 (Windows 7/8 compatible)"
-                    : platform;
+            String platformLabel = switch (platform.toLowerCase()) {
+                case "win7" -> "win7 — Electron 22.3.27 (Windows 7/8 compatible)";
+                case "winx86" -> "winx86 — 32-bit (x86) Windows build";
+                default -> platform;
+            };
 
             // Wipe the platform's own dist dir BEFORE electron-builder runs so we can never
             // pick up a stale installer from a previous client's build.
@@ -442,6 +444,21 @@ public class BuildService {
                 // electron-builder downloads its own binary based on this version — no package.json change needed.
                 args.add("--win");
                 args.add("--config.electronVersion=22.3.27");
+                args.add("--publish");
+                args.add("never");
+            }
+            case "winx86" -> {
+                // 32-bit-only Windows build: package.json's win target declares
+                // arch: ["x64","ia32"] (a plain "win" build already produces one
+                // NSIS installer covering both, since NSIS merges multi-arch
+                // targets into a single arch-detecting installer) — passing
+                // --ia32 here restricts this invocation to just the 32-bit
+                // payload, for a genuinely 32-bit-only installer on request
+                // (smaller, and doesn't require a 64-bit-capable target machine).
+                // Needs jre/win-ia32 (a real 32-bit JRE) present in the frontend
+                // checkout, matching package.json's jre/win-${arch} templating.
+                args.add("--win");
+                args.add("--ia32");
                 args.add("--publish");
                 args.add("never");
             }

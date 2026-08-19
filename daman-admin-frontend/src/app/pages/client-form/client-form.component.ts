@@ -66,7 +66,7 @@ export class ClientFormComponent implements OnInit {
 
   readonly storeTypeValues = ['mobile', 'grocery', 'packaging', 'nutsdairy', 'variety', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
   readonly baseCurrencyValues: string[] = ['USD', 'SYP'];
-  readonly buildTargetValues = ['win', 'win7', 'mac', 'linux'];
+  readonly buildTargetValues = ['win', 'winx86', 'win7', 'mac', 'linux'];
   readonly paymentMethodValues = ['CASH', 'SHAM_CASH', 'BANK_TRANSFER', 'WESTERN_UNION', 'OTHER'];
   readonly paymentMethodLabels: Record<string, string> = {
     CASH: 'Cash', SHAM_CASH: 'شام كاش', BANK_TRANSFER: 'Bank Transfer',
