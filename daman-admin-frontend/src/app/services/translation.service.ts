@@ -205,7 +205,7 @@ export class TranslationService {
       'baseCurrency.SYP': 'SYP — Syrian Pound',
 
       'buildTarget.win': 'Windows 10/11 (.exe)',
-      'buildTarget.winx86': 'Windows x86 (32-bit, .exe)',
+      'buildTarget.winx86': 'Windows x86 (32-bit, .exe) — Electron 22',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',
       'buildTarget.mac': 'macOS (.dmg)',
       'buildTarget.linux': 'Linux (.AppImage)',
@@ -490,7 +490,7 @@ export class TranslationService {
       'baseCurrency.SYP': 'SYP — ليرة سورية',
 
       'buildTarget.win': 'Windows 10/11 (.exe)',
-      'buildTarget.winx86': 'Windows x86 (32-bit, .exe)',
+      'buildTarget.winx86': 'Windows x86 (32-bit, .exe) — Electron 22',
       'buildTarget.win7': 'Windows 7/8 (.exe) — Electron 22',
       'buildTarget.mac': 'macOS (.dmg)',
       'buildTarget.linux': 'Linux (.AppImage)',

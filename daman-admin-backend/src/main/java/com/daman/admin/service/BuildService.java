@@ -457,8 +457,17 @@ public class BuildService {
                 // (smaller, and doesn't require a 64-bit-capable target machine).
                 // Needs jre/win-ia32 (a real 32-bit JRE) present in the frontend
                 // checkout, matching package.json's jre/win-${arch} templating.
+                //
+                // Pinned to the same Electron 22.3.27 as "win7": a genuinely
+                // 32-bit-only CPU is realistically old hardware that may well
+                // also be stuck on Windows 7/8 (Electron 23+ dropped Windows
+                // 7/8 support entirely, independent of CPU architecture), and
+                // 22.3.27 still publishes a win32-ia32 build, so pinning it
+                // here costs nothing on newer Windows while covering the
+                // oldest machines too.
                 args.add("--win");
                 args.add("--ia32");
+                args.add("--config.electronVersion=22.3.27");
                 args.add("--publish");
                 args.add("never");
             }
