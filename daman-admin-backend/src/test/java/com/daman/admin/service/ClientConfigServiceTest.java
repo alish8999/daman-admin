@@ -39,6 +39,44 @@ class ClientConfigServiceTest {
     }
 
     @Test
+    void export_roundTripsFixedAssetsFromPersistedFeaturesJson() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setFeaturesJson("{\"fixedAssets\":true}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+
+        ClientConfigExportDto result = service.export("acme");
+
+        assertThat(result.getFeatures().isFixedAssets()).isTrue();
+    }
+
+    @Test
+    void create_persistsFixedAssetsFromFeaturesRequestPatch() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+
+        when(repository.existsByClientCode("acme")).thenReturn(false);
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setClientCode("acme");
+        request.setAppName("Acme POS");
+        FeaturesRequest features = new FeaturesRequest();
+        features.setFixedAssets(true);
+        request.setFeatures(features);
+
+        service.create(request);
+
+        org.mockito.ArgumentCaptor<ClientConfig> captor = org.mockito.ArgumentCaptor.forClass(ClientConfig.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getFeaturesJson()).contains("\"fixedAssets\":true");
+    }
+
+    @Test
     void create_persistsSimulatePosModeFromFeaturesRequestPatch() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
         ClientConfigService service = new ClientConfigService(repository, objectMapper);

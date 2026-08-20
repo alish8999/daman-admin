@@ -192,6 +192,7 @@ public class ClientConfigService {
             if (patch.getCafeMode()             != null) f.setCafeMode(patch.getCafeMode());
             if (patch.getConsignment()          != null) f.setConsignment(patch.getConsignment());
             if (patch.getShareholders()         != null) f.setShareholders(patch.getShareholders());
+            if (patch.getFixedAssets()          != null) f.setFixedAssets(patch.getFixedAssets());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -235,6 +236,7 @@ public class ClientConfigService {
                 .cafeMode(f.isCafeMode())
                 .consignment(f.isConsignment())
                 .shareholders(f.isShareholders())
+                .fixedAssets(f.isFixedAssets())
                 .build();
     }
 
@@ -273,6 +275,7 @@ public class ClientConfigService {
                 .cafeMode(f.isCafeMode())
                 .consignment(f.isConsignment())
                 .shareholders(f.isShareholders())
+                .fixedAssets(f.isFixedAssets())
                 .build();
     }
 

@@ -97,5 +97,7 @@ public class ClientConfigDto {
         private boolean consignment;
         /** Shareholder / partner equity tracking. Independent of accounting. */
         private boolean shareholders;
+        /** Fixed asset register + straight-line depreciation + disposal tracking. Independent of accounting. */
+        private boolean fixedAssets;
     }
 }

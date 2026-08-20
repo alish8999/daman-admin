@@ -63,4 +63,6 @@ public class FeaturesRequest {
     private Boolean consignment;
     /** Shareholder / partner equity tracking. Independent of accounting. */
     private Boolean shareholders;
+    /** Fixed asset register + straight-line depreciation + disposal tracking. Independent of accounting. */
+    private Boolean fixedAssets;
 }

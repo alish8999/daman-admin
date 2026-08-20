@@ -126,6 +126,14 @@ public class ClientFeaturesJson {
      * client ($20 add-on).
      */
     private boolean shareholders;
+    /**
+     * Fixed asset register — equipment/vehicles/furniture at original cost, straight-line
+     * depreciation via an explicit "Run Depreciation" admin action, and disposal with gain/loss
+     * posting. Independent of {@code accounting}: like currencyExchange/shareholders, the
+     * backend always journalises regardless of that flag. Default: off — opt-in per client
+     * ($20 add-on).
+     */
+    private boolean fixedAssets;
 
     // Explicitly disabled as a Jackson creator: Jackson 3's implicit-constructor
     // detection (with -parameters compiled classes) would otherwise pick this
