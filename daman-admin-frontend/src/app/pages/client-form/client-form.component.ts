@@ -196,7 +196,8 @@ export class ClientFormComponent implements OnInit {
         quickPickCards:       [false],
         cafeMode:             [false],
         consignment:          [false],
-        shareholders:         [false]
+        shareholders:         [false],
+        fixedAssets:          [false]
       })
     });
     this.passwordVisible = false;
@@ -248,7 +249,8 @@ export class ClientFormComponent implements OnInit {
             quickPickCards:       client.features?.quickPickCards       ?? false,
             cafeMode:             client.features?.cafeMode             ?? false,
             consignment:          client.features?.consignment          ?? false,
-            shareholders:         client.features?.shareholders         ?? false
+            shareholders:         client.features?.shareholders         ?? false,
+            fixedAssets:          client.features?.fixedAssets          ?? false
           }
         });
       });
