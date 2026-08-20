@@ -64,6 +64,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'manufacturing',   group: 'addons', icon: 'bi-gear-wide-connected',  price: 25, labelKey: 'featManufacturing',   descKey: 'featManufacturingDesc' },
   { key: 'consignment',     group: 'addons', icon: 'bi-truck-flatbed',       price: 29, labelKey: 'featConsignment',     descKey: 'featConsignmentDesc' },
   { key: 'shareholders',    group: 'addons', icon: 'bi-person-badge',        price: 20, labelKey: 'featShareholders',   descKey: 'featShareholdersDesc' },
+  { key: 'fixedAssets',     group: 'addons', icon: 'bi-building',            price: 20, labelKey: 'featFixedAssets',    descKey: 'featFixedAssetsDesc' },
 
   // ── Developer / testing (not a purchasable client feature) ──────────────
   { key: 'simulatePosMode', group: 'developer', icon: 'bi-window-fullscreen', price: 0, labelKey: 'featSimulatePosMode', descKey: 'featSimulatePosModeDesc' },

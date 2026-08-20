@@ -123,6 +123,12 @@ export interface ClientFeatures {
    * `accounting`. Default: false — opt-in per client (paid add-on, $20).
    */
   shareholders?: boolean;
+  /**
+   * Fixed asset registry — register fixed assets, track straight-line
+   * depreciation, and record disposals. Default: false — opt-in per
+   * client (paid add-on, $20).
+   */
+  fixedAssets?: boolean;
 }
 
 export interface ClientConfig {
