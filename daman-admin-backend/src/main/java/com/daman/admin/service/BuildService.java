@@ -577,9 +577,23 @@ public class BuildService {
     }
 
     private void copyBackendJar(Path backendRoot, Path frontendRoot) throws IOException {
-        Path src = backendRoot.resolve("target/daman-backend-0.0.1-SNAPSHOT.jar");
-        if (!Files.exists(src)) {
-            throw new RuntimeException("Backend JAR not found at " + src);
+        // Maven names the jar after pom.xml's <version> (daman-backend-1.0.1.jar,
+        // daman-backend-0.0.1-SNAPSHOT.jar, ...) — glob instead of hardcoding one
+        // exact filename, so a version bump doesn't break every future build the
+        // way it just did here (hardcoded to the pre-2026-08-22 0.0.1-SNAPSHOT
+        // name). Same fix as daman-frontend/electron/main.js's resolveBackendJarPath().
+        Path targetDir = backendRoot.resolve("target");
+        Path src;
+        try (var stream = Files.list(targetDir)) {
+            src = stream
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.matches("daman-backend-.*\\.jar")
+                                && !name.endsWith("-sources.jar") && !name.endsWith("-javadoc.jar")
+                                && !name.endsWith(".jar.original");
+                    })
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Backend JAR not found in " + targetDir));
         }
         Path destDir = frontendRoot.resolve("backend");
         Files.createDirectories(destDir);
