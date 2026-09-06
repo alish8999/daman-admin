@@ -23,6 +23,8 @@ public class LicenseController {
     private final LicenseRepository licenseRepository;
     private final ClientConfigRepository clientConfigRepository;
     private final com.daman.admin.service.ClientConfigService clientConfigService;
+    private final com.daman.admin.service.LicenseReissueService licenseReissueService;
+    private final com.daman.admin.service.LicenseBundleZipper licenseBundleZipper;
 
     // ── Generate ──────────────────────────────────────────────────────────────
 
@@ -117,13 +119,17 @@ public class LicenseController {
     // ── List ─────────────────────────────────────────────────────────────────
 
     @GetMapping
-    public List<License> getAll() {
-        return licenseRepository.findAllByOrderByActivatedAtDesc();
+    public java.util.List<com.daman.admin.dto.LicenseDto> getAll() {
+        return licenseRepository.findAllByOrderByActivatedAtDesc().stream()
+                .map(l -> com.daman.admin.dto.LicenseDto.of(l, licenseKeyService.payloadVersion(l.getLicenseKey())))
+                .toList();
     }
 
     @GetMapping("/client/{clientCode}")
-    public List<License> getByClient(@PathVariable String clientCode) {
-        return licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode);
+    public java.util.List<com.daman.admin.dto.LicenseDto> getByClient(@PathVariable String clientCode) {
+        return licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode).stream()
+                .map(l -> com.daman.admin.dto.LicenseDto.of(l, licenseKeyService.payloadVersion(l.getLicenseKey())))
+                .toList();
     }
 
     // ── Revoke ───────────────────────────────────────────────────────────────
@@ -208,6 +214,26 @@ public class LicenseController {
             "licenseKey", newKey,
             "clientCode", license.getClientCode()
         ));
+    }
+
+    // -- Stage-1 batch re-issue (license-driven distribution P2, spec 6.2 / 7) --------
+
+    @GetMapping("/reissue-v2/preview")
+    public com.daman.admin.service.LicenseReissueService.ReissuePreview reissueV2Preview() {
+        return licenseReissueService.preview();
+    }
+
+    @PostMapping("/reissue-v2")
+    public ResponseEntity<byte[]> reissueV2() {
+        var result = licenseReissueService.reissueAll();
+        byte[] zip = licenseBundleZipper.zip(result);
+        String filename = "daman-v2-licences-" + LocalDate.now() + ".zip";
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/zip")
+                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                .header("X-Reissued-Count", String.valueOf(result.reissued().size()))
+                .header("X-Skipped-Count", String.valueOf(result.skipped().size()))
+                .body(zip);
     }
 
     // ── Delete ───────────────────────────────────────────────────────────────
