@@ -11,6 +11,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -96,5 +97,42 @@ class ClientConfigServiceTest {
         org.mockito.ArgumentCaptor<ClientConfig> captor = org.mockito.ArgumentCaptor.forClass(ClientConfig.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getFeaturesJson()).contains("\"simulatePosMode\":true");
+    }
+
+    @Test
+    void licenseEntitlementsFor_returnsBaseCurrencyAndFeatureMapFromStoredConfig() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+
+        // Arrange: a stored ClientConfig with baseCurrency=SYP and a couple of non-default flags on.
+        ClientConfig cfg = new ClientConfig();
+        cfg.setClientCode("acme");
+        cfg.setAppName("Acme");
+        cfg.setBaseCurrency("SYP");
+        // featuresJson with posTerminals + accounting true, rest default:
+        cfg.setFeaturesJson("{\"posTerminals\":true,\"accounting\":true}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(cfg));
+
+        // Act
+        ClientConfigService.LicenseEntitlements ent = service.licenseEntitlementsFor("acme");
+
+        // Assert
+        assertThat(ent.baseCurrency()).isEqualTo("SYP");
+        assertThat(ent.features()).containsEntry("posTerminals", true);
+        assertThat(ent.features()).containsEntry("accounting", true);
+        assertThat(ent.features()).containsEntry("barcode", false);       // an omitted flag → its default
+        assertThat(ent.features()).containsKey("multiCurrency");          // the "special" flags are present too
+        assertThat(ent.features()).containsKey("autoBackup");
+    }
+
+    @Test
+    void licenseEntitlementsFor_unknownClient_throws() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+
+        when(repository.findByClientCode("nope")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.licenseEntitlementsFor("nope"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Client not found");
     }
 }

@@ -62,6 +62,29 @@ public class ClientConfigService {
         repository.delete(entity);
     }
 
+    /** The two license-payload inputs that vary per client. */
+    public record LicenseEntitlements(String baseCurrency, java.util.Map<String, Boolean> features) {}
+
+    /**
+     * Builds the {@code baseCurrency} + {@code features} that go into a v2 license
+     * payload for {@code clientCode}, straight from that client's stored config —
+     * the same source {@code client.config.json} is generated from, so the two can
+     * never disagree about which flags exist.
+     */
+    public LicenseEntitlements licenseEntitlementsFor(String clientCode) {
+        ClientConfig c = repository.findByClientCode(clientCode)
+                .orElseThrow(() -> new IllegalArgumentException("Client not found: " + clientCode));
+        String baseCurrency = (c.getBaseCurrency() == null || c.getBaseCurrency().isBlank())
+                ? "USD" : c.getBaseCurrency();
+        // Reuse exportFeatures() → FeaturesDto, then flatten to a plain Map<String,Boolean>
+        // via the same ObjectMapper (Jackson 3). The DTO's property names ARE the
+        // client.config.json camelCase names.
+        ClientConfigExportDto.FeaturesDto dto = exportFeatures(c.getFeaturesJson());
+        java.util.Map<String, Boolean> features = objectMapper.convertValue(
+                dto, new tools.jackson.core.type.TypeReference<java.util.Map<String, Boolean>>() {});
+        return new LicenseEntitlements(baseCurrency, features);
+    }
+
     public ClientConfigExportDto export(String clientCode) {
         ClientConfig c = repository.findByClientCode(clientCode)
                 .orElseThrow(() -> new RuntimeException("Client not found: " + clientCode));
