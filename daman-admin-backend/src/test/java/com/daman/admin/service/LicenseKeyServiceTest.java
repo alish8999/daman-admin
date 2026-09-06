@@ -70,4 +70,26 @@ class LicenseKeyServiceTest {
         assertThat(payload.has("features")).isFalse();
         assertThat(payload.path("expiresAt").asText("")).isEmpty();
     }
+
+    @Test
+    void payloadVersion_v2Key_returns2() {
+        String key = service.generateLicense(
+                "MACHINE-1", "Acme", "acme", "2027-01-01", "SYP", Map.of("barcode", true));
+        assertThat(service.payloadVersion(key)).isEqualTo(2);
+    }
+
+    @Test
+    void payloadVersion_v1StyleKey_returns1() {
+        // A v1 payload has no "v" field. The signature half is irrelevant to payloadVersion().
+        String payloadB64 = Base64.getEncoder().encodeToString(
+                "{\"machineId\":\"M1\",\"clientCode\":\"acme\",\"expiresAt\":\"\"}"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(service.payloadVersion(payloadB64 + ".irrelevant-signature")).isEqualTo(1);
+    }
+
+    @Test
+    void payloadVersion_garbage_returns1() {
+        assertThat(service.payloadVersion("not-a-real-key")).isEqualTo(1);
+        assertThat(service.payloadVersion("")).isEqualTo(1);
+    }
 }

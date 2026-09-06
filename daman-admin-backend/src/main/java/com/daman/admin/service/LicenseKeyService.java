@@ -3,6 +3,7 @@ package com.daman.admin.service;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -96,6 +97,23 @@ public class LicenseKeyService {
                  + Base64.getEncoder().encodeToString(signatureBytes);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate license", e);
+        }
+    }
+
+    /**
+     * The {@code "v"} field of a licence key's base64 payload half, or {@code 1}
+     * for a v1 key (which has no {@code "v"}) or anything unparseable. Drives the
+     * v1/v2 badge in the admin licence list and labels already-migrated rows in the
+     * Stage-1 re-issue preview. Never throws.
+     */
+    public int payloadVersion(String licenseKey) {
+        try {
+            String payloadB64 = licenseKey.split("\\.", 2)[0];
+            byte[] payload = Base64.getDecoder().decode(payloadB64);
+            JsonNode root = mapper.readTree(payload);
+            return root.path("v").asInt(1);
+        } catch (Exception e) {
+            return 1;
         }
     }
 
