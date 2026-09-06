@@ -3,8 +3,9 @@ package com.daman.admin.service;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.*;
@@ -23,6 +24,8 @@ public class LicenseKeyService {
 
     private PrivateKey privateKey;
     private PublicKey publicKey;
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @PostConstruct
     public void init() {
@@ -64,22 +67,33 @@ public class LicenseKeyService {
         this.publicKey = kf.generatePublic(new X509EncodedKeySpec(publicBytes));
     }
 
-    public String generateLicense(String machineId, String clientName, String clientCode, String expiresAt) {
+    public String generateLicense(String machineId, String clientName, String clientCode,
+                                  String expiresAt, String baseCurrency,
+                                  java.util.Map<String, Boolean> features) {
         try {
-            String payload = String.format(
-                "{\"machineId\":\"%s\",\"clientName\":\"%s\",\"clientCode\":\"%s\",\"issuedAt\":\"%s\",\"expiresAt\":\"%s\"}",
-                machineId, clientName, clientCode, LocalDate.now().toString(),
-                expiresAt != null ? expiresAt : ""
-            );
-
-            byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
+            ObjectNode payload = mapper.createObjectNode();
+            payload.put("v", 2);
+            payload.put("machineId", machineId);
+            payload.put("clientName", clientName);
+            payload.put("clientCode", clientCode);
+            payload.put("issuedAt", LocalDate.now().toString());
+            payload.put("expiresAt", expiresAt != null ? expiresAt : "");
+            if (baseCurrency != null && !baseCurrency.isBlank()) {
+                payload.put("baseCurrency", baseCurrency);
+            }
+            if (features != null && !features.isEmpty()) {
+                ObjectNode f = payload.putObject("features");
+                features.forEach(f::put);
+            }
+            byte[] payloadBytes = mapper.writeValueAsBytes(payload);
 
             Signature sig = Signature.getInstance("SHA256withRSA");
             sig.initSign(privateKey);
             sig.update(payloadBytes);
             byte[] signatureBytes = sig.sign();
 
-            return Base64.getEncoder().encodeToString(payloadBytes) + "." + Base64.getEncoder().encodeToString(signatureBytes);
+            return Base64.getEncoder().encodeToString(payloadBytes) + "."
+                 + Base64.getEncoder().encodeToString(signatureBytes);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate license", e);
         }
