@@ -185,6 +185,11 @@ public class LicenseController {
     }
 
     private ResponseEntity<Map<String, Object>> doRenew(License license, String expiresAt) {
+        if (clientConfigRepository.findByClientCode(license.getClientCode()).isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Client not found: " + license.getClientCode()));
+        }
+
         String newExpiresAt = (expiresAt != null && !expiresAt.isBlank()) ? expiresAt : null;
         var ent = clientConfigService.licenseEntitlementsFor(license.getClientCode());
         String newKey = licenseKeyService.generateLicense(
