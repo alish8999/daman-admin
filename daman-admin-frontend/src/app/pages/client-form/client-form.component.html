@@ -659,6 +659,12 @@
                   <label class="form-label fw-semibold">{{ 'expiresAt' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
                   <input type="date" class="form-control" [(ngModel)]="generateForm.expiresAt">
                 </div>
+                <div class="col-12">
+                  <div class="form-text mb-2">
+                    <i class="bi bi-info-circle me-1"></i>{{ 'licenceWillBake' | t }}: <code>{{ licencePreviewSummary }}</code>
+                    <span class="text-muted">({{ 'licenceWillBakeHint' | t }})</span>
+                  </div>
+                </div>
                 <div class="col-md-2 d-flex align-items-end">
                   <button type="button" class="btn btn-primary w-100"
                           [disabled]="!generateForm.machineId.trim() || generating"
@@ -690,6 +696,10 @@
                         <i class="bi me-1" [class.bi-clipboard]="!licenseCopied" [class.bi-check2]="licenseCopied"></i>
                         {{ licenseCopied ? ('copied' | t) : ('copyKey' | t) }}
                       </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              (click)="downloadDat(clientCode!, generatedResult!.licenseKey)">
+                        <i class="bi bi-download me-1"></i>{{ 'downloadDat' | t }}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -716,6 +726,7 @@
                     <th>{{ 'machineId' | t }}</th>
                     <th>{{ 'licenseLabel' | t }}</th>
                     <th>{{ 'status' | t }}</th>
+                    <th>{{ 'licenceVersionCol' | t }}</th>
                     <th>{{ 'activatedAt' | t }}</th>
                     <th>{{ 'expiresAt' | t }}</th>
                     <th class="text-end">{{ 'actions' | t }}</th>
@@ -741,6 +752,13 @@
                           {{ isLicenseExpired(lic) ? 'EXPIRED' : lic.status }}
                         </span>
                       </td>
+                      <td>
+                        <span class="badge"
+                              [class.bg-primary]="lic.payloadVersion === 2"
+                              [class.bg-secondary]="lic.payloadVersion !== 2">
+                          {{ lic.payloadVersion === 2 ? 'v2' : 'v1' }}
+                        </span>
+                      </td>
                       <td class="text-muted small">{{ lic.activatedAt | date:'dd MMM yyyy' }}</td>
                       <td>
                         @if (!lic.expiresAt) {
@@ -757,6 +775,10 @@
                           <button type="button" class="btn btn-xs btn-outline-primary"
                                   (click)="copyKey(lic.licenseKey)">
                             ⎘ {{ 'copyKey' | t }}
+                          </button>
+                          <button type="button" class="btn btn-sm btn-outline-secondary"
+                                  (click)="downloadDat(clientCode!, lic.licenseKey)">
+                            <i class="bi bi-download me-1"></i>{{ 'downloadDat' | t }}
                           </button>
                           @if (lic.status === 'ACTIVE') {
                             <button type="button" class="btn btn-xs btn-outline-warning"

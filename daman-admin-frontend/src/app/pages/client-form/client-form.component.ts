@@ -374,6 +374,23 @@ export class ClientFormComponent implements OnInit {
     });
   }
 
+  downloadDat(clientCode: string, key: string): void {
+    const blob = new Blob([key], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${clientCode}.dat`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  get licencePreviewSummary(): string {
+    const bc = this.form.get('baseCurrency')?.value || 'USD';
+    const feats = this.form.get('features')?.value || {};
+    const paidOn = FEATURE_CATALOG.filter(f => f.price && (feats as any)[f.key]).length;
+    return `${bc} · ${paidOn}`;
+  }
+
   openRevokeConfirm(license: License): void {
     this.licenseRevokeTarget = license;
     this.licenseRevokeError = '';

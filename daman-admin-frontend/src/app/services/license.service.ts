@@ -16,6 +16,7 @@ export interface License {
   activatedAt: string;
   revokedAt: string | null;
   renewedAt: string | null;
+  payloadVersion?: number;
 }
 
 export interface GenerateLicenseRequest {

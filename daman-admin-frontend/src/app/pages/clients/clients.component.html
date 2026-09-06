@@ -106,6 +106,13 @@
                       ⚠ Lapsed
                     </span>
                   }
+                  @if (primaryLicenseOf(client.clientCode); as lic) {
+                    <span class="badge ms-1" style="font-size:0.65rem"
+                          [class.bg-primary]="lic.payloadVersion === 2"
+                          [class.bg-secondary]="lic.payloadVersion !== 2">
+                      {{ lic.payloadVersion === 2 ? 'v2' : 'v1' }}
+                    </span>
+                  }
                 </div>
               </div>
               <div class="client-tagline text-white">{{ client.tagline }}</div>
