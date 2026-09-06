@@ -22,6 +22,7 @@ public class LicenseController {
     private final LicenseKeyService licenseKeyService;
     private final LicenseRepository licenseRepository;
     private final ClientConfigRepository clientConfigRepository;
+    private final com.daman.admin.service.ClientConfigService clientConfigService;
 
     // ── Generate ──────────────────────────────────────────────────────────────
 
@@ -49,7 +50,9 @@ public class LicenseController {
         }
 
         String clientName = clientConfig.getAppName();
-        String licenseKey = licenseKeyService.generateLicense(machineId, clientName, clientCode, expiresAt);
+        var ent = clientConfigService.licenseEntitlementsFor(clientCode);
+        String licenseKey = licenseKeyService.generateLicense(
+                machineId, clientName, clientCode, expiresAt, ent.baseCurrency(), ent.features());
 
         License license = new License();
         license.setClientCode(clientCode);
@@ -95,7 +98,9 @@ public class LicenseController {
         }
 
         String clientName = clientConfig.getAppName();
-        String licenseKey = licenseKeyService.generateLicense(machineId, clientName, clientCode, null);
+        var ent = clientConfigService.licenseEntitlementsFor(clientCode);
+        String licenseKey = licenseKeyService.generateLicense(
+                machineId, clientName, clientCode, null, ent.baseCurrency(), ent.features());
 
         License license = new License();
         license.setClientCode(clientCode);
@@ -181,8 +186,10 @@ public class LicenseController {
 
     private ResponseEntity<Map<String, Object>> doRenew(License license, String expiresAt) {
         String newExpiresAt = (expiresAt != null && !expiresAt.isBlank()) ? expiresAt : null;
+        var ent = clientConfigService.licenseEntitlementsFor(license.getClientCode());
         String newKey = licenseKeyService.generateLicense(
-                license.getMachineId(), license.getClientName(), license.getClientCode(), newExpiresAt);
+                license.getMachineId(), license.getClientName(), license.getClientCode(),
+                newExpiresAt, ent.baseCurrency(), ent.features());
 
         license.setLicenseKey(newKey);
         license.setStatus("ACTIVE");
