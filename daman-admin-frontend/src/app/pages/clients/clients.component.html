@@ -6,9 +6,14 @@
         <h3>Clients</h3>
         <p>{{ clients.length }} total · {{ licensedActiveCount }} active licenses{{ expiringSoonCount > 0 ? ' · ' + expiringSoonCount + ' expiring soon' : '' }}</p>
       </div>
-      <a routerLink="/clients/new" class="btn btn-primary fw-semibold px-4">
-        <i class="bi bi-plus-lg me-1"></i>New Client
-      </a>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-primary btn-sm" (click)="openReissueModal()">
+          <i class="bi bi-arrow-repeat me-1"></i>{{ 'reissueAllV2' | t }}
+        </button>
+        <a routerLink="/clients/new" class="btn btn-primary fw-semibold px-4">
+          <i class="bi bi-plus-lg me-1"></i>New Client
+        </a>
+      </div>
     </div>
 
     <!-- Status segments -->
@@ -439,6 +444,47 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="closeHistoryModal()">Close</button>
         </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Stage-1 Re-issue all as v2 Modal -->
+@if (reissueModalOpen) {
+  <div class="modal-backdrop-custom" (click)="closeReissueModal()"></div>
+  <div class="modal-dialog-custom">
+    <div class="modal-content p-3">
+      <h5 class="mb-2"><i class="bi bi-arrow-repeat text-primary me-2"></i>{{ 'reissueAllV2Title' | t }}</h5>
+      <p class="text-muted small">{{ 'reissueAllV2Hint' | t }}</p>
+
+      @if (reissuePreviewLoading) {
+        <div class="py-3 text-center"><span class="spinner-border spinner-border-sm"></span></div>
+      }
+      @if (reissueError) {
+        <div class="alert alert-danger py-2">{{ reissueError }}</div>
+      }
+      @if (reissuePreviewData) {
+        <ul class="list-unstyled small mb-2">
+          <li><strong>{{ reissuePreviewData.eligible.length }}</strong> {{ 'reissueEligible' | t }}</li>
+          @if (reissuePreviewData.skipped.length > 0) {
+            <li class="text-warning">
+              <strong>{{ reissuePreviewData.skipped.length }}</strong> {{ 'reissueSkipped' | t }}:
+              {{ reissuePreviewSkippedCodes }}
+            </li>
+          }
+        </ul>
+      }
+
+      <div class="d-flex justify-content-end gap-2 mt-2">
+        <button class="btn btn-light btn-sm" [disabled]="reissueBusy" (click)="closeReissueModal()">
+          {{ 'cancel' | t }}
+        </button>
+        <button class="btn btn-primary btn-sm"
+                [disabled]="reissueBusy || !reissuePreviewData || reissuePreviewData.eligible.length === 0"
+                (click)="downloadReissueBundle()">
+          @if (reissueBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          {{ 'reissueDownloadBundle' | t }}
+        </button>
       </div>
     </div>
   </div>

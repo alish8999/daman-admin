@@ -32,6 +32,20 @@ export interface GenerateLicenseResponse {
   label?: string;
 }
 
+export interface ReissuePreviewRow {
+  clientCode: string;
+  clientName: string;
+  machineId: string;
+  currentVersion: number;
+  expiresAt: string | null;
+  clientConfigPresent: boolean;
+}
+
+export interface ReissuePreview {
+  eligible: ReissuePreviewRow[];
+  skipped: ReissuePreviewRow[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class LicenseService {
   private apiUrl = `${environment.apiUrl}/api/licenses`;
@@ -74,5 +88,13 @@ export class LicenseService {
 
   getPublicKey(): Observable<{ publicKey: string }> {
     return this.http.get<{ publicKey: string }>(`${this.apiUrl}/public-key`);
+  }
+
+  reissuePreview(): Observable<ReissuePreview> {
+    return this.http.get<ReissuePreview>(`${this.apiUrl}/reissue-v2/preview`);
+  }
+
+  reissueV2Bundle(): Observable<Blob> {
+    return this.http.post(`${this.apiUrl}/reissue-v2`, {}, { responseType: 'blob' });
   }
 }

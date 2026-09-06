@@ -3,18 +3,19 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ClientService } from '../../services/client.service';
-import { LicenseService, License } from '../../services/license.service';
+import { LicenseService, License, ReissuePreview } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing } from '../../models/billing.model';
 import { AppVersionService, AppVersion } from '../../services/app-version.service';
 import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-config.model';
 import { addonValue } from '../../models/feature-catalog';
 import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 
 @Component({
   selector: 'app-clients',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe],
   templateUrl: './clients.component.html',
   styles: [`
     .build-log {
@@ -97,6 +98,14 @@ import { computeClientStatus, ClientStatusResult } from '../../models/client-sta
       border-top: 1px dashed #e8e8e8;
       margin-top: 8px;
       padding-top: 7px;
+    }
+    .modal-backdrop-custom {
+      position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1050;
+    }
+    .modal-dialog-custom {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      z-index: 1060; width: min(480px, 92vw);
+      background: #fff; border-radius: .5rem; box-shadow: 0 10px 40px rgba(0,0,0,.25);
     }
   `]
 })
@@ -282,6 +291,13 @@ export class ClientsComponent implements OnInit, OnDestroy {
   preparingDevConfig: { [code: string]: boolean } = {};
   prepareDevConfigResult: { code: string; backendPath: string; frontendPath: string } | null = null;
 
+  // ── Stage-1 "re-issue all as v2" ──────────────────────────────────────────
+  reissueModalOpen = false;
+  reissuePreviewData: ReissuePreview | null = null;
+  reissuePreviewLoading = false;
+  reissueBusy = false;
+  reissueError = '';
+
   constructor(
     public clientService: ClientService,
     private licenseService: LicenseService,
@@ -357,6 +373,45 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   closePrepareConfigResult(): void {
     this.prepareDevConfigResult = null;
+  }
+
+  openReissueModal(): void {
+    this.reissueModalOpen = true;
+    this.reissueError = '';
+    this.reissuePreviewData = null;
+    this.reissuePreviewLoading = true;
+    this.licenseService.reissuePreview().subscribe({
+      next: p => { this.reissuePreviewData = p; this.reissuePreviewLoading = false; },
+      error: e => { this.reissueError = e.error?.error || 'Failed to load preview.'; this.reissuePreviewLoading = false; }
+    });
+  }
+
+  closeReissueModal(): void {
+    if (this.reissueBusy) return;
+    this.reissueModalOpen = false;
+  }
+
+  downloadReissueBundle(): void {
+    this.reissueBusy = true;
+    this.reissueError = '';
+    this.licenseService.reissueV2Bundle().subscribe({
+      next: blob => {
+        this.reissueBusy = false;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `daman-v2-licences-${new Date().toISOString().slice(0, 10)}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.reissueModalOpen = false;
+        this.loadLicenses();
+      },
+      error: e => { this.reissueBusy = false; this.reissueError = e.error?.error || 'Bundle download failed.'; }
+    });
+  }
+
+  get reissuePreviewSkippedCodes(): string {
+    return (this.reissuePreviewData?.skipped ?? []).map(r => r.clientCode).join(', ');
   }
 
   colorSwatches(client: ClientConfig): string[] {
