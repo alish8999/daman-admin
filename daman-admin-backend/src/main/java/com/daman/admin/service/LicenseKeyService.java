@@ -71,6 +71,13 @@ public class LicenseKeyService {
     public String generateLicense(String machineId, String clientName, String clientCode,
                                   String expiresAt, String baseCurrency,
                                   java.util.Map<String, Boolean> features) {
+        return generateLicense(machineId, clientName, clientCode, expiresAt, baseCurrency, features, null, null);
+    }
+
+    public String generateLicense(String machineId, String clientName, String clientCode,
+                                  String expiresAt, String baseCurrency,
+                                  java.util.Map<String, Boolean> features,
+                                  String colorPrimary, String colorSecondary) {
         try {
             ObjectNode payload = mapper.createObjectNode();
             payload.put("v", 2);
@@ -85,6 +92,16 @@ public class LicenseKeyService {
             if (features != null && !features.isEmpty()) {
                 ObjectNode f = payload.putObject("features");
                 features.forEach(f::put);
+            }
+            // Per-client brand colours for the generic build (v3-ish additive field —
+            // older desktop code just ignores unknown keys). Only the two clients
+            // actually customise; success/danger/warning/info stay at build defaults.
+            boolean hasPrimary   = colorPrimary   != null && !colorPrimary.isBlank();
+            boolean hasSecondary = colorSecondary != null && !colorSecondary.isBlank();
+            if (hasPrimary || hasSecondary) {
+                ObjectNode colors = payload.putObject("colors");
+                if (hasPrimary)   colors.put("primary", colorPrimary.trim());
+                if (hasSecondary) colors.put("secondary", colorSecondary.trim());
             }
             byte[] payloadBytes = mapper.writeValueAsBytes(payload);
 

@@ -126,7 +126,7 @@ class DevRunServiceTest {
         cfg.setAppName(code.toUpperCase() + " POS");
         when(clientConfigRepository.findByClientCode(code)).thenReturn(Optional.of(cfg));
         when(clientConfigService.licenseEntitlementsFor(code)).thenReturn(
-                new ClientConfigService.LicenseEntitlements("USD", java.util.Map.of("barcode", true)));
+                new ClientConfigService.LicenseEntitlements("USD", java.util.Map.of("barcode", true), null, null));
     }
 
     private AppSetting appSetting(String key, String val) {
@@ -276,7 +276,7 @@ class DevRunServiceTest {
         stubClient("acme");
         when(licenseRepository.findByMachineIdAndClientCodeAndStatus("B".repeat(64), "acme", "ACTIVE"))
                 .thenReturn(Optional.empty());
-        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any()))
+        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any(), any(), any()))
                 .thenReturn("NEW.V2.KEY");
 
         DevRunService.DevRunResult r = service.devRun("acme",
@@ -306,7 +306,7 @@ class DevRunServiceTest {
 
         assertThat(Files.readString(damanHome().resolve("license.dat"))).isEqualTo("EXISTING.V2.KEY");
         verify(licenseRepository, never()).save(any());
-        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any());
+        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any(), any(), any());
         assertThat(r.dbCopied()).isFalse();
         assertThat(r.dbPath()).endsWith(java.io.File.separator + "acme" + java.io.File.separator + "daman_db.sqlite");
     }
@@ -375,7 +375,7 @@ class DevRunServiceTest {
         assertThat(Files.readString(be.resolve("client.config.json"))).isEqualTo("SENTINEL-UNCHANGED");
         assertThat(Files.exists(damanHome.resolve("runtime.properties"))).isFalse();
         verify(licenseRepository, never()).save(any());
-        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any());
+        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /** {@link #seedCheckoutGenericFiles()} without the checked exception, for non-throwing test bodies. */

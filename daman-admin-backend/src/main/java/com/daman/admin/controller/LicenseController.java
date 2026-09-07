@@ -53,7 +53,8 @@ public class LicenseController {
         String clientName = clientConfig.getAppName();
         var ent = clientConfigService.licenseEntitlementsFor(clientCode);
         String licenseKey = licenseKeyService.generateLicense(
-                machineId, clientName, clientCode, expiresAt, ent.baseCurrency(), ent.features());
+                machineId, clientName, clientCode, expiresAt, ent.baseCurrency(), ent.features(),
+                ent.colorPrimary(), ent.colorSecondary());
 
         License license = new License();
         license.setClientCode(clientCode);
@@ -101,7 +102,8 @@ public class LicenseController {
         String clientName = clientConfig.getAppName();
         var ent = clientConfigService.licenseEntitlementsFor(clientCode);
         String licenseKey = licenseKeyService.generateLicense(
-                machineId, clientName, clientCode, null, ent.baseCurrency(), ent.features());
+                machineId, clientName, clientCode, null, ent.baseCurrency(), ent.features(),
+                ent.colorPrimary(), ent.colorSecondary());
 
         License license = new License();
         license.setClientCode(clientCode);
@@ -199,7 +201,8 @@ public class LicenseController {
         var ent = clientConfigService.licenseEntitlementsFor(license.getClientCode());
         String newKey = licenseKeyService.generateLicense(
                 license.getMachineId(), license.getClientName(), license.getClientCode(),
-                newExpiresAt, ent.baseCurrency(), ent.features());
+                newExpiresAt, ent.baseCurrency(), ent.features(),
+                ent.colorPrimary(), ent.colorSecondary());
 
         license.setLicenseKey(newKey);
         license.setStatus("ACTIVE");

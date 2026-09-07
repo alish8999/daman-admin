@@ -113,6 +113,8 @@ class ClientConfigServiceTest {
         cfg.setClientCode("acme");
         cfg.setAppName("Acme");
         cfg.setBaseCurrency("SYP");
+        cfg.setColorPrimary("#ed5b1d");
+        cfg.setColorSecondary("#587adf");
         // featuresJson with posTerminals + accounting true, rest default:
         cfg.setFeaturesJson("{\"posTerminals\":true,\"accounting\":true}");
         when(repository.findByClientCode("acme")).thenReturn(Optional.of(cfg));
@@ -122,6 +124,8 @@ class ClientConfigServiceTest {
 
         // Assert
         assertThat(ent.baseCurrency()).isEqualTo("SYP");
+        assertThat(ent.colorPrimary()).isEqualTo("#ed5b1d");
+        assertThat(ent.colorSecondary()).isEqualTo("#587adf");
         assertThat(ent.features()).containsEntry("posTerminals", true);
         assertThat(ent.features()).containsEntry("accounting", true);
         assertThat(ent.features()).containsEntry("barcode", false);       // an omitted flag → its default

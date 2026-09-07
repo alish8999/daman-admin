@@ -68,7 +68,25 @@ class LicenseKeyServiceTest {
         assertThat(payload.path("v").asInt()).isEqualTo(2);
         assertThat(payload.has("baseCurrency")).isFalse();
         assertThat(payload.has("features")).isFalse();
+        assertThat(payload.has("colors")).isFalse();
         assertThat(payload.path("expiresAt").asText("")).isEmpty();
+    }
+
+    @Test
+    void generateLicense_withColors_payloadCarriesColorsObject() throws Exception {
+        String license = service.generateLicense(
+                "M", "N", "acme", null, "USD", Map.of("barcode", true), "#ed5b1d", "  #587adf  ");
+        JsonNode payload = mapper.readTree(Base64.getDecoder().decode(license.split("\\.")[0]));
+        assertThat(payload.path("colors").path("primary").asText()).isEqualTo("#ed5b1d");
+        assertThat(payload.path("colors").path("secondary").asText()).isEqualTo("#587adf"); // trimmed
+    }
+
+    @Test
+    void generateLicense_blankColors_omitsColorsObject() throws Exception {
+        String license = service.generateLicense(
+                "M", "N", "acme", null, "USD", Map.of("barcode", true), "  ", null);
+        JsonNode payload = mapper.readTree(Base64.getDecoder().decode(license.split("\\.")[0]));
+        assertThat(payload.has("colors")).isFalse();
     }
 
     @Test

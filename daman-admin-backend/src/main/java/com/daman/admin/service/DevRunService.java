@@ -219,7 +219,8 @@ public class DevRunService {
                 .orElseGet(() -> {
                     var ent = clientConfigService.licenseEntitlementsFor(clientCode);
                     String k = licenseKeyService.generateLicense(
-                            machineId, cfg.getAppName(), clientCode, null, ent.baseCurrency(), ent.features());
+                            machineId, cfg.getAppName(), clientCode, null, ent.baseCurrency(), ent.features(),
+                            ent.colorPrimary(), ent.colorSecondary());
                     License l = new License();
                     l.setClientCode(clientCode);
                     l.setMachineId(machineId);

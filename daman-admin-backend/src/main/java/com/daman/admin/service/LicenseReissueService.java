@@ -88,7 +88,8 @@ public class LicenseReissueService {
             var ent = clientConfigService.licenseEntitlementsFor(l.getClientCode());
             String newKey = licenseKeyService.generateLicense(
                     l.getMachineId(), clientName, l.getClientCode(), expiresAt,
-                    ent.baseCurrency(), ent.features());
+                    ent.baseCurrency(), ent.features(),
+                    ent.colorPrimary(), ent.colorSecondary());
 
             // Only capture a genuine v1 -> v2 transition. On a second batch run the row
             // is already v2, so leave the stored original v1 key untouched — otherwise a

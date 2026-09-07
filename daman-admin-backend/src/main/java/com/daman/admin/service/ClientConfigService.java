@@ -62,8 +62,9 @@ public class ClientConfigService {
         repository.delete(entity);
     }
 
-    /** The two license-payload inputs that vary per client. */
-    public record LicenseEntitlements(String baseCurrency, java.util.Map<String, Boolean> features) {}
+    /** The per-client inputs that vary per client and go into a v2 license payload. */
+    public record LicenseEntitlements(String baseCurrency, java.util.Map<String, Boolean> features,
+                                      String colorPrimary, String colorSecondary) {}
 
     /**
      * Builds the {@code baseCurrency} + {@code features} that go into a v2 license
@@ -82,7 +83,8 @@ public class ClientConfigService {
         ClientConfigExportDto.FeaturesDto dto = exportFeatures(c.getFeaturesJson());
         java.util.Map<String, Boolean> features = objectMapper.convertValue(
                 dto, new tools.jackson.core.type.TypeReference<java.util.Map<String, Boolean>>() {});
-        return new LicenseEntitlements(baseCurrency, features);
+        return new LicenseEntitlements(baseCurrency, features,
+                c.getColorPrimary(), c.getColorSecondary());
     }
 
     public ClientConfigExportDto export(String clientCode) {
