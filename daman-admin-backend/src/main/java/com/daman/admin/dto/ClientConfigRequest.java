@@ -6,13 +6,16 @@ import lombok.Data;
 @Data
 public class ClientConfigRequest {
 
-    @NotBlank
+    /** Ignored on create (the server auto-generates an immutable code from the
+     *  app name) and on update (the path param is authoritative). Kept only so
+     *  older callers that still send it don't fail validation. */
     private String clientCode;
 
     @NotBlank
     private String appName;
 
-    @NotBlank
+    /** Deprecated — no longer sent by the admin UI. The server sets this to the
+     *  app name in {@code applyRequest()}; kept as a column for per-client builds. */
     private String tagline;
 
     @NotBlank
@@ -47,7 +50,10 @@ public class ClientConfigRequest {
     /** Store type — selects the demo data seeder. One of: mobile, grocery, clothing, pharmacy, hardware, bookstore, cafe, general */
     private String storeType;
 
-    /** Base currency for all financial records. One of: USD, SYP. Defaults to USD. */
+    /** Deprecated — no longer sent by the admin UI. The device decides its own
+     *  base currency at first run (or already has it locked). Retained so a
+     *  request that still carries it is honoured; a blank/absent value leaves
+     *  the stored value untouched (see {@code applyRequest}). */
     private String baseCurrency;
 
     /** Optional data-URL or asset path for the dashboard header background image. */

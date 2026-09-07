@@ -12,11 +12,12 @@ import { Billing, BillingRequest } from '../../models/billing.model';
 import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup, addonValue } from '../../models/feature-catalog';
 import { ClientFeatures } from '../../models/client-config.model';
 import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
+import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
 
 @Component({
   selector: 'app-client-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe, DevRunButtonComponent],
   templateUrl: './client-form.component.html'
 })
 export class ClientFormComponent implements OnInit {
@@ -25,6 +26,7 @@ export class ClientFormComponent implements OnInit {
   clientCode: string | null = null;
   saving = false;
   error = '';
+  savedMsg = '';
   passwordVisible = false;
 
   // Tab management
@@ -49,6 +51,11 @@ export class ClientFormComponent implements OnInit {
   licenseRenewing = false;
   licenseRenewError = '';
 
+  /** Drives the default mode of the header "Run as this client" control. */
+  get hasActiveV2License(): boolean {
+    return this.clientLicenses.some(l => l.status === 'ACTIVE' && (l.payloadVersion ?? 1) >= 2);
+  }
+
   // Billing management
   clientBillings: Billing[] = [];
   billingsLoading = false;
@@ -65,7 +72,6 @@ export class ClientFormComponent implements OnInit {
   billingError = '';
 
   readonly storeTypeValues = ['mobile', 'grocery', 'packaging', 'nutsdairy', 'variety', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
-  readonly baseCurrencyValues: string[] = ['USD', 'SYP'];
   readonly buildTargetValues = ['win', 'winx86', 'win7', 'mac', 'linux'];
   readonly paymentMethodValues = ['CASH', 'SHAM_CASH', 'BANK_TRANSFER', 'WESTERN_UNION', 'OTHER'];
   readonly paymentMethodLabels: Record<string, string> = {
@@ -132,9 +138,10 @@ export class ClientFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.form = this.fb.group({
-      clientCode:            ['', Validators.required],
+      // clientCode is auto-generated server-side from appName (immutable); the
+      // device owns its base currency (first-run choice / lock); tagline is
+      // gone — the app name doubles as the tagline. None are edited here.
       appName:               ['', Validators.required],
-      tagline:               ['', Validators.required],
       logoDark:              ['assets/brand/logo.png', Validators.required],
       logoLight:             ['assets/brand/logo-light.png', Validators.required],
       favicon:               ['favicon.ico'],
@@ -147,7 +154,6 @@ export class ClientFormComponent implements OnInit {
       footerDeveloper:       ['DamanSoft'],
       footerUrl:             ['https://damansoft.com/'],
       storeType:             ['mobile'],
-      baseCurrency:          ['USD'],
       dashboardHeaderImage:  [''],
       adminUsername:         ['admin', Validators.required],
       adminPassword:         ['', Validators.required],
@@ -206,12 +212,10 @@ export class ClientFormComponent implements OnInit {
     this.isEditMode = !!this.clientCode;
 
     if (this.isEditMode) {
-      this.form.get('clientCode')!.disable();
       this.clientService.getOne(this.clientCode!).subscribe(client => {
         this.form.patchValue({
           ...client,
           storeType:         client.storeType         ?? 'mobile',
-          baseCurrency:      client.baseCurrency       ?? 'USD',
           phone:             client.phone              ?? '',
           email:             client.email              ?? '',
           pointOfContact:    client.pointOfContact     ?? '',
@@ -298,20 +302,40 @@ export class ClientFormComponent implements OnInit {
     if (this.form.invalid) return;
     this.saving = true;
     this.error = '';
+    this.savedMsg = '';
 
     const data = this.form.getRawValue();
 
-    const request$ = this.isEditMode
-      ? this.clientService.update(this.clientCode!, data)
-      : this.clientService.create(data);
-
-    request$.subscribe({
-      next: () => this.router.navigate(['/clients']),
-      error: err => {
-        this.error = err?.error?.message || this.translationService.instant('saveFailed');
-        this.saving = false;
-      }
-    });
+    if (this.isEditMode) {
+      this.clientService.update(this.clientCode!, data).subscribe({
+        next: () => {
+          this.saving = false;
+          this.savedMsg = this.translationService.instant('clientSaved');
+          // keep the computed status badge / License tab data fresh
+          this.loadClientLicenses();
+          this.loadClientBillings();
+          setTimeout(() => this.savedMsg = '', 3000);
+        },
+        error: err => {
+          this.error = err?.error?.message || this.translationService.instant('saveFailed');
+          this.saving = false;
+        }
+      });
+    } else {
+      this.clientService.create(data).subscribe({
+        next: (created) => {
+          this.saving = false;
+          // Stay in the form: flip into edit mode for the just-created client so
+          // the License tab and "Run as this client" become available without a
+          // trip back to the clients list.
+          this.router.navigate(['/clients', created.clientCode, 'edit'], { replaceUrl: true });
+        },
+        error: err => {
+          this.error = err?.error?.message || this.translationService.instant('saveFailed');
+          this.saving = false;
+        }
+      });
+    }
   }
 
   // ── License management ────────────────────────────────────────────────────────

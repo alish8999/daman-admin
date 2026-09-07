@@ -328,7 +328,9 @@ export class TranslationService {
       devReset: 'Reset dev',
       devResetConfirm: 'Restore the neutral dev config and remove the dev licence? Your imported databases are untouched.',
       devMachineIdLabel: 'This machine\'s ID',
-      devMachineIdSaved: 'Save & retry'
+      devMachineIdSaved: 'Save & retry',
+      clientSaved: 'Saved',
+      clientCodeAutoHint: 'The client code is generated automatically from the app name.'
     },
     ar: {
       appTitle: 'إدارة ضمان',
@@ -650,7 +652,9 @@ export class TranslationService {
       devReset: 'إعادة تعيين التطوير',
       devResetConfirm: 'استعادة إعداد التطوير المحايد وإزالة رخصة التطوير؟ قواعد البيانات المستوردة لن تتأثّر.',
       devMachineIdLabel: 'معرّف هذا الجهاز',
-      devMachineIdSaved: 'حفظ وإعادة المحاولة'
+      devMachineIdSaved: 'حفظ وإعادة المحاولة',
+      clientSaved: 'تم الحفظ',
+      clientCodeAutoHint: 'يُنشأ رمز العميل تلقائياً من اسم التطبيق.'
     }
   };
 

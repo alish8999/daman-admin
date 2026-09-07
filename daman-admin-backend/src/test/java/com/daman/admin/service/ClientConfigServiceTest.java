@@ -104,6 +104,59 @@ class ClientConfigServiceTest {
     }
 
     @Test
+    void create_blankClientCode_autoGeneratesSlugFromAppName_andSetsTaglineToAppName() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        when(repository.existsByClientCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Diaa  Mart!");   // clientCode + tagline deliberately unset
+
+        service.create(request);
+
+        org.mockito.ArgumentCaptor<ClientConfig> captor = org.mockito.ArgumentCaptor.forClass(ClientConfig.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getClientCode()).isEqualTo("diaa-mart");
+        assertThat(captor.getValue().getTagline()).isEqualTo("Diaa  Mart!");
+    }
+
+    @Test
+    void create_arabicOnlyAppName_fallsBackToClientHexCode() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        when(repository.existsByClientCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("رقية دريم");
+
+        service.create(request);
+
+        org.mockito.ArgumentCaptor<ClientConfig> captor = org.mockito.ArgumentCaptor.forClass(ClientConfig.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getClientCode()).matches("client-[0-9a-f]{6}");
+    }
+
+    @Test
+    void create_slugCollision_appendsCounter() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        when(repository.existsByClientCode("acme-pos")).thenReturn(true);
+        when(repository.existsByClientCode("acme-pos-2")).thenReturn(false);
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Acme POS");
+
+        service.create(request);
+
+        org.mockito.ArgumentCaptor<ClientConfig> captor = org.mockito.ArgumentCaptor.forClass(ClientConfig.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getClientCode()).isEqualTo("acme-pos-2");
+    }
+
+    @Test
     void licenseEntitlementsFor_returnsBaseCurrencyAndFeatureMapFromStoredConfig() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
         ClientConfigService service = new ClientConfigService(repository, objectMapper);

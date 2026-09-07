@@ -40,13 +40,49 @@ public class ClientConfigService {
     }
 
     public ClientConfigDto create(ClientConfigRequest request) {
-        if (repository.existsByClientCode(request.getClientCode())) {
-            throw new IllegalArgumentException("Client code already exists: " + request.getClientCode());
+        String code = (request.getClientCode() != null && !request.getClientCode().isBlank())
+                ? request.getClientCode().trim()
+                : generateClientCode(request.getAppName());
+        if (repository.existsByClientCode(code)) {
+            throw new IllegalArgumentException("Client code already exists: " + code);
         }
         ClientConfig entity = new ClientConfig();
-        entity.setClientCode(request.getClientCode());
+        entity.setClientCode(code);
         applyRequest(entity, request);
         return toDto(repository.save(entity));
+    }
+
+    /**
+     * An immutable, URL- and filesystem-safe client code (it becomes the data
+     * folder name, the licence-binding key and the {@code .dat} filename, so it
+     * can never change after creation). Slugifies the app name to ASCII
+     * lowercase; when that yields nothing usable — e.g. an Arabic-only name —
+     * falls back to {@code client-<6 hex>}. Retries on collision.
+     */
+    private String generateClientCode(String appName) {
+        String base = (appName == null ? "" : appName).toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-+|-+$", "");
+        if (base.length() < 2) {
+            String candidate;
+            do {
+                candidate = "client-" + randomHex();
+            } while (repository.existsByClientCode(candidate));
+            return candidate;
+        }
+        String candidate = base;
+        int n = 2;
+        while (repository.existsByClientCode(candidate)) {
+            candidate = base + "-" + n++;
+        }
+        return candidate;
+    }
+
+    private static String randomHex() {
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) sb.append(Integer.toHexString(r.nextInt(16)));
+        return sb.toString();
     }
 
     public ClientConfigDto update(String clientCode, ClientConfigRequest request) {
@@ -141,7 +177,11 @@ public class ClientConfigService {
 
     private void applyRequest(ClientConfig entity, ClientConfigRequest request) {
         entity.setAppName(request.getAppName());
-        entity.setTagline(request.getTagline());
+        // Tagline is no longer a separate field in the admin UI — the app name
+        // doubles as the tagline. Honour an explicit value if a caller still
+        // sends one, otherwise mirror the app name.
+        entity.setTagline((request.getTagline() != null && !request.getTagline().isBlank())
+                ? request.getTagline() : request.getAppName());
         entity.setLogoDark(request.getLogoDark());
         entity.setLogoLight(request.getLogoLight());
         entity.setFavicon(request.getFavicon());

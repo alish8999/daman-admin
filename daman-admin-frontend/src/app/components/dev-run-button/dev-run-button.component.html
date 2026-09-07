@@ -1,0 +1,84 @@
+<span class="d-inline-flex align-items-center gap-2">
+  @if (showStatus && isActive) {
+    <span class="badge bg-dark-subtle text-dark border">
+      &#9654; {{ devCurrent?.mode === 'generic' ? ('devCurrentBadgeGeneric' | t) : ('devCurrentBadgePerClient' | t) }}
+    </span>
+    <button type="button" class="btn btn-outline-dark" [class.btn-sm]="compact" (click)="reset()">
+      {{ 'devReset' | t }}
+    </button>
+  }
+  <button type="button" class="btn btn-outline-secondary" [class.btn-sm]="compact"
+          [disabled]="!clientCode" (click)="open()">
+    {{ 'devRun' | t }}
+  </button>
+</span>
+
+@if (dialogOpen) {
+  <div class="modal-backdrop-custom" (click)="close()"></div>
+  <div class="modal-dialog-custom">
+    <div class="modal-content p-3">
+      <h5 class="mb-3">{{ 'devRunTitle' | t }} &mdash; <code>{{ clientCode }}</code></h5>
+
+      <div class="mb-3">
+        <label class="form-label d-block fw-semibold mb-1">
+          {{ 'devRunModePerClient' | t }} / {{ 'devRunModeGeneric' | t }}
+        </label>
+        <label class="me-3">
+          <input type="radio" name="devRunMode" value="per-client" [(ngModel)]="mode">
+          {{ 'devRunModePerClient' | t }}
+        </label>
+        <label>
+          <input type="radio" name="devRunMode" value="generic" [(ngModel)]="mode">
+          {{ 'devRunModeGeneric' | t }}
+        </label>
+        <small class="text-muted d-block mt-1">
+          {{ mode === 'generic' ? ('devRunModeGenericHint' | t) : ('devRunModePerClientHint' | t) }}
+        </small>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold mb-1">{{ 'devRunDbFile' | t }}</label>
+        <input type="text" class="form-control form-control-sm" [(ngModel)]="dbFile"
+               placeholder="C:\...\daman_db.sqlite">
+        <small class="text-muted">{{ 'devRunDbFileHint' | t }}</small>
+      </div>
+
+      @if (error) {
+        <div class="alert alert-danger py-1">{{ error }}</div>
+      }
+
+      @if (needsMachineId) {
+        <div class="mb-3">
+          <label class="form-label fw-semibold mb-1">{{ 'devMachineIdLabel' | t }}</label>
+          <input type="text" class="form-control form-control-sm" [(ngModel)]="machineId">
+          <button class="btn btn-sm btn-secondary mt-1" (click)="saveMachineIdAndRetry()">
+            {{ 'devMachineIdSaved' | t }}
+          </button>
+        </div>
+      }
+
+      @if (result) {
+        <div class="alert alert-success py-2 small">
+          <div><strong>{{ result.mode }}</strong> &middot; machine <code>{{ result.machineId }}</code></div>
+          <div>DB: <code>{{ result.dbPath }}</code>
+            {{ result.dbCopied ? '(copied)' : ('devRunPlaceDbNote' | t) }}</div>
+          @if (result.notes.length > 0) {
+            <ul class="mb-0">
+              @for (n of result.notes; track $index) { <li>{{ n }}</li> }
+            </ul>
+          }
+        </div>
+      }
+
+      <div class="d-flex justify-content-end gap-2 mt-2">
+        <button class="btn btn-outline-secondary btn-sm" [disabled]="busy" (click)="close()">
+          {{ 'close' | t }}
+        </button>
+        <button class="btn btn-primary btn-sm" [disabled]="busy" (click)="submit()">
+          @if (busy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          {{ 'devRunSubmit' | t }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

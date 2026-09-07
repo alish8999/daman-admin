@@ -11,11 +11,19 @@
         <p>{{ 'newClientHint' | t }}</p>
       }
     </div>
-    <a routerLink="/clients" class="btn btn-sm btn-outline-secondary fw-semibold">&larr; {{ 'back' | t }}</a>
+    <div class="d-flex align-items-center gap-2">
+      @if (isEditMode && clientCode) {
+        <app-dev-run-button [clientCode]="clientCode" [hasActiveV2License]="hasActiveV2License" [compact]="true"></app-dev-run-button>
+      }
+      <a routerLink="/clients" class="btn btn-sm btn-outline-secondary fw-semibold">&larr; {{ 'back' | t }}</a>
+    </div>
   </div>
 
   @if (error) {
     <div class="alert alert-warning mb-3">{{ error }}</div>
+  }
+  @if (savedMsg) {
+    <div class="alert alert-success py-2 mb-3">{{ savedMsg }}</div>
   }
 
   <!-- ── Tab Nav ──────────────────────────────────────────────────────────── -->
@@ -64,19 +72,19 @@
         <!-- App Info -->
         <h6 class="text-muted mb-3">{{ 'appInfo' | t }}</h6>
         <div class="row g-3 mb-4">
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ 'clientCode' | t }}</label>
-            <input formControlName="clientCode" class="form-control font-monospace"
-                   [placeholder]="'clientCodePlaceholder' | t" [class.bg-light]="isEditMode">
-            <div class="form-text">{{ 'clientCodeHint' | t }}</div>
-          </div>
+          @if (isEditMode) {
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{{ 'clientCode' | t }}</label>
+              <input class="form-control font-monospace bg-light" [value]="clientCode" readonly disabled>
+              <div class="form-text">{{ 'clientCodeHint' | t }}</div>
+            </div>
+          }
           <div class="col-md-4">
             <label class="form-label fw-semibold">{{ 'appName' | t }}</label>
             <input formControlName="appName" class="form-control" [placeholder]="'appNamePlaceholder' | t">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ 'tagline' | t }}</label>
-            <input formControlName="tagline" class="form-control" [placeholder]="'taglinePlaceholder' | t">
+            @if (!isEditMode) {
+              <div class="form-text">{{ 'clientCodeAutoHint' | t }}</div>
+            }
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
@@ -86,15 +94,6 @@
               }
             </select>
             <div class="form-text">{{ 'storeTypeHint' | t }}</div>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ 'baseCurrency' | t }}</label>
-            <select formControlName="baseCurrency" class="form-select">
-              @for (value of baseCurrencyValues; track value) {
-                <option [value]="value">{{ ('baseCurrency.' + value) | t }}</option>
-              }
-            </select>
-            <div class="form-text">{{ 'baseCurrencyHint' | t }}</div>
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{{ 'defaultBuildTarget' | t }}</label>

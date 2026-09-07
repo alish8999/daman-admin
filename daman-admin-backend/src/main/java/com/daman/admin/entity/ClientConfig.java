@@ -73,7 +73,7 @@ public class ClientConfig {
      * One of: "USD", "SYP". Defaults to "USD".
      */
     @Column(name = "base_currency", length = 10, columnDefinition = "varchar(10) default 'USD'")
-    private String baseCurrency = "USD";
+    private String baseCurrency = "SYP";
 
     /** Optional background image (data-URL or asset path) for the dashboard header. */
     @Column(name = "dashboard_header_image", columnDefinition = "TEXT")

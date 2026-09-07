@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } fro
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { ClientService, DevRunResult, DevCurrent } from '../../services/client.service';
+import { ClientService, DevCurrent } from '../../services/client.service';
 import { LicenseService, License, ReissuePreview } from '../../services/license.service';
 import { TranslationService } from '../../services/translation.service';
 import { BillingService } from '../../services/billing.service';
@@ -12,11 +12,12 @@ import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-co
 import { addonValue } from '../../models/feature-catalog';
 import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
 import { TranslatePipe } from '../../pipes/translate.pipe';
+import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
 
 @Component({
   selector: 'app-clients',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe],
+  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe, DevRunButtonComponent],
   templateUrl: './clients.component.html',
   styles: [`
     .build-log {
@@ -100,18 +101,6 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
       margin-top: 8px;
       padding-top: 7px;
     }
-    .modal-backdrop-custom {
-      position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1050;
-    }
-    .modal-dialog-custom {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-      z-index: 1060; width: min(480px, 92vw);
-      background: #fff; border-radius: .5rem; box-shadow: 0 10px 40px rgba(0,0,0,.25);
-    }
-    .dev-dialog {
-      width: min(560px, 94vw); max-height: 88vh; overflow-y: auto;
-    }
-    .dev-dialog code { word-break: break-all; }
   `]
 })
 export class ClientsComponent implements OnInit, OnDestroy {
@@ -299,15 +288,9 @@ export class ClientsComponent implements OnInit, OnDestroy {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   // ── Dev "Run as this client" workflow ────────────────────────────────────
+  // The dialog + run logic live in <app-dev-run-button>; this component keeps
+  // only devCurrent for the card badge + the global "Reset dev" shortcut.
   devCurrent: DevCurrent | null = null;
-  devDialogFor: string | null = null;                 // clientCode whose dialog is open, or null
-  devDialogMode: 'per-client' | 'generic' = 'per-client';
-  devDialogDbFile = '';
-  devDialogBusy = false;
-  devDialogError = '';
-  devDialogNeedsMachineId = false;
-  devDialogMachineId = '';
-  devRunResult: DevRunResult | null = null;
 
   // ── Stage-1 "re-issue all as v2" ──────────────────────────────────────────
   reissueModalOpen = false;
@@ -384,48 +367,9 @@ export class ClientsComponent implements OnInit, OnDestroy {
     });
   }
 
-  openDevDialog(client: ClientConfig): void {
-    this.devDialogFor = client.clientCode;
-    // default mode: generic if this client has an ACTIVE v2 licence, else per-client
-    const hasV2 = this.licenses.some(l => l.clientCode === client.clientCode
+  hasActiveV2License(clientCode: string): boolean {
+    return this.licenses.some(l => l.clientCode === clientCode
         && l.status === 'ACTIVE' && (l.payloadVersion ?? 1) >= 2);
-    this.devDialogMode = hasV2 ? 'generic' : 'per-client';
-    this.devDialogDbFile = '';
-    this.devDialogError = '';
-    this.devDialogNeedsMachineId = false;
-    this.devDialogMachineId = '';
-    this.devRunResult = null;
-  }
-
-  closeDevDialog(): void {
-    if (!this.devDialogBusy) this.devDialogFor = null;
-  }
-
-  submitDevRun(): void {
-    if (!this.devDialogFor || this.devDialogBusy) return;
-    this.devDialogBusy = true;
-    this.devDialogError = '';
-    this.clientService.devRun(this.devDialogFor, {
-      mode: this.devDialogMode,
-      dbFile: this.devDialogDbFile.trim() || undefined,
-    }).subscribe({
-      next: res => { this.devDialogBusy = false; this.devRunResult = res; this.loadDevCurrent(); },
-      error: err => {
-        this.devDialogBusy = false;
-        const msg = err.error?.error || 'Dev run failed.';
-        this.devDialogError = msg;
-        this.devDialogNeedsMachineId = /machine ID unknown/i.test(msg);
-      }
-    });
-  }
-
-  saveDevMachineIdAndRetry(): void {
-    const id = this.devDialogMachineId.trim();
-    if (!id) return;
-    this.clientService.setDevMachineId(id).subscribe({
-      next: () => { this.devDialogNeedsMachineId = false; this.submitDevRun(); },
-      error: err => this.devDialogError = err.error?.error || 'Could not save the machine ID.'
-    });
   }
 
   resetDev(): void {
