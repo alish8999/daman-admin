@@ -447,6 +447,18 @@ export class ClientFormComponent implements OnInit {
     this.licenseService.delete(license.id).subscribe(() => this.loadClientLicenses());
   }
 
+  revertingReissueId: number | null = null;
+
+  revertReissue(licenseId: number): void {
+    if (this.revertingReissueId) return;
+    if (!confirm(this.translationService.instant('revertReissueConfirm'))) return;
+    this.revertingReissueId = licenseId;
+    this.licenseService.revertReissue(licenseId).subscribe({
+      next: () => { this.revertingReissueId = null; this.loadClientLicenses(); },
+      error: () => { this.revertingReissueId = null; alert(this.translationService.instant('revertReissueFailed')); }
+    });
+  }
+
   // ── License display helpers ──────────────────────────────────────────────────
 
   truncate(id: string, len = 24): string {

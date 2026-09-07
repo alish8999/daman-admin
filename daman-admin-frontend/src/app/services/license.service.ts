@@ -17,6 +17,8 @@ export interface License {
   revokedAt: string | null;
   renewedAt: string | null;
   payloadVersion?: number;
+  /** True iff this row was v1→v2 re-issued and still has a stored previous key (can be reverted). */
+  reissued?: boolean;
 }
 
 export interface GenerateLicenseRequest {
@@ -97,5 +99,11 @@ export class LicenseService {
 
   reissueV2Bundle(): Observable<Blob> {
     return this.http.post(`${this.apiUrl}/reissue-v2`, {}, { responseType: 'blob' });
+  }
+
+  /** Restore a re-issued licence's previous key (undo a v1→v2 re-issue). */
+  revertReissue(licenseId: number): Observable<{ clientCode: string; machineId: string; restoredKey: string }> {
+    return this.http.post<{ clientCode: string; machineId: string; restoredKey: string }>(
+      `${this.apiUrl}/${licenseId}/revert-reissue`, {});
   }
 }

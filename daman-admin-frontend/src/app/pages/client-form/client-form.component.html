@@ -780,6 +780,13 @@
                                   (click)="downloadDat(clientCode!, lic.licenseKey)">
                             <i class="bi bi-download me-1"></i>{{ 'downloadDat' | t }}
                           </button>
+                          @if (lic.reissued) {
+                            <button type="button" class="btn btn-xs btn-outline-secondary"
+                                    [disabled]="revertingReissueId === lic.id"
+                                    (click)="revertReissue(lic.id)">
+                              ↺ {{ 'revertReissue' | t }}
+                            </button>
+                          }
                           @if (lic.status === 'ACTIVE') {
                             <button type="button" class="btn btn-xs btn-outline-warning"
                                     (click)="openRenewModal(lic)">
