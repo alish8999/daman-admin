@@ -139,6 +139,27 @@ class ClientConfigServiceTest {
     }
 
     @Test
+    void create_mirrorsSingleLogoToLightSlot_andForcesDefaultFavicon() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        when(repository.existsByClientCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Acme");
+        request.setLogoDark("data:image/png;base64,AAAA");
+        request.setFavicon("data:image/x-icon;base64,ZZZZ");   // caller tries a custom favicon
+
+        service.create(request);
+
+        org.mockito.ArgumentCaptor<ClientConfig> captor = org.mockito.ArgumentCaptor.forClass(ClientConfig.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getLogoDark()).isEqualTo("data:image/png;base64,AAAA");
+        assertThat(captor.getValue().getLogoLight()).isEqualTo("data:image/png;base64,AAAA"); // mirrored
+        assertThat(captor.getValue().getFavicon()).isEqualTo("favicon.ico");                  // forced default
+    }
+
+    @Test
     void create_slugCollision_appendsCounter() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
         ClientConfigService service = new ClientConfigService(repository, objectMapper);

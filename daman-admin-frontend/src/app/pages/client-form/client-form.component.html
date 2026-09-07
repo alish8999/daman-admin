@@ -108,33 +108,6 @@
 
       </div><!-- /app info card -->
 
-      <!-- ── Client Status Card ─────────────────────────────────────────────── -->
-      <div class="bg-white rounded shadow-sm p-4 mb-4">
-        <h6 class="fw-semibold mb-3">{{ 'clientStatusSection' | t }}</h6>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">{{ 'clientStatus' | t }}</label>
-            <div>
-              <span class="badge fs-6 fw-semibold" [ngClass]="statusBadgeClass(computedStatus.status)">
-                {{ ('clientStatus.' + computedStatus.status) | t }}
-              </span>
-              @if (computedStatus.lapsed) {
-                <span class="badge fs-6 fw-semibold bg-danger ms-1">⚠ {{ 'lapsed' | t }}</span>
-              }
-            </div>
-            <div class="form-text">
-              {{ isEditMode ? (('clientStatusHint.' + computedStatus.status) | t) : ('clientStatusHintNew' | t) }}
-            </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold">{{ 'clientNotes' | t }}</label>
-            <textarea formControlName="clientNotes" class="form-control" rows="2"
-                      [placeholder]="'clientNotesPlaceholder' | t"></textarea>
-            <div class="form-text">{{ 'clientNotesHint' | t }}</div>
-          </div>
-        </div>
-      </div><!-- /client status card -->
-
       <!-- ── Contact / Credentials / Footer ──────────────────────────────── -->
       <div class="bg-white rounded shadow-sm p-4 mb-4">
 
@@ -206,10 +179,10 @@
         <div class="row g-3 mb-4">
 
           <div class="col-md-6">
-            <label class="form-label">{{ 'logoDark' | t }}</label>
+            <label class="form-label">{{ 'logoLabel' | t }}</label>
             <div class="upload-preview-box bg-dark rounded mb-2">
               @if (isDataUrl(form.get('logoDark')?.value)) {
-                <img [src]="form.get('logoDark')?.value" [alt]="'logoDark' | t" class="upload-preview-img">
+                <img [src]="form.get('logoDark')?.value" [alt]="'logoLabel' | t" class="upload-preview-img">
               } @else {
                 <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
               }
@@ -221,44 +194,6 @@
               </label>
               <input formControlName="logoDark" class="form-control form-control-sm font-monospace"
                      [placeholder]="'logoDarkPlaceholder' | t">
-            </div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">{{ 'logoLight' | t }}</label>
-            <div class="upload-preview-box bg-light border rounded mb-2">
-              @if (isDataUrl(form.get('logoLight')?.value)) {
-                <img [src]="form.get('logoLight')?.value" [alt]="'logoLight' | t" class="upload-preview-img">
-              } @else {
-                <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
-              }
-            </div>
-            <div class="d-flex gap-2">
-              <label class="btn btn-sm btn-outline-secondary mb-0">
-                {{ 'upload' | t }}
-                <input type="file" accept="image/*" hidden (change)="onImageUpload('logoLight', $event)">
-              </label>
-              <input formControlName="logoLight" class="form-control form-control-sm font-monospace"
-                     [placeholder]="'logoLightPlaceholder' | t">
-            </div>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label">{{ 'favicon' | t }}</label>
-            <div class="upload-preview-box bg-light border rounded mb-2" style="height: 60px">
-              @if (isDataUrl(form.get('favicon')?.value)) {
-                <img [src]="form.get('favicon')?.value" [alt]="'favicon' | t" style="width:32px;height:32px;object-fit:contain">
-              } @else {
-                <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
-              }
-            </div>
-            <div class="d-flex gap-2">
-              <label class="btn btn-sm btn-outline-secondary mb-0">
-                {{ 'upload' | t }}
-                <input type="file" accept="image/x-icon,image/png,image/svg+xml" hidden (change)="onImageUpload('favicon', $event)">
-              </label>
-              <input formControlName="favicon" class="form-control form-control-sm font-monospace"
-                     [placeholder]="'faviconPlaceholder' | t">
             </div>
           </div>
 

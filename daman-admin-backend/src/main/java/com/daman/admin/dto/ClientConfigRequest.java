@@ -21,9 +21,11 @@ public class ClientConfigRequest {
     @NotBlank
     private String logoDark;
 
-    @NotBlank
+    /** Deprecated — the admin UI collects one logo; the server mirrors logoDark
+     *  here when this is blank (see {@code applyRequest()}). */
     private String logoLight;
 
+    /** Deprecated — always the default; no longer shown in the admin UI. */
     private String favicon;
 
     @NotBlank
@@ -32,16 +34,11 @@ public class ClientConfigRequest {
     @NotBlank
     private String colorSecondary;
 
-    @NotBlank
+    /** success/danger/warning/info are no longer edited in the admin UI; they
+     *  keep their framework defaults (sent by the form, or the entity default). */
     private String colorSuccess;
-
-    @NotBlank
     private String colorDanger;
-
-    @NotBlank
     private String colorWarning;
-
-    @NotBlank
     private String colorInfo;
 
     private String footerDeveloper;

@@ -182,9 +182,13 @@ public class ClientConfigService {
         // sends one, otherwise mirror the app name.
         entity.setTagline((request.getTagline() != null && !request.getTagline().isBlank())
                 ? request.getTagline() : request.getAppName());
+        // The admin UI collects a single logo; mirror it to the light slot when
+        // the caller didn't send a distinct one.
         entity.setLogoDark(request.getLogoDark());
-        entity.setLogoLight(request.getLogoLight());
-        entity.setFavicon(request.getFavicon());
+        entity.setLogoLight((request.getLogoLight() != null && !request.getLogoLight().isBlank())
+                ? request.getLogoLight() : request.getLogoDark());
+        // Favicon is always the bundled default now — not client-brandable.
+        entity.setFavicon("favicon.ico");
         entity.setColorPrimary(request.getColorPrimary());
         entity.setColorSecondary(request.getColorSecondary());
         entity.setColorSuccess(request.getColorSuccess());

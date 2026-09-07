@@ -11,7 +11,6 @@ import { BillingService } from '../../services/billing.service';
 import { Billing, BillingRequest } from '../../models/billing.model';
 import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup, addonValue } from '../../models/feature-catalog';
 import { ClientFeatures } from '../../models/client-config.model';
-import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
 
 @Component({
@@ -80,18 +79,6 @@ export class ClientFormComponent implements OnInit {
   };
   readonly paymentStatusValues = ['PAID', 'PENDING', 'PARTIAL'];
 
-  /** Client status is computed from license + billing data, not manually set — see models/client-status.ts. */
-  get computedStatus(): ClientStatusResult {
-    if (!this.clientCode) return { status: 'DUMMY', lapsed: false };
-    return computeClientStatus({ clientCode: this.clientCode }, this.clientLicenses, this.clientBillings);
-  }
-
-  statusBadgeClass(status: string): string {
-    if (status === 'ACTIVE') return 'bg-success';
-    if (status === 'TRIAL') return 'bg-warning text-dark';
-    return 'bg-secondary';
-  }
-
   // ── Feature catalog (replaces package-tier presets) ─────────────────────
   readonly featureCatalog = FEATURE_CATALOG;
   readonly featureGroupOrder = FEATURE_GROUP_ORDER;
@@ -117,13 +104,11 @@ export class ClientFormComponent implements OnInit {
     return addonValue(features);
   }
 
+  // Only primary + secondary are client-brandable; success/danger/warning/info
+  // keep their framework defaults (set on the entity, not edited here).
   readonly colorFields = [
     { key: 'colorPrimary',   labelKey: 'colorPrimary' },
-    { key: 'colorSecondary', labelKey: 'colorSecondary' },
-    { key: 'colorSuccess',   labelKey: 'colorSuccess' },
-    { key: 'colorDanger',    labelKey: 'colorDanger' },
-    { key: 'colorWarning',   labelKey: 'colorWarning' },
-    { key: 'colorInfo',      labelKey: 'colorInfo' }
+    { key: 'colorSecondary', labelKey: 'colorSecondary' }
   ];
 
   constructor(
@@ -142,15 +127,16 @@ export class ClientFormComponent implements OnInit {
       // device owns its base currency (first-run choice / lock); tagline is
       // gone — the app name doubles as the tagline. None are edited here.
       appName:               ['', Validators.required],
+      // One logo only (server mirrors it to logoLight); favicon + the four
+      // framework colours are always the defaults and no longer shown in the UI.
       logoDark:              ['assets/brand/logo.png', Validators.required],
-      logoLight:             ['assets/brand/logo-light.png', Validators.required],
       favicon:               ['favicon.ico'],
       colorPrimary:          ['#667eea', Validators.required],
       colorSecondary:        ['#764ba2', Validators.required],
-      colorSuccess:          ['#28a745', Validators.required],
-      colorDanger:           ['#dc3545', Validators.required],
-      colorWarning:          ['#f59e0b', Validators.required],
-      colorInfo:             ['#4facfe', Validators.required],
+      colorSuccess:          ['#28a745'],
+      colorDanger:           ['#dc3545'],
+      colorWarning:          ['#f59e0b'],
+      colorInfo:             ['#4facfe'],
       footerDeveloper:       ['DamanSoft'],
       footerUrl:             ['https://damansoft.com/'],
       storeType:             ['mobile'],
@@ -203,7 +189,7 @@ export class ClientFormComponent implements OnInit {
         cafeMode:             [false],
         consignment:          [false],
         shareholders:         [false],
-        fixedAssets:          [false]
+        fixedAssets:          [true]
       })
     });
     this.passwordVisible = false;
@@ -254,7 +240,7 @@ export class ClientFormComponent implements OnInit {
             cafeMode:             client.features?.cafeMode             ?? false,
             consignment:          client.features?.consignment          ?? false,
             shareholders:         client.features?.shareholders         ?? false,
-            fixedAssets:          client.features?.fixedAssets          ?? false
+            fixedAssets:          client.features?.fixedAssets          ?? true
           }
         });
       });

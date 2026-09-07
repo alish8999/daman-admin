@@ -34,7 +34,7 @@ public class ClientConfig {
     private String logoLight;
 
     @Column(columnDefinition = "TEXT")
-    private String favicon;
+    private String favicon = "favicon.ico";
 
     @Column(nullable = false)
     private String colorPrimary;
@@ -42,17 +42,18 @@ public class ClientConfig {
     @Column(nullable = false)
     private String colorSecondary;
 
+    // Not editable in the admin UI — framework defaults, overridable only via API.
     @Column(nullable = false)
-    private String colorSuccess;
+    private String colorSuccess = "#28a745";
 
     @Column(nullable = false)
-    private String colorDanger;
+    private String colorDanger = "#dc3545";
 
     @Column(nullable = false)
-    private String colorWarning;
+    private String colorWarning = "#f59e0b";
 
     @Column(nullable = false)
-    private String colorInfo;
+    private String colorInfo = "#4facfe";
 
     private String footerDeveloper;
     private String footerUrl;
