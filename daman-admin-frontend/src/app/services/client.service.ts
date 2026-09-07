@@ -71,6 +71,30 @@ export class ClientService {
     return this.http.post<void>(`${this.apiUrl}/${clientCode}/build/open-folder`, {});
   }
 
+  // ── Generic build — one neutral installer, no client identity baked in.
+  //    Local equivalent of the generic-installer CI workflow.
+
+  triggerGenericBuild(platform: string = 'win', version: string = ''): Observable<BuildStatus> {
+    return this.http.post<BuildStatus>(
+      `${this.apiUrl}/generic-build?platform=${platform}&version=${encodeURIComponent(version)}`, {});
+  }
+
+  getGenericBuildStatus(): Observable<BuildStatus> {
+    return this.http.get<BuildStatus>(`${this.apiUrl}/generic-build/status`);
+  }
+
+  getGenericBuildHistory(): Observable<BuildLogEntry[]> {
+    return this.http.get<BuildLogEntry[]>(`${this.apiUrl}/generic-build/history`);
+  }
+
+  getGenericBuildDownloadUrl(): string {
+    return `${this.apiUrl}/generic-build/download`;
+  }
+
+  openGenericOutputFolder(): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/generic-build/open-folder`, {});
+  }
+
   prepareDevConfig(clientCode: string): Observable<{ backendPath: string; frontendPath: string }> {
     return this.http.post<{ backendPath: string; frontendPath: string }>(`${this.apiUrl}/${clientCode}/prepare-config`, {});
   }

@@ -12,6 +12,22 @@
             {{ 'devReset' | t }}
           </button>
         }
+        <div class="btn-group btn-group-sm" [title]="'buildGenericTitle' | t">
+          <button type="button" class="btn btn-outline-warning"
+                  [disabled]="isGenericBuild && buildStatus?.status === 'BUILDING'"
+                  (click)="requestGenericBuild()">
+            @if (isGenericBuild && buildStatus?.status === 'BUILDING') {
+              <span class="spinner-border spinner-border-sm"></span>
+            } @else {
+              <i class="bi bi-box-seam me-1"></i>{{ 'buildGeneric' | t }}
+            }
+          </button>
+          <button type="button" #genericBuildBtn
+                  class="btn btn-outline-warning dropdown-toggle dropdown-toggle-split"
+                  [disabled]="isGenericBuild && buildStatus?.status === 'BUILDING'"
+                  (click)="toggleDropdown('generic', $event, genericBuildBtn)">
+          </button>
+        </div>
         <button type="button" class="btn btn-outline-primary btn-sm" (click)="openReissueModal()">
           <i class="bi bi-arrow-repeat me-1"></i>{{ 'reissueAllV2' | t }}
         </button>
@@ -282,6 +298,9 @@
         </div>
         <div class="modal-body">
           <p class="text-muted mb-3">Review the build configuration before starting.</p>
+          @if (buildConfirmation.clientCode === 'generic') {
+            <div class="alert alert-info py-2 small">{{ 'buildGenericHint' | t }}</div>
+          }
           <div class="mb-3">
             <label class="form-label fw-semibold">Version *</label>
             @if (versions.length === 0) {
@@ -301,7 +320,13 @@
             <tbody>
               <tr>
                 <td class="text-muted fw-semibold" style="width:40%">Client</td>
-                <td><code>{{ buildConfirmation.clientCode }}</code></td>
+                <td>
+                  @if (buildConfirmation.clientCode === 'generic') {
+                    <span class="badge bg-warning text-dark">{{ 'genericBuildLabel' | t }}</span>
+                  } @else {
+                    <code>{{ buildConfirmation.clientCode }}</code>
+                  }
+                </td>
               </tr>
               <tr>
                 <td class="text-muted fw-semibold">Platform</td>
@@ -353,7 +378,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            Build: {{ buildStatus?.clientCode }}
+            Build: {{ isGenericBuild ? ('genericBuildLabel' | t) : buildStatus?.clientCode }}
             <span class="badge ms-2" [ngClass]="{
               'bg-warning text-dark': buildStatus?.status === 'BUILDING',
               'bg-success': buildStatus?.status === 'SUCCESS',
@@ -368,12 +393,12 @@
         </div>
         <div class="modal-footer">
           @if (buildStatus?.status === 'SUCCESS' && buildStatus?.artifactName) {
-            <a [href]="clientService.getBuildDownloadUrl(buildStatus!.clientCode)"
+            <a [href]="isGenericBuild ? clientService.getGenericBuildDownloadUrl() : clientService.getBuildDownloadUrl(buildStatus!.clientCode)"
                class="btn btn-success" download>
               Download {{ buildStatus?.artifactName }}
             </a>
             <button type="button" class="btn btn-outline-secondary"
-                    (click)="clientService.openOutputFolder(buildStatus!.clientCode).subscribe()">
+                    (click)="(isGenericBuild ? clientService.openGenericOutputFolder() : clientService.openOutputFolder(buildStatus!.clientCode)).subscribe()">
               <i class="bi bi-folder2-open me-1"></i>Open Folder
             </button>
           }
@@ -462,7 +487,7 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Build History: {{ historyClientCode }}</h5>
+          <h5 class="modal-title">Build History: {{ historyClientCode === 'generic' ? ('genericBuildLabel' | t) : historyClientCode }}</h5>
           <button type="button" class="btn-close" (click)="closeHistoryModal()"></button>
         </div>
         <div class="modal-body p-0">

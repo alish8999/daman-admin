@@ -115,6 +115,11 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
   `]
 })
 export class ClientsComponent implements OnInit, OnDestroy {
+  /** Sentinel clientCode for the generic (client-less) installer build. Matches the
+   *  canonical key the backend tracks it under and returns in BuildStatus.clientCode,
+   *  so the shared build handlers can route on it. */
+  static readonly GENERIC = 'generic';
+
   clients: ClientConfig[] = [];
   licenses: License[] = [];
   billings: Billing[] = [];
@@ -557,6 +562,16 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.buildConfirmation = { clientCode, platform, ...meta, versionNumber: latestVersion };
   }
 
+  /** Kick off the generic (client-less) installer build — routes through the same
+   *  Confirm-Build + Build-Log modals as a per-client build via the GENERIC sentinel. */
+  requestGenericBuild(platform: string = 'win'): void {
+    this.requestBuild(ClientsComponent.GENERIC, platform);
+  }
+
+  get isGenericBuild(): boolean {
+    return this.buildStatus?.clientCode === ClientsComponent.GENERIC;
+  }
+
   cancelBuildConfirmation(): void {
     this.buildConfirmation = null;
   }
@@ -569,7 +584,11 @@ export class ClientsComponent implements OnInit, OnDestroy {
   }
 
   private triggerBuild(clientCode: string, platform: string, version: string): void {
-    this.clientService.triggerBuild(clientCode, platform, version).subscribe({
+    const generic = clientCode === ClientsComponent.GENERIC;
+    const start$ = generic
+      ? this.clientService.triggerGenericBuild(platform, version)
+      : this.clientService.triggerBuild(clientCode, platform, version);
+    start$.subscribe({
       next: (status) => {
         this.buildStatus = status;
         this.showBuildModal = true;
@@ -577,7 +596,10 @@ export class ClientsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         if (err.status === 409) {
-          this.clientService.getBuildStatus(clientCode).subscribe(status => {
+          const status$ = generic
+            ? this.clientService.getGenericBuildStatus()
+            : this.clientService.getBuildStatus(clientCode);
+          status$.subscribe(status => {
             this.buildStatus = status;
             this.showBuildModal = true;
             this.startPolling(clientCode);
@@ -600,7 +622,10 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   showHistory(clientCode: string): void {
     this.historyClientCode = clientCode;
-    this.clientService.getBuildHistory(clientCode).subscribe(history => {
+    const history$ = clientCode === ClientsComponent.GENERIC
+      ? this.clientService.getGenericBuildHistory()
+      : this.clientService.getBuildHistory(clientCode);
+    history$.subscribe(history => {
       this.buildHistory = history;
       this.showHistoryModal = true;
     });
@@ -621,8 +646,12 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   private startPolling(clientCode: string): void {
     this.stopPolling();
+    const generic = clientCode === ClientsComponent.GENERIC;
     this.pollInterval = setInterval(() => {
-      this.clientService.getBuildStatus(clientCode).subscribe({
+      const status$ = generic
+        ? this.clientService.getGenericBuildStatus()
+        : this.clientService.getBuildStatus(clientCode);
+      status$.subscribe({
         next: (status) => {
           this.buildStatus = status;
           this.scrollLogToBottom();
