@@ -436,7 +436,7 @@
             {{ devRunResult.dbCopied ? '(copied)' : ('devRunPlaceDbNote' | t) }}</div>
           @if (devRunResult.notes.length > 0) {
             <ul class="mb-0">
-              @for (n of devRunResult.notes; track n) { <li>{{ n }}</li> }
+              @for (n of devRunResult.notes; track $index) { <li>{{ n }}</li> }
             </ul>
           }
         </div>

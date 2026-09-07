@@ -86,6 +86,7 @@ public class DevRunService {
      *       {@code client.version=dev}), and writes {@code ~/.daman/runtime.properties} =
      *       {@code daman.runtime.client-code=<code>}.</li>
      * </ul>
+     * Callers must validate the client first — {@link #devRun(String, DevRunRequest)} does.
      */
     public void prepareConfigForMode(String clientCode, String mode) {
         try {
@@ -124,6 +125,13 @@ public class DevRunService {
                 p.load(in);
             }
             String version = p.getProperty("client.version");
+            if (!"dev".equals(version)) {
+                // devReset() restored the neutral .generic meta (no client.version),
+                // or this is a real packaged build's meta — nothing is "prepared" for
+                // dev. Both prepareConfigForMode modes (generic here, per-client via
+                // ClientConfigService.prepareDevConfig) write client.version=dev.
+                return new DevCurrent(null, null, null);
+            }
             if ("true".equalsIgnoreCase(p.getProperty("client.generic"))) {
                 String code = null;
                 Path rp = damanHome().resolve("runtime.properties");
@@ -236,7 +244,17 @@ public class DevRunService {
                     throw new IllegalArgumentException("dbFile not found: " + req.dbFile());
                 }
                 Files.createDirectories(dbTarget.getParent());
-                Files.copy(src, dbTarget, StandardCopyOption.REPLACE_EXISTING);
+                // Atomic: stream to a sibling temp file, then swap it in with an
+                // ATOMIC_MOVE. A mid-copy failure can no longer destroy the owner's
+                // previously-imported daman_db.sqlite (REPLACE_EXISTING deletes the
+                // target before it streams the first byte).
+                Path tmp = dbTarget.resolveSibling("daman_db.sqlite.devrun-tmp");
+                try {
+                    Files.copy(src, tmp, StandardCopyOption.REPLACE_EXISTING);
+                    Files.move(tmp, dbTarget, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } finally {
+                    Files.deleteIfExists(tmp);
+                }
                 dbCopied = true;
             }
         } catch (IOException e) {
@@ -249,6 +267,9 @@ public class DevRunService {
         if ("generic".equals(mode)) {
             notes.add("Generic mode: features + base currency come from the dev licence; in-app branding stays "
                     + "generic Daman (only receipts carry the client's logo).");
+            notes.add("This DB path is for a directly-run backend (mvn spring-boot:run -Pdesktop / IntelliJ). "
+                    + "Do NOT launch the packaged Electron generic build against it — that build resolves its own "
+                    + "data folder (~/.daman/data/) and would move this one by rename on first launch.");
         }
         if (!dbCopied) {
             notes.add("Put the client's database at " + dbTarget + " before starting the backend.");

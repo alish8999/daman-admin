@@ -425,7 +425,10 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   resetDev(): void {
     if (!confirm(this.translationService.instant('devResetConfirm'))) return;
-    this.clientService.devReset().subscribe({ next: () => this.loadDevCurrent() });
+    this.clientService.devReset().subscribe({
+      next: () => this.loadDevCurrent(),
+      error: err => alert(err.error?.error || 'Reset failed.')
+    });
   }
 
   openReissueModal(): void {

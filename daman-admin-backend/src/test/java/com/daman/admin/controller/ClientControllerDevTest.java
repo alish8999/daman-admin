@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -56,6 +57,13 @@ class ClientControllerDevTest {
         ResponseEntity<?> resp = controller.devRun("acme", new DevRunService.DevRunRequest("generic", null));
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(((java.util.Map<?, ?>) resp.getBody()).get("error").toString()).contains("machine ID unknown");
+    }
+
+    @Test
+    void devRun_serviceThrowsPlainRuntime_propagatesAsA500_notSwallowedAs400() {
+        when(devRunService.devRun(any(), any())).thenThrow(new RuntimeException("boom"));
+        assertThatThrownBy(() -> controller.devRun("acme", new DevRunService.DevRunRequest("generic", null)))
+                .isInstanceOf(RuntimeException.class);
     }
 
     @Test

@@ -324,6 +324,60 @@ class DevRunServiceTest {
                 .hasMessageContaining("dbFile");
     }
 
+    @Test
+    void devRun_dbCopy_replacesExistingDbAtomically_noTmpLeftBehind() throws Exception {
+        seedCheckoutGenericFiles();
+        // an already-imported DB for this client — a mid-copy failure must never destroy it
+        Files.createDirectories(damanHome().resolve("acme"));
+        Files.writeString(damanHome().resolve("acme/daman_db.sqlite"), "OLD-DATA");
+        Path src = Files.createTempFile("client-db", ".sqlite");
+        Files.writeString(src, "NEW-DATA");
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus(any(), any(), any()))
+                .thenReturn(Optional.of(activeLicence("acme", "K")));
+
+        service.devRun("acme", new DevRunService.DevRunRequest("generic", src.toString()));
+
+        assertThat(Files.readString(damanHome().resolve("acme/daman_db.sqlite"))).isEqualTo("NEW-DATA");
+        assertThat(Files.exists(damanHome().resolve("acme/daman_db.sqlite.devrun-tmp"))).isFalse();
+    }
+
+    @Test
+    void devRun_thenDevReset_devCurrentReturnsAllNull() throws Exception {
+        seedCheckoutGenericFiles();
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus(any(), any(), any()))
+                .thenReturn(Optional.of(activeLicence("acme", "K")));
+
+        service.devRun("acme", new DevRunService.DevRunRequest("generic", null));
+        assertThat(service.devCurrent().mode()).isEqualTo("generic"); // sanity: checkout is prepared
+
+        service.devReset();
+
+        DevRunService.DevCurrent cur = service.devCurrent();
+        assertThat(cur.clientCode()).isNull();
+        assertThat(cur.mode()).isNull();
+        assertThat(cur.version()).isNull();
+    }
+
+    @Test
+    void devRun_unknownClient_throwsAndWritesNothing() throws Exception {
+        Path be = workspace.resolve("daman-backend/src/main/resources");
+        Files.createDirectories(be);
+        Files.writeString(be.resolve("client.config.json"), "SENTINEL-UNCHANGED");
+
+        assertThatThrownBy(() -> service.devRun("no-such-client",
+                new DevRunService.DevRunRequest("generic", null)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(Files.readString(be.resolve("client.config.json"))).isEqualTo("SENTINEL-UNCHANGED");
+        assertThat(Files.exists(damanHome.resolve("runtime.properties"))).isFalse();
+        verify(licenseRepository, never()).save(any());
+        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any());
+    }
+
     /** {@link #seedCheckoutGenericFiles()} without the checked exception, for non-throwing test bodies. */
     private void seedCheckoutGenericFiles_unchecked() {
         try {
