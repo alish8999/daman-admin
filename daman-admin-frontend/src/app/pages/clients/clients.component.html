@@ -7,6 +7,11 @@
         <p>{{ clients.length }} total · {{ licensedActiveCount }} active licenses{{ expiringSoonCount > 0 ? ' · ' + expiringSoonCount + ' expiring soon' : '' }}</p>
       </div>
       <div class="d-flex align-items-center gap-2">
+        @if (devCurrent?.clientCode) {
+          <button type="button" class="btn btn-outline-dark btn-sm" (click)="resetDev()">
+            {{ 'devReset' | t }}
+          </button>
+        }
         <button type="button" class="btn btn-outline-primary btn-sm" (click)="openReissueModal()">
           <i class="bi bi-arrow-repeat me-1"></i>{{ 'reissueAllV2' | t }}
         </button>
@@ -113,6 +118,11 @@
                       {{ lic.payloadVersion === 2 ? 'v2' : 'v1' }}
                     </span>
                   }
+                  @if (devCurrent?.clientCode === client.clientCode) {
+                    <span class="badge bg-dark" style="font-size:0.65rem">
+                      ▶ {{ devCurrent?.mode === 'generic' ? ('devCurrentBadgeGeneric' | t) : ('devCurrentBadgePerClient' | t) }}
+                    </span>
+                  }
                 </div>
               </div>
               <div class="client-tagline text-white">{{ client.tagline }}</div>
@@ -190,15 +200,10 @@
                      class="btn btn-sm btn-outline-primary">Edit</a>
                   <button (click)="exportJson(client.clientCode)"
                           class="btn btn-sm btn-outline-secondary">JSON</button>
-                  <button (click)="prepareDevConfig(client.clientCode)"
+                  <button (click)="openDevDialog(client)"
                           class="btn btn-sm btn-outline-info"
-                          [disabled]="preparingDevConfig[client.clientCode]"
-                          title="Write config to dev workspace">
-                    @if (preparingDevConfig[client.clientCode]) {
-                      <span class="spinner-border spinner-border-sm"></span>
-                    } @else {
-                      Dev
-                    }
+                          title="Run the dev checkout as this client">
+                    {{ 'devRun' | t }}
                   </button>
                 </div>
                 <div class="d-flex gap-1">
@@ -379,30 +384,72 @@
   </div>
 }
 
-<!-- Prepare Dev Config Result Modal -->
-@if (prepareDevConfigResult) {
-  <div class="modal-backdrop fade show" (click)="closePrepareConfigResult()"></div>
-  <div class="modal fade show d-block" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Dev Config Ready: <code>{{ prepareDevConfigResult.code }}</code></h5>
-          <button type="button" class="btn-close" (click)="closePrepareConfigResult()"></button>
+<!-- "Run as this client" (dev-run) Dialog -->
+@if (devDialogFor) {
+  <div class="modal-backdrop-custom" (click)="closeDevDialog()"></div>
+  <div class="modal-dialog-custom dev-dialog">
+    <div class="modal-content p-3">
+      <h5 class="mb-3">{{ 'devRunTitle' | t }} — <code>{{ devDialogFor }}</code></h5>
+
+      <div class="mb-3">
+        <label class="form-label d-block fw-semibold mb-1">
+          {{ 'devRunModePerClient' | t }} / {{ 'devRunModeGeneric' | t }}
+        </label>
+        <label class="me-3">
+          <input type="radio" name="devMode" value="per-client" [(ngModel)]="devDialogMode">
+          {{ 'devRunModePerClient' | t }}
+        </label>
+        <label>
+          <input type="radio" name="devMode" value="generic" [(ngModel)]="devDialogMode">
+          {{ 'devRunModeGeneric' | t }}
+        </label>
+        <small class="text-muted d-block mt-1">
+          {{ devDialogMode === 'generic' ? ('devRunModeGenericHint' | t) : ('devRunModePerClientHint' | t) }}
+        </small>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold mb-1">{{ 'devRunDbFile' | t }}</label>
+        <input type="text" class="form-control form-control-sm" [(ngModel)]="devDialogDbFile"
+               placeholder="C:\...\daman_db.sqlite">
+        <small class="text-muted">{{ 'devRunDbFileHint' | t }}</small>
+      </div>
+
+      @if (devDialogError) {
+        <div class="alert alert-danger py-1">{{ devDialogError }}</div>
+      }
+
+      @if (devDialogNeedsMachineId) {
+        <div class="mb-3">
+          <label class="form-label fw-semibold mb-1">{{ 'devMachineIdLabel' | t }}</label>
+          <input type="text" class="form-control form-control-sm" [(ngModel)]="devDialogMachineId">
+          <button class="btn btn-sm btn-secondary mt-1" (click)="saveDevMachineIdAndRetry()">
+            {{ 'devMachineIdSaved' | t }}
+          </button>
         </div>
-        <div class="modal-body">
-          <p class="text-success fw-semibold mb-3">Config written. You can now run <code>ng serve</code>.</p>
-          <div class="mb-2">
-            <small class="text-muted d-block mb-1">Backend</small>
-            <code class="small">{{ prepareDevConfigResult.backendPath }}</code>
-          </div>
-          <div>
-            <small class="text-muted d-block mb-1">Frontend</small>
-            <code class="small">{{ prepareDevConfigResult.frontendPath }}</code>
-          </div>
+      }
+
+      @if (devRunResult) {
+        <div class="alert alert-success py-2 small">
+          <div><strong>{{ devRunResult.mode }}</strong> · machine <code>{{ devRunResult.machineId }}</code></div>
+          <div>DB: <code>{{ devRunResult.dbPath }}</code>
+            {{ devRunResult.dbCopied ? '(copied)' : ('devRunPlaceDbNote' | t) }}</div>
+          @if (devRunResult.notes.length > 0) {
+            <ul class="mb-0">
+              @for (n of devRunResult.notes; track n) { <li>{{ n }}</li> }
+            </ul>
+          }
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-primary" (click)="closePrepareConfigResult()">Done</button>
-        </div>
+      }
+
+      <div class="d-flex justify-content-end gap-2 mt-2">
+        <button class="btn btn-outline-secondary btn-sm" [disabled]="devDialogBusy" (click)="closeDevDialog()">
+          {{ 'close' | t }}
+        </button>
+        <button class="btn btn-primary btn-sm" [disabled]="devDialogBusy" (click)="submitDevRun()">
+          @if (devDialogBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          {{ 'devRunSubmit' | t }}
+        </button>
       </div>
     </div>
   </div>
