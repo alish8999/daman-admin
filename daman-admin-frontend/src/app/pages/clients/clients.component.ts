@@ -2,8 +2,9 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } fro
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { ClientService } from '../../services/client.service';
+import { ClientService, DevRunResult, DevCurrent } from '../../services/client.service';
 import { LicenseService, License, ReissuePreview } from '../../services/license.service';
+import { TranslationService } from '../../services/translation.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing } from '../../models/billing.model';
 import { AppVersionService, AppVersion } from '../../services/app-version.service';
@@ -107,6 +108,10 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
       z-index: 1060; width: min(480px, 92vw);
       background: #fff; border-radius: .5rem; box-shadow: 0 10px 40px rgba(0,0,0,.25);
     }
+    .dev-dialog {
+      width: min(560px, 94vw); max-height: 88vh; overflow-y: auto;
+    }
+    .dev-dialog code { word-break: break-all; }
   `]
 })
 export class ClientsComponent implements OnInit, OnDestroy {
@@ -288,8 +293,16 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
-  preparingDevConfig: { [code: string]: boolean } = {};
-  prepareDevConfigResult: { code: string; backendPath: string; frontendPath: string } | null = null;
+  // ── Dev "Run as this client" workflow ────────────────────────────────────
+  devCurrent: DevCurrent | null = null;
+  devDialogFor: string | null = null;                 // clientCode whose dialog is open, or null
+  devDialogMode: 'per-client' | 'generic' = 'per-client';
+  devDialogDbFile = '';
+  devDialogBusy = false;
+  devDialogError = '';
+  devDialogNeedsMachineId = false;
+  devDialogMachineId = '';
+  devRunResult: DevRunResult | null = null;
 
   // ── Stage-1 "re-issue all as v2" ──────────────────────────────────────────
   reissueModalOpen = false;
@@ -302,7 +315,8 @@ export class ClientsComponent implements OnInit, OnDestroy {
     public clientService: ClientService,
     private licenseService: LicenseService,
     private billingService: BillingService,
-    private appVersionService: AppVersionService
+    private appVersionService: AppVersionService,
+    private translationService: TranslationService
   ) {}
 
   ngOnInit(): void {
@@ -310,6 +324,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.loadLicenses();
     this.loadBillings();
     this.loadVersions();
+    this.loadDevCurrent();
   }
 
   loadBillings(): void {
@@ -357,22 +372,63 @@ export class ClientsComponent implements OnInit, OnDestroy {
     });
   }
 
-  prepareDevConfig(clientCode: string): void {
-    this.preparingDevConfig[clientCode] = true;
-    this.clientService.prepareDevConfig(clientCode).subscribe({
-      next: (res) => {
-        this.preparingDevConfig[clientCode] = false;
-        this.prepareDevConfigResult = { code: clientCode, ...res };
-      },
-      error: (err) => {
-        this.preparingDevConfig[clientCode] = false;
-        alert(`Failed to prepare config: ${err.error?.message || err.message}`);
+  loadDevCurrent(): void {
+    this.clientService.devCurrent().subscribe({
+      next: c => this.devCurrent = c,
+      error: () => this.devCurrent = null
+    });
+  }
+
+  openDevDialog(client: ClientConfig): void {
+    this.devDialogFor = client.clientCode;
+    // default mode: generic if this client has an ACTIVE v2 licence, else per-client
+    const hasV2 = this.licenses.some(l => l.clientCode === client.clientCode
+        && l.status === 'ACTIVE' && (l.payloadVersion ?? 1) >= 2);
+    this.devDialogMode = hasV2 ? 'generic' : 'per-client';
+    this.devDialogDbFile = '';
+    this.devDialogError = '';
+    this.devDialogNeedsMachineId = false;
+    this.devDialogMachineId = '';
+    this.devRunResult = null;
+  }
+
+  closeDevDialog(): void {
+    if (!this.devDialogBusy) this.devDialogFor = null;
+  }
+
+  submitDevRun(): void {
+    if (!this.devDialogFor || this.devDialogBusy) return;
+    this.devDialogBusy = true;
+    this.devDialogError = '';
+    this.clientService.devRun(this.devDialogFor, {
+      mode: this.devDialogMode,
+      dbFile: this.devDialogDbFile.trim() || undefined,
+    }).subscribe({
+      next: res => { this.devDialogBusy = false; this.devRunResult = res; this.loadDevCurrent(); },
+      error: err => {
+        this.devDialogBusy = false;
+        const msg = err.error?.error || 'Dev run failed.';
+        this.devDialogError = msg;
+        this.devDialogNeedsMachineId = /machine ID unknown/i.test(msg);
       }
     });
   }
 
-  closePrepareConfigResult(): void {
-    this.prepareDevConfigResult = null;
+  saveDevMachineIdAndRetry(): void {
+    const id = this.devDialogMachineId.trim();
+    if (!id) return;
+    this.clientService.setDevMachineId(id).subscribe({
+      next: () => { this.devDialogNeedsMachineId = false; this.submitDevRun(); },
+      error: err => this.devDialogError = err.error?.error || 'Could not save the machine ID.'
+    });
+  }
+
+  resetDev(): void {
+    if (!confirm(this.translationService.instant('devResetConfirm'))) return;
+    this.clientService.devReset().subscribe({
+      next: () => this.loadDevCurrent(),
+      error: err => alert(err.error?.error || 'Reset failed.')
+    });
   }
 
   openReissueModal(): void {

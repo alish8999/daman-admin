@@ -306,7 +306,25 @@ export class TranslationService {
       confirmRevoke: 'Confirm Revoke',
       revokeWarning: 'This will immediately deactivate the license. The customer\'s app will stop working until renewed. Continue?',
       renewLicense: 'Renew License',
-      newExpiryDate: 'New Expiry Date'
+      newExpiryDate: 'New Expiry Date',
+
+      close: 'Close',
+      devRun: 'Run as this client ▶',
+      devRunTitle: 'Run the dev checkout as this client',
+      devRunModePerClient: 'Per-client build',
+      devRunModeGeneric: 'Generic build',
+      devRunModePerClientHint: 'client.config.json is authoritative — closest to the client\'s old custom installer.',
+      devRunModeGenericHint: 'Features & currency come from the dev licence — exercises the shipped generic build.',
+      devRunDbFile: 'Client database file (optional)',
+      devRunDbFileHint: 'Absolute path to the .sqlite the client sent. Leave blank to place it yourself.',
+      devRunSubmit: 'Run',
+      devRunPlaceDbNote: '— copy your file here before starting the backend',
+      devCurrentBadgePerClient: 'dev (per-client)',
+      devCurrentBadgeGeneric: 'dev (generic)',
+      devReset: 'Reset dev',
+      devResetConfirm: 'Restore the neutral dev config and remove the dev licence? Your imported databases are untouched.',
+      devMachineIdLabel: 'This machine\'s ID',
+      devMachineIdSaved: 'Save & retry'
     },
     ar: {
       appTitle: 'إدارة ضمان',
@@ -606,7 +624,25 @@ export class TranslationService {
       confirmRevoke: 'تأكيد إلغاء الترخيص',
       revokeWarning: 'سيؤدي هذا إلى تعطيل الترخيص فوراً. لن يعمل تطبيق العميل حتى يتم التجديد. هل تريد المتابعة؟',
       renewLicense: 'تجديد الترخيص',
-      newExpiryDate: 'تاريخ الانتهاء الجديد'
+      newExpiryDate: 'تاريخ الانتهاء الجديد',
+
+      close: 'إغلاق',
+      devRun: 'تشغيل كهذا العميل ▶',
+      devRunTitle: 'تشغيل بيئة التطوير كهذا العميل',
+      devRunModePerClient: 'نسخة خاصة بالعميل',
+      devRunModeGeneric: 'نسخة عامة',
+      devRunModePerClientHint: 'ملف client.config.json هو المرجع — الأقرب إلى المُثبِّت المخصّص القديم للعميل.',
+      devRunModeGenericHint: 'الميزات والعملة تأتيان من رخصة التطوير — يختبر النسخة العامة المُوزَّعة.',
+      devRunDbFile: 'ملف قاعدة بيانات العميل (اختياري)',
+      devRunDbFileHint: 'المسار المطلق لملف ‎.sqlite الذي أرسله العميل. اتركه فارغاً لوضعه بنفسك.',
+      devRunSubmit: 'تشغيل',
+      devRunPlaceDbNote: '— انسخ ملفك إلى هنا قبل تشغيل الخادم',
+      devCurrentBadgePerClient: 'تطوير (خاص بالعميل)',
+      devCurrentBadgeGeneric: 'تطوير (عام)',
+      devReset: 'إعادة تعيين التطوير',
+      devResetConfirm: 'استعادة إعداد التطوير المحايد وإزالة رخصة التطوير؟ قواعد البيانات المستوردة لن تتأثّر.',
+      devMachineIdLabel: 'معرّف هذا الجهاز',
+      devMachineIdSaved: 'حفظ وإعادة المحاولة'
     }
   };
 

@@ -302,6 +302,25 @@ public class ClientConfigService {
                 .build();
     }
 
+    /**
+     * Writes the three dev-checkout config files: {@code client.config.json} into both
+     * the backend resources and the frontend assets, and {@code client-meta.properties}
+     * into the backend resources. Shared by {@link #prepareDevConfig(String)} and
+     * {@code DevRunService} (per-client + generic dev-run modes) so the exact set of
+     * files, and their locations, can never drift between the two callers.
+     */
+    void writeCheckoutConfig(String configJson, String clientMetaBody) throws IOException {
+        Path workspace = Paths.get(workspaceRoot);
+        Path backendJson  = workspace.resolve("daman-backend/src/main/resources/client.config.json");
+        Path frontendJson = workspace.resolve("daman-frontend/src/assets/client.config.json");
+        Path backendMeta  = workspace.resolve("daman-backend/src/main/resources/client-meta.properties");
+        Files.createDirectories(backendJson.getParent());
+        Files.createDirectories(frontendJson.getParent());
+        Files.writeString(backendJson, configJson);
+        Files.writeString(frontendJson, configJson);
+        Files.writeString(backendMeta, clientMetaBody);
+    }
+
     public record PrepareConfigResult(String backendPath, String frontendPath) {}
 
     public PrepareConfigResult prepareDevConfig(String clientCode) {
@@ -320,7 +339,6 @@ public class ClientConfigService {
         // client-meta.properties in sync with the currently-prepared client,
         // otherwise LicenseService keeps validating against whatever clientCode
         // the previous `mvn package` happened to bake in.
-        Path clientMetaDest = workspace.resolve("daman-backend/src/main/resources/client-meta.properties");
         Path runtimePropsDest = Paths.get(System.getProperty("user.home"), ".daman", "runtime.properties");
         String runtimeProps = "daman.runtime.client-code=" + clientCode + System.lineSeparator();
         String clientMeta = String.join("\n",
@@ -332,11 +350,7 @@ public class ClientConfigService {
         ) + "\n";
 
         try {
-            Files.createDirectories(backendDest.getParent());
-            Files.writeString(backendDest, json);
-            Files.createDirectories(frontendDest.getParent());
-            Files.writeString(frontendDest, json);
-            Files.writeString(clientMetaDest, clientMeta);
+            writeCheckoutConfig(json, clientMeta);
             Files.createDirectories(runtimePropsDest.getParent());
             Files.writeString(runtimePropsDest, runtimeProps);
         } catch (IOException e) {

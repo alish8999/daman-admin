@@ -4,6 +4,22 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ClientConfig, ClientConfigExport, BuildStatus, BuildLogEntry } from '../models/client-config.model';
 
+export interface DevRunResult {
+  clientCode: string;
+  mode: 'per-client' | 'generic';
+  machineId: string;
+  dbPath: string;
+  dbCopied: boolean;
+  licensePath: string;
+  notes: string[];
+}
+
+export interface DevCurrent {
+  clientCode: string | null;
+  mode: 'per-client' | 'generic' | null;
+  version: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ClientService {
   private apiUrl = `${environment.apiUrl}/api/clients`;
@@ -57,5 +73,24 @@ export class ClientService {
 
   prepareDevConfig(clientCode: string): Observable<{ backendPath: string; frontendPath: string }> {
     return this.http.post<{ backendPath: string; frontendPath: string }>(`${this.apiUrl}/${clientCode}/prepare-config`, {});
+  }
+
+  // ── Dev "Run as this client" workflow (Task 4/5) ─────────────────────────
+  // Safe only because the admin backend runs locally on the developer's machine.
+
+  devRun(clientCode: string, body: { mode: 'per-client' | 'generic'; dbFile?: string }): Observable<DevRunResult> {
+    return this.http.post<DevRunResult>(`${this.apiUrl}/${clientCode}/dev-run`, body);
+  }
+
+  devCurrent(): Observable<DevCurrent> {
+    return this.http.get<DevCurrent>(`${this.apiUrl}/dev-current`);
+  }
+
+  devReset(): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/dev-reset`, {});
+  }
+
+  setDevMachineId(machineId: string): Observable<void> {
+    return this.http.put<void>(`${this.apiUrl}/dev-machine-id`, { machineId });
   }
 }

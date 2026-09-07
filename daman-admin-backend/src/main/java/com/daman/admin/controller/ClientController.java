@@ -7,6 +7,7 @@ import com.daman.admin.dto.ClientConfigRequest;
 import com.daman.admin.entity.BuildLog;
 import com.daman.admin.service.BuildService;
 import com.daman.admin.service.ClientConfigService;
+import com.daman.admin.service.DevRunService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.FileSystemResource;
@@ -27,6 +28,7 @@ public class ClientController {
 
     private final ClientConfigService service;
     private final BuildService buildService;
+    private final DevRunService devRunService;
 
     @GetMapping
     public List<ClientConfigDto> getAll() {
@@ -64,6 +66,45 @@ public class ClientController {
     @PostMapping("/{clientCode}/prepare-config")
     public ClientConfigService.PrepareConfigResult prepareConfig(@PathVariable String clientCode) {
         return service.prepareDevConfig(clientCode);
+    }
+
+    // ------------------------------------------------------------------
+    // Dev "run as this client" (LOCAL admin backend only — see DevRunService)
+    //
+    // SECURITY: these endpoints write the local filesystem and mint a dev
+    // licence with no machine-ID friction. Acceptable ONLY because the admin
+    // backend is a locally-run developer tool — never expose it on a network.
+    // ------------------------------------------------------------------
+
+    @PostMapping("/{clientCode}/dev-run")
+    public ResponseEntity<?> devRun(@PathVariable String clientCode,
+                                    @RequestBody DevRunService.DevRunRequest req) {
+        try {
+            return ResponseEntity.ok(devRunService.devRun(clientCode, req));
+        } catch (IllegalArgumentException | IllegalStateException | java.io.UncheckedIOException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", String.valueOf(e.getMessage())));
+        }
+    }
+
+    @GetMapping("/dev-current")
+    public DevRunService.DevCurrent devCurrent() {
+        return devRunService.devCurrent();
+    }
+
+    @PostMapping("/dev-reset")
+    public ResponseEntity<Void> devReset() {
+        devRunService.devReset();
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/dev-machine-id")
+    public ResponseEntity<?> devMachineId(@RequestBody java.util.Map<String, String> body) {
+        try {
+            devRunService.setDevMachineId(body.get("machineId"));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", String.valueOf(e.getMessage())));
+        }
     }
 
     // ------------------------------------------------------------------
