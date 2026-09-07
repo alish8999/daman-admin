@@ -90,6 +90,7 @@ public class LicenseReissueService {
                     l.getMachineId(), clientName, l.getClientCode(), expiresAt,
                     ent.baseCurrency(), ent.features());
 
+            l.setPreviousLicenseKey(previousKey);
             l.setLicenseKey(newKey);
             l.setClientName(clientName);
             l.setRenewedAt(LocalDateTime.now());
@@ -103,6 +104,28 @@ public class LicenseReissueService {
                     fromVersion, datName, newKey, previousKey));
         }
         return new ReissueResult(reissued, skipped);
+    }
+
+    public record RevertResult(String clientCode, String machineId, String restoredKey) {}
+
+    /**
+     * Undo the last in-place v2 re-issue for one licence: put {@code previousLicenseKey}
+     * back as the active key and clear it (so a second call is a no-op-shaped error).
+     * Throws {@link IllegalArgumentException} for an unknown id or a row that was
+     * never re-issued.
+     */
+    @Transactional
+    public RevertResult revertReissue(long licenseId) {
+        License l = licenseRepository.findById(licenseId)
+                .orElseThrow(() -> new IllegalArgumentException("No licence with id " + licenseId));
+        String prev = l.getPreviousLicenseKey();
+        if (prev == null || prev.isBlank()) {
+            throw new IllegalArgumentException("Licence " + licenseId + " has no previous key to revert to");
+        }
+        l.setLicenseKey(prev);
+        l.setPreviousLicenseKey(null);
+        licenseRepository.save(l);
+        return new RevertResult(l.getClientCode(), l.getMachineId(), prev);
     }
 
     private ReissuePreviewRow rowOf(License l, boolean clientConfigPresent) {

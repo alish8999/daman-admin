@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -126,6 +127,52 @@ class LicenseReissueServiceTest {
         assertThat(second.reissued().get(0).fromVersion()).isEqualTo(2); // first run already made it v2
         // save() only ever called with the existing entity, never a brand-new row
         verify(licenseRepository, times(2)).save(active);
+    }
+
+    @Test
+    void reissueAll_persistsThePreviousKeyOnTheRow() {
+        License active = lic(1, "acme", "M-AAAA", "ACTIVE", "the.old.v1.key");
+        when(licenseRepository.findAllByOrderByActivatedAtDesc()).thenReturn(List.of(active));
+        when(clientConfigRepository.findByClientCode("acme")).thenReturn(Optional.of(cfg("acme")));
+
+        service.reissueAll();
+
+        assertThat(active.getPreviousLicenseKey()).isEqualTo("the.old.v1.key");
+        assertThat(active.getLicenseKey()).isNotEqualTo("the.old.v1.key"); // overwritten with v2
+    }
+
+    @Test
+    void revertReissue_swapsTheKeyBack_andClearsPreviousKey() {
+        License l = lic(7, "acme", "M-AAAA", "ACTIVE", "current.v2.key");
+        l.setPreviousLicenseKey("original.v1.key");
+        when(licenseRepository.findById(7L)).thenReturn(Optional.of(l));
+
+        LicenseReissueService.RevertResult r = service.revertReissue(7L);
+
+        assertThat(r.restoredKey()).isEqualTo("original.v1.key");
+        assertThat(r.clientCode()).isEqualTo("acme");
+        assertThat(r.machineId()).isEqualTo("M-AAAA");
+        assertThat(l.getLicenseKey()).isEqualTo("original.v1.key");
+        assertThat(l.getPreviousLicenseKey()).isNull();     // one-shot — no double revert
+        verify(licenseRepository).save(l);
+    }
+
+    @Test
+    void revertReissue_nothingToRevert_throws() {
+        License l = lic(8, "acme", "M-AAAA", "ACTIVE", "current.key");
+        l.setPreviousLicenseKey(null);
+        when(licenseRepository.findById(8L)).thenReturn(Optional.of(l));
+
+        assertThatThrownBy(() -> service.revertReissue(8L))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(licenseRepository, never()).save(any());
+    }
+
+    @Test
+    void revertReissue_unknownId_throws() {
+        when(licenseRepository.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.revertReissue(99L))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

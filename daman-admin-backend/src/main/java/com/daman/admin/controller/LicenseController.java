@@ -235,6 +235,21 @@ public class LicenseController {
                 .body(zip);
     }
 
+    /**
+     * Undo the last in-place v2 re-issue for one licence (from {@code reissue-v2}):
+     * restore its {@code previousLicenseKey} as the active key. One-shot — a second
+     * call returns 400 (nothing left to revert). Admin-token guarded via {@link
+     * com.daman.admin.config.AuthFilter}, same as the sibling reissue endpoints.
+     */
+    @PostMapping("/{id}/revert-reissue")
+    public ResponseEntity<?> revertReissue(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(licenseReissueService.revertReissue(id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // ── Delete ───────────────────────────────────────────────────────────────
 
     @DeleteMapping("/{id}")

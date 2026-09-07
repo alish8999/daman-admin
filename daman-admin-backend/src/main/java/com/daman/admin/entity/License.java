@@ -31,6 +31,15 @@ public class License {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String licenseKey;
 
+    /**
+     * The key this row held immediately before the last in-place v2 re-issue
+     * ({@link com.daman.admin.service.LicenseReissueService#reissueAll()}).
+     * Null until a re-issue overwrites the key. Lets a bad batch re-issue be
+     * undone from the DB alone, without the downloaded rollback bundle.
+     */
+    @Column(name = "previous_license_key", columnDefinition = "TEXT")
+    private String previousLicenseKey;
+
     @Column(nullable = false)
     private String status; // ACTIVE, REVOKED
 

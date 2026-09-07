@@ -69,6 +69,31 @@ class LicenseControllerReissueTest {
     }
 
     @Test
+    void revertReissue_returnsRestoredKey_andIsIdempotentOnSecondCall() {
+        when(licenseReissueService.revertReissue(7L))
+                .thenReturn(new LicenseReissueService.RevertResult("acme", "M-AAAA", "original.v1.key"))
+                .thenThrow(new IllegalArgumentException("Licence 7 has no previous key to revert to"));
+
+        ResponseEntity<?> first = controller.revertReissue(7L);
+        assertThat(first.getStatusCode().value()).isEqualTo(200);
+        assertThat(((LicenseReissueService.RevertResult) first.getBody()).restoredKey())
+                .isEqualTo("original.v1.key");
+
+        ResponseEntity<?> second = controller.revertReissue(7L);
+        assertThat(second.getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
+    void revertReissue_unknownId_returns400() {
+        when(licenseReissueService.revertReissue(99L))
+                .thenThrow(new IllegalArgumentException("No licence with id 99"));
+
+        ResponseEntity<?> resp = controller.revertReissue(99L);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
     void getAll_mapsPayloadVersionOntoDto() {
         License l = new License();
         l.setId(7L);
@@ -84,5 +109,23 @@ class LicenseControllerReissueTest {
         assertThat(dtos).hasSize(1);
         assertThat(dtos.get(0).id()).isEqualTo(7L);
         assertThat(dtos.get(0).payloadVersion()).isEqualTo(2);
+        assertThat(dtos.get(0).reissued()).isFalse(); // no previousLicenseKey set
+    }
+
+    @Test
+    void getAll_reissuedIsTrue_whenPreviousLicenseKeyPresent() {
+        License l = new License();
+        l.setId(8L);
+        l.setClientCode("acme");
+        l.setMachineId("M");
+        l.setLicenseKey("v2.key");
+        l.setPreviousLicenseKey("v1.key");
+        l.setStatus("ACTIVE");
+        when(licenseRepository.findAllByOrderByActivatedAtDesc()).thenReturn(List.of(l));
+        when(licenseKeyService.payloadVersion("v2.key")).thenReturn(2);
+
+        List<LicenseDto> dtos = controller.getAll();
+
+        assertThat(dtos.get(0).reissued()).isTrue();
     }
 }
