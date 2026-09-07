@@ -50,8 +50,25 @@ public class BuildService {
             .enable(SerializationFeature.INDENT_OUTPUT)
             .build();
 
+    /**
+     * API-facing sentinel for "build the neutral, client-less installer" — the local
+     * equivalent of the generic-installer CI workflow. The controller passes this;
+     * BuildService normalises it to {@link #GENERIC_KEY} at every public entry point
+     * so the status map, the {@code clients-build/<key>/} artifact dir, the persisted
+     * {@code build_log.client_code}, and the history query all agree on one real key.
+     */
+    public static final String GENERIC = "__generic__";
+
+    /** The canonical key a generic build is tracked/stored/looked-up under. */
+    private static final String GENERIC_KEY = "generic";
+
     private final Map<String, BuildStatusDto> buildStatuses = new ConcurrentHashMap<>();
     private final ExecutorService buildExecutor = Executors.newSingleThreadExecutor();
+
+    /** Maps the {@link #GENERIC} sentinel to its canonical key; every other code passes through. */
+    private static String resolveKey(String clientCode) {
+        return GENERIC.equals(clientCode) ? GENERIC_KEY : clientCode;
+    }
 
     public BuildService(ClientConfigRepository clientConfigRepository,
                         ClientConfigService clientConfigService,
@@ -81,9 +98,10 @@ public class BuildService {
             DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public BuildStatusDto getStatus(String clientCode) {
-        return buildStatuses.getOrDefault(clientCode,
+        String key = resolveKey(clientCode);
+        return buildStatuses.getOrDefault(key,
                 BuildStatusDto.builder()
-                        .clientCode(clientCode)
+                        .clientCode(key)
                         .status("IDLE")
                         .build());
     }
@@ -93,25 +111,32 @@ public class BuildService {
             throw new IllegalStateException("daman.workspace is not configured in application.yml");
         }
 
-        BuildStatusDto current = buildStatuses.get(clientCode);
+        boolean generic = GENERIC.equals(clientCode);
+        String key = generic ? GENERIC_KEY : clientCode;
+
+        BuildStatusDto current = buildStatuses.get(key);
         if (current != null && "BUILDING".equals(current.getStatus())) {
-            throw new IllegalStateException("Build already in progress for client: " + clientCode);
+            throw new IllegalStateException("Build already in progress for client: " + key);
         }
 
-        clientConfigRepository.findByClientCode(clientCode)
-                .orElseThrow(() -> new RuntimeException("Client not found: " + clientCode));
+        // The generic build carries no client identity — its config comes from the
+        // checked-in client.config.generic.json, not a ClientConfig row.
+        if (!generic) {
+            clientConfigRepository.findByClientCode(clientCode)
+                    .orElseThrow(() -> new RuntimeException("Client not found: " + clientCode));
+        }
 
         BuildStatusDto status = BuildStatusDto.builder()
-                .clientCode(clientCode)
+                .clientCode(key)
                 .platform(platform)
                 .status("BUILDING")
                 .startedAt(LocalDateTime.now())
                 .logs(Collections.synchronizedList(new ArrayList<>()))
                 .build();
 
-        buildStatuses.put(clientCode, status);
+        buildStatuses.put(key, status);
 
-        buildExecutor.submit(() -> executeBuild(clientCode, platform, versionNumber));
+        buildExecutor.submit(() -> executeBuild(key, platform, versionNumber));
 
         return status;
     }
@@ -119,19 +144,27 @@ public class BuildService {
     private void executeBuild(String clientCode, String platform, String versionNumber) {
         BuildStatusDto status = buildStatuses.get(clientCode);
         boolean isPos = platform.equalsIgnoreCase("pos");
+        boolean generic = GENERIC_KEY.equals(clientCode);
         try {
             Path workspace = Path.of(workspacePath);
             Path backendRoot = workspace.resolve("daman-backend");
             Path frontendRoot = workspace.resolve("daman-frontend");
 
             addLog(status, "Writing client configuration...");
-            ClientConfigExportDto exportDto = writeClientConfig(clientCode, backendRoot, frontendRoot, isPos, status);
+            ClientConfigExportDto exportDto = generic
+                    ? writeGenericConfig(backendRoot, frontendRoot, versionNumber, status)
+                    : writeClientConfig(clientCode, backendRoot, frontendRoot, isPos, status);
             addLog(status, "Configuration written");
 
             if (!isPos) {
                 addLog(status, "Embedding license public key & build metadata...");
                 writePublicKey(backendRoot);
-                writeClientMeta(backendRoot, clientCode, versionNumber);
+                // The generic build's client-meta.properties (client.generic=true, no
+                // client.code) is already written by writeGenericConfig — don't stamp
+                // a clientCode over it.
+                if (!generic) {
+                    writeClientMeta(backendRoot, clientCode, versionNumber);
+                }
                 addLog(status, "License binding written for clientCode=" + clientCode);
 
                 String[] mvnCmd = mavenCommand(backendRoot);
@@ -276,7 +309,7 @@ public class BuildService {
     }
 
     public List<BuildLog> getBuildHistory(String clientCode) {
-        return buildLogRepository.findByClientCodeOrderByStartedAtDesc(clientCode);
+        return buildLogRepository.findByClientCodeOrderByStartedAtDesc(resolveKey(clientCode));
     }
 
     // ------------------------------------------------------------------
@@ -302,6 +335,50 @@ public class BuildService {
         Files.createDirectories(frontendAssets);
         Files.writeString(frontendAssets.resolve("client.config.json"), json);
         return exportDto;
+    }
+
+    /**
+     * Neutral config — no client identity. Reads the checked-in generic files
+     * ({@code client.config.generic.json} / {@code client-meta.generic.properties}) from
+     * the workspace and writes them over the real names, exactly like the Stage-2
+     * generic-installer CI workflow does before packaging. The resulting
+     * {@code client-meta.properties} carries {@code client.generic=true} and no
+     * {@code client.code=}, so LicenseService accepts any signed, machine-matched,
+     * non-expired licence at activation.
+     */
+    private ClientConfigExportDto writeGenericConfig(Path backendRoot, Path frontendRoot,
+                                                     String versionNumber, BuildStatusDto status) throws IOException {
+        Path genConfigSrc = frontendRoot.resolve("src/assets/client.config.generic.json");
+        Path genMetaSrc   = backendRoot.resolve("src/main/resources/client-meta.generic.properties");
+        if (!Files.isRegularFile(genConfigSrc) || !Files.isRegularFile(genMetaSrc)) {
+            throw new IOException("Generic build config missing: " + genConfigSrc + " / " + genMetaSrc);
+        }
+
+        String json = Files.readString(genConfigSrc);
+        Files.writeString(backendRoot.resolve("src/main/resources/client.config.json"), json);
+        Path frontendAssets = frontendRoot.resolve("src/assets");
+        Files.createDirectories(frontendAssets);
+        Files.writeString(frontendAssets.resolve("client.config.json"), json);
+
+        String safeVer = (versionNumber != null && !versionNumber.isBlank()) ? versionNumber : "unknown";
+        String meta = Files.readString(genMetaSrc).trim()
+                + "\nclient.version=" + safeVer
+                + "\nclient.builtAt=" + LocalDateTime.now() + "\n";
+        Files.writeString(backendRoot.resolve("src/main/resources/client-meta.properties"), meta);
+
+        // The generic config references these brand assets by name. A missing asset is
+        // cosmetic (Angular tolerates it; the installer just gets the default icon) —
+        // warn, don't fail. favicon.ico is currently expected to be absent.
+        for (String rel : new String[]{"brand/logo.png", "brand/logo-light.png", "favicon.ico"}) {
+            if (!Files.isRegularFile(frontendAssets.resolve(rel))) {
+                addLog(status, "WARNING: generic brand asset " + rel + " not found at "
+                        + frontendAssets.resolve(rel));
+            }
+        }
+
+        addLog(status, "Generic build — neutral client.config.json + client.generic=true meta written");
+
+        return ClientConfigExportDto.builder().appName("Daman").build();   // appName only used for artifact naming
     }
 
     private void logEnabledFeatures(BuildStatusDto status, ClientConfigExportDto exportDto) {
@@ -633,12 +710,13 @@ public class BuildService {
 
     public Path getOutputDir(String clientCode) {
         if (workspacePath == null || workspacePath.isBlank()) return null;
-        String safeClient = clientCode.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+        String safeClient = resolveKey(clientCode).replaceAll("[^a-zA-Z0-9_\\-]", "_");
         Path dir = Path.of(workspacePath).resolve("clients-build").resolve(safeClient);
         return Files.exists(dir) ? dir : null;
     }
 
-    public Path getArtifactFile(String clientCode) {
+    public Path getArtifactFile(String rawClientCode) {
+        String clientCode = resolveKey(rawClientCode);
         // First check in-memory status (current/recent build)
         BuildStatusDto status = buildStatuses.get(clientCode);
         if (status != null && status.getArtifactPath() != null) {

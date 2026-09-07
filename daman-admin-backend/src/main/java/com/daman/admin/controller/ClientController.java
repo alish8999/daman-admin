@@ -165,4 +165,51 @@ public class ClientController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
     }
+
+    // ------------------------------------------------------------------
+    // Generic build — one neutral installer, no client identity baked in
+    // (identity comes from the v2 licence at activation). Local equivalent
+    // of the generic-installer CI workflow. All endpoints delegate with the
+    // BuildService.GENERIC sentinel, which BuildService normalises internally.
+    // ------------------------------------------------------------------
+
+    @PostMapping("/generic-build")
+    public ResponseEntity<BuildStatusDto> triggerGenericBuild(
+            @RequestParam(defaultValue = "win") String platform,
+            @RequestParam(defaultValue = "") String version) {
+        return ResponseEntity.accepted().body(buildService.startBuild(BuildService.GENERIC, platform, version));
+    }
+
+    @GetMapping("/generic-build/status")
+    public BuildStatusDto genericBuildStatus() {
+        return buildService.getStatus(BuildService.GENERIC);
+    }
+
+    @GetMapping("/generic-build/history")
+    public List<BuildLog> genericBuildHistory() {
+        return buildService.getBuildHistory(BuildService.GENERIC);
+    }
+
+    @PostMapping("/generic-build/open-folder")
+    public ResponseEntity<Void> openGenericOutputFolder() {
+        Path dir = buildService.getOutputDir(BuildService.GENERIC);
+        if (dir == null) return ResponseEntity.notFound().build();
+        try {
+            new ProcessBuilder("explorer.exe", dir.toAbsolutePath().toString()).start();
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/generic-build/download")
+    public ResponseEntity<Resource> downloadGenericArtifact() {
+        Path artifact = buildService.getArtifactFile(BuildService.GENERIC);
+        if (artifact == null) return ResponseEntity.notFound().build();
+        Resource resource = new FileSystemResource(artifact);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + artifact.getFileName() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
+    }
 }
