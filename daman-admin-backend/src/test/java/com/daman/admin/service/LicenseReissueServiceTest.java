@@ -142,6 +142,24 @@ class LicenseReissueServiceTest {
     }
 
     @Test
+    void reissueAll_secondRun_doesNotOverwriteTheOriginalV1PreviousKey() {
+        License active = lic(1, "acme", "M-AAAA", "ACTIVE", "legacy.v1.key");
+        when(licenseRepository.findAllByOrderByActivatedAtDesc()).thenReturn(List.of(active));
+        when(clientConfigRepository.findByClientCode("acme")).thenReturn(Optional.of(cfg("acme")));
+
+        service.reissueAll();
+        assertThat(active.getPreviousLicenseKey()).isEqualTo("legacy.v1.key"); // run 1: captured the v1 key
+        String v2AfterRun1 = active.getLicenseKey();
+        assertThat(licenseKeyService.payloadVersion(v2AfterRun1)).isEqualTo(2);
+
+        service.reissueAll();
+        // run 2: the row is already v2 — the stored ORIGINAL v1 key must be left alone,
+        // not overwritten with the run-1 v2 key.
+        assertThat(active.getPreviousLicenseKey()).isEqualTo("legacy.v1.key");
+        assertThat(active.getPreviousLicenseKey()).isNotEqualTo(v2AfterRun1);
+    }
+
+    @Test
     void revertReissue_swapsTheKeyBack_andClearsPreviousKey() {
         License l = lic(7, "acme", "M-AAAA", "ACTIVE", "current.v2.key");
         l.setPreviousLicenseKey("original.v1.key");

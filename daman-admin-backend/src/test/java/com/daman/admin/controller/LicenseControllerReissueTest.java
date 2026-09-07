@@ -81,6 +81,7 @@ class LicenseControllerReissueTest {
 
         ResponseEntity<?> second = controller.revertReissue(7L);
         assertThat(second.getStatusCode().value()).isEqualTo(400);
+        assertThat(((java.util.Map<?, ?>) second.getBody()).get("error")).isNotNull();
     }
 
     @Test
@@ -91,6 +92,7 @@ class LicenseControllerReissueTest {
         ResponseEntity<?> resp = controller.revertReissue(99L);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(((java.util.Map<?, ?>) resp.getBody()).get("error")).isNotNull();
     }
 
     @Test

@@ -90,7 +90,12 @@ public class LicenseReissueService {
                     l.getMachineId(), clientName, l.getClientCode(), expiresAt,
                     ent.baseCurrency(), ent.features());
 
-            l.setPreviousLicenseKey(previousKey);
+            // Only capture a genuine v1 -> v2 transition. On a second batch run the row
+            // is already v2, so leave the stored original v1 key untouched — otherwise a
+            // later revertReissue would restore a v2 key, breaking "reversible from the DB alone".
+            if (fromVersion < 2) {
+                l.setPreviousLicenseKey(previousKey);
+            }
             l.setLicenseKey(newKey);
             l.setClientName(clientName);
             l.setRenewedAt(LocalDateTime.now());
