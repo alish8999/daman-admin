@@ -1,5 +1,8 @@
 package com.daman.admin.service;
 
+import com.daman.admin.entity.AppSetting;
+import com.daman.admin.entity.ClientConfig;
+import com.daman.admin.entity.License;
 import com.daman.admin.repository.AppSettingRepository;
 import com.daman.admin.repository.ClientConfigRepository;
 import com.daman.admin.repository.LicenseRepository;
@@ -11,12 +14,21 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link DevRunService} — the config/meta-writing half (per-client +
@@ -34,6 +46,10 @@ class DevRunServiceTest {
     Path damanHome;
 
     private ClientConfigService clientConfigService;
+    private LicenseKeyService licenseKeyService;
+    private LicenseRepository licenseRepository;
+    private ClientConfigRepository clientConfigRepository;
+    private AppSettingRepository appSettingRepository;
     private DevRunService service;
 
     /** Whatever {@link #seedCheckoutGenericFiles()} wrote as the neutral generic config. */
@@ -42,12 +58,16 @@ class DevRunServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         clientConfigService = mock(ClientConfigService.class);
+        licenseKeyService = mock(LicenseKeyService.class);
+        licenseRepository = mock(LicenseRepository.class);
+        clientConfigRepository = mock(ClientConfigRepository.class);
+        appSettingRepository = mock(AppSettingRepository.class);
         service = new DevRunService(
                 clientConfigService,
-                mock(LicenseKeyService.class),
-                mock(LicenseRepository.class),
-                mock(ClientConfigRepository.class),
-                mock(AppSettingRepository.class));
+                licenseKeyService,
+                licenseRepository,
+                clientConfigRepository,
+                appSettingRepository);
         ReflectionTestUtils.setField(service, "workspaceRoot", workspace.toString());
         ReflectionTestUtils.setField(service, "damanHomePath", damanHome.toString());
 
@@ -78,6 +98,50 @@ class DevRunServiceTest {
         Files.createDirectories(fe);
         Files.writeString(fe.resolve("client.config.generic.json"), GENERIC_CONFIG_CONTENT);
         Files.writeString(be.resolve("client-meta.generic.properties"), "client.generic=true\n");
+    }
+
+    // ── helpers for the dev-licence / machine-id / db-copy cases ──────────────
+
+    /** Fresh {@link DevRunService} wired to the temp paths + shared mocks, with its
+     *  {@code probeLocalMachineId()} stubbed to return {@code probeValue} (null → empty). */
+    private DevRunService spyServiceWithProbe(String probeValue) {
+        DevRunService real = new DevRunService(
+                clientConfigService, licenseKeyService, licenseRepository,
+                clientConfigRepository, appSettingRepository);
+        ReflectionTestUtils.setField(real, "workspaceRoot", workspace.toString());
+        ReflectionTestUtils.setField(real, "damanHomePath", damanHome.toString());
+        DevRunService spy = spy(real);
+        doReturn(Optional.ofNullable(probeValue)).when(spy).probeLocalMachineId();
+        return spy;
+    }
+
+    private Path damanHome() {
+        return damanHome;
+    }
+
+    /** Stubs {@code clientConfigRepository.findByClientCode} + {@code licenseEntitlementsFor} for {@code code}. */
+    private void stubClient(String code) {
+        ClientConfig cfg = new ClientConfig();
+        cfg.setClientCode(code);
+        cfg.setAppName(code.toUpperCase() + " POS");
+        when(clientConfigRepository.findByClientCode(code)).thenReturn(Optional.of(cfg));
+        when(clientConfigService.licenseEntitlementsFor(code)).thenReturn(
+                new ClientConfigService.LicenseEntitlements("USD", java.util.Map.of("barcode", true)));
+    }
+
+    private AppSetting appSetting(String key, String val) {
+        AppSetting s = new AppSetting();
+        s.setSettingKey(key);
+        s.setValueJson(val);
+        return s;
+    }
+
+    private License activeLicence(String code, String key) {
+        License l = new License();
+        l.setClientCode(code);
+        l.setLicenseKey(key);
+        l.setStatus("ACTIVE");
+        return l;
     }
 
     @Test
@@ -152,5 +216,120 @@ class DevRunServiceTest {
         assertThat(Files.exists(damanHome.resolve("active-client.json"))).isFalse();
         assertThat(Files.exists(damanHome.resolve("runtime.properties"))).isTrue();               // untouched
         assertThat(Files.readString(damanHome.resolve("acme/daman_db.sqlite"))).isEqualTo("CLIENT-DATA"); // untouched
+    }
+
+    // ── prepareConfigForMode: unknown mode (coverage gap from Task 2 review) ──
+
+    @Test
+    void prepareConfigForMode_unknownMode_throwsIllegalArgument() {
+        assertThatThrownBy(() -> service.prepareConfigForMode("acme", "bogus"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ── resolveDevMachineId / setDevMachineId ────────────────────────────────
+
+    @Test
+    void resolveDevMachineId_prefersLocalStatusProbe_andSelfHealsTheStoredValue() {
+        // Probe returns a value → it wins AND is written back to the AppSetting.
+        service = spyServiceWithProbe("F".repeat(64));
+        when(appSettingRepository.findBySettingKey(DevRunService.DEV_MACHINE_ID_KEY))
+                .thenReturn(Optional.of(appSetting("dev_machine_id", "OLDVALUE0000000000")));
+
+        assertThat(service.resolveDevMachineId()).isEqualTo("F".repeat(64));
+        verify(appSettingRepository).save(argThat(s -> "F".repeat(64).equals(s.getValueJson())));
+    }
+
+    @Test
+    void resolveDevMachineId_probeDown_fallsBackToStoredSetting() {
+        service = spyServiceWithProbe(null);
+        when(appSettingRepository.findBySettingKey(DevRunService.DEV_MACHINE_ID_KEY))
+                .thenReturn(Optional.of(appSetting("dev_machine_id", "A".repeat(64))));
+        assertThat(service.resolveDevMachineId()).isEqualTo("A".repeat(64));
+    }
+
+    @Test
+    void resolveDevMachineId_probeDownAndNoStoredSetting_throws() {
+        service = spyServiceWithProbe(null);
+        when(appSettingRepository.findBySettingKey(DevRunService.DEV_MACHINE_ID_KEY))
+                .thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.resolveDevMachineId())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Dev machine ID unknown");
+    }
+
+    @Test
+    void setDevMachineId_rejectsGarbage_acceptsHex() {
+        assertThatThrownBy(() -> service.setDevMachineId("nope")).isInstanceOf(IllegalArgumentException.class);
+        service.setDevMachineId("a".repeat(64));
+        verify(appSettingRepository).save(argThat(s -> "a".repeat(64).equals(s.getValueJson())
+                && DevRunService.DEV_MACHINE_ID_KEY.equals(s.getSettingKey())));
+    }
+
+    // ── devRun ──────────────────────────────────────────────────────────────
+
+    @Test
+    void devRun_generic_mintsDevLicence_writesLicenseDatAndActiveClient_copiesDb() throws Exception {
+        seedCheckoutGenericFiles();
+        Path src = Files.createTempFile("client-db", ".sqlite");
+        Files.writeString(src, "THEIR-DATA");
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus("B".repeat(64), "acme", "ACTIVE"))
+                .thenReturn(Optional.empty());
+        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any()))
+                .thenReturn("NEW.V2.KEY");
+
+        DevRunService.DevRunResult r = service.devRun("acme",
+                new DevRunService.DevRunRequest("generic", src.toString()));
+
+        assertThat(r.mode()).isEqualTo("generic");
+        assertThat(r.machineId()).isEqualTo("B".repeat(64));
+        assertThat(r.dbCopied()).isTrue();
+        assertThat(Files.readString(damanHome().resolve("license.dat"))).isEqualTo("NEW.V2.KEY");
+        assertThat(Files.readString(damanHome().resolve("active-client.json"))).contains("\"acme\"");
+        assertThat(Files.readString(damanHome().resolve("acme/daman_db.sqlite"))).isEqualTo("THEIR-DATA");
+        verify(licenseRepository).save(argThat(l -> "ACTIVE".equals(l.getStatus()) && "dev-run".equals(l.getLabel())));
+    }
+
+    @Test
+    void devRun_reusesExistingActiveDevLicence_noNewRow_no409() throws Exception {
+        seedCheckoutGenericFiles();
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        License existing = new License();
+        existing.setLicenseKey("EXISTING.V2.KEY"); existing.setStatus("ACTIVE"); existing.setClientCode("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus("B".repeat(64), "acme", "ACTIVE"))
+                .thenReturn(Optional.of(existing));
+
+        DevRunService.DevRunResult r = service.devRun("acme",
+                new DevRunService.DevRunRequest("per-client", null));
+
+        assertThat(Files.readString(damanHome().resolve("license.dat"))).isEqualTo("EXISTING.V2.KEY");
+        verify(licenseRepository, never()).save(any());
+        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any());
+        assertThat(r.dbCopied()).isFalse();
+        assertThat(r.dbPath()).endsWith(java.io.File.separator + "acme" + java.io.File.separator + "daman_db.sqlite");
+    }
+
+    @Test
+    void devRun_dbFileMissing_returns400ish() {
+        seedCheckoutGenericFiles_unchecked();
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus(any(), any(), any()))
+                .thenReturn(Optional.of(activeLicence("acme", "K")));
+        assertThatThrownBy(() -> service.devRun("acme",
+                new DevRunService.DevRunRequest("generic", "/no/such/file.sqlite")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("dbFile");
+    }
+
+    /** {@link #seedCheckoutGenericFiles()} without the checked exception, for non-throwing test bodies. */
+    private void seedCheckoutGenericFiles_unchecked() {
+        try {
+            seedCheckoutGenericFiles();
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 }

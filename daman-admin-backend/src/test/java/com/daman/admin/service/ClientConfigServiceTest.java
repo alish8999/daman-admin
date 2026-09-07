@@ -6,8 +6,12 @@ import com.daman.admin.dto.FeaturesRequest;
 import com.daman.admin.entity.ClientConfig;
 import com.daman.admin.repository.ClientConfigRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -123,6 +127,47 @@ class ClientConfigServiceTest {
         assertThat(ent.features()).containsEntry("barcode", false);       // an omitted flag → its default
         assertThat(ent.features()).containsKey("multiCurrency");          // the "special" flags are present too
         assertThat(ent.features()).containsKey("autoBackup");
+    }
+
+    @Test
+    void prepareDevConfig_writesThreeCheckoutFilesWithExportedJson_andRuntimeProperties(@TempDir Path workspace) throws Exception {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ReflectionTestUtils.setField(service, "workspaceRoot", workspace.toString());
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setBaseCurrency("SYP");
+        entity.setFeaturesJson("{\"accounting\":true}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+
+        // Point user.home at the temp workspace so this test never touches the real ~/.daman.
+        String originalUserHome = System.getProperty("user.home");
+        System.setProperty("user.home", workspace.resolve("userhome").toString());
+        try {
+            service.prepareDevConfig("acme");
+        } finally {
+            System.setProperty("user.home", originalUserHome);
+        }
+
+        Path backendJson  = workspace.resolve("daman-backend/src/main/resources/client.config.json");
+        Path frontendJson = workspace.resolve("daman-frontend/src/assets/client.config.json");
+        Path backendMeta  = workspace.resolve("daman-backend/src/main/resources/client-meta.properties");
+        assertThat(backendJson).exists();
+        assertThat(frontendJson).exists();
+        assertThat(backendMeta).exists();
+
+        String json = Files.readString(backendJson);
+        assertThat(json).contains("\"clientCode\"").contains("\"acme\"")
+                .contains("\"baseCurrency\"").contains("\"SYP\"")
+                .contains("\"accounting\"");
+        assertThat(Files.readString(frontendJson)).isEqualTo(json);
+        assertThat(Files.readString(backendMeta))
+                .contains("client.code=acme")
+                .contains("client.version=dev");
+        assertThat(Files.readString(workspace.resolve("userhome/.daman/runtime.properties")).trim())
+                .isEqualTo("daman.runtime.client-code=acme");
     }
 
     @Test

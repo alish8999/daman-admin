@@ -1,5 +1,7 @@
 package com.daman.admin.service;
 
+import com.daman.admin.entity.AppSetting;
+import com.daman.admin.entity.License;
 import com.daman.admin.repository.AppSettingRepository;
 import com.daman.admin.repository.ClientConfigRepository;
 import com.daman.admin.repository.LicenseRepository;
@@ -7,13 +9,24 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 
 /**
@@ -152,5 +165,159 @@ public class DevRunService {
         } catch (IOException e) {
             throw new UncheckedIOException("dev-reset failed", e);
         }
+    }
+
+    // ── dev machine id / dev licence / db copy ───────────────────────────────
+
+    /** {@code app_settings} key holding this dev machine's licence machine-ID. */
+    public static final String DEV_MACHINE_ID_KEY = "dev_machine_id";
+
+    /** The locally-running POS backend's status endpoint (desktop default port 8082). */
+    private static final String LOCAL_STATUS_URL = "http://localhost:8082/api/license/status";
+
+    /** Request for {@link #devRun(String, DevRunRequest)}. {@code dbFile} is nullable (no DB copy). */
+    public record DevRunRequest(String mode, String dbFile) {}
+
+    /** Outcome of a {@link #devRun(String, DevRunRequest)} call. */
+    public record DevRunResult(String clientCode, String mode, String machineId,
+                               String dbPath, boolean dbCopied, String licensePath, List<String> notes) {}
+
+    /**
+     * One call to "run the dev checkout as this client": validates the client,
+     * prepares the checkout config for {@code mode} ({@code generic} when blank),
+     * resolves this dev machine's licence machine-ID, mints — or <b>reuses</b> —
+     * an ACTIVE dev v2 licence for {@code (machineId, clientCode)} (no 409 on a
+     * repeat run), writes {@code ~/.daman/license.dat} + {@code ~/.daman/active-client.json},
+     * and — when {@code req.dbFile()} is given — copies that database to
+     * {@code ~/.daman/<code>/daman_db.sqlite}. Never deletes or truncates an
+     * existing database or {@code ~/.daman/<code>/} folder.
+     *
+     * SECURITY: mints a licence with no machine-ID friction and writes the local
+     * filesystem — acceptable ONLY because the admin backend is a locally-run
+     * developer tool (see the class comment).
+     */
+    public DevRunResult devRun(String clientCode, DevRunRequest req) {
+        String mode = (req.mode() == null || req.mode().isBlank()) ? "generic" : req.mode();
+        var cfg = clientConfigRepository.findByClientCode(clientCode)
+                .orElseThrow(() -> new IllegalArgumentException("Client not found: " + clientCode));
+
+        prepareConfigForMode(clientCode, mode);
+
+        String machineId = resolveDevMachineId();
+
+        String key = licenseRepository
+                .findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE")
+                .map(License::getLicenseKey)
+                .orElseGet(() -> {
+                    var ent = clientConfigService.licenseEntitlementsFor(clientCode);
+                    String k = licenseKeyService.generateLicense(
+                            machineId, cfg.getAppName(), clientCode, null, ent.baseCurrency(), ent.features());
+                    License l = new License();
+                    l.setClientCode(clientCode);
+                    l.setMachineId(machineId);
+                    l.setLicenseKey(k);
+                    l.setClientName(cfg.getAppName());
+                    l.setStatus("ACTIVE");
+                    l.setLabel("dev-run");
+                    licenseRepository.save(l);
+                    return k;
+                });
+
+        Path home = damanHome();
+        Path dbTarget = home.resolve(clientCode).resolve("daman_db.sqlite");
+        boolean dbCopied = false;
+        try {
+            Files.createDirectories(home);
+            Files.writeString(home.resolve("license.dat"), key);
+            Files.writeString(home.resolve("active-client.json"), "{\"clientCode\":\"" + clientCode + "\"}");
+            if (req.dbFile() != null && !req.dbFile().isBlank()) {
+                Path src = Paths.get(req.dbFile());
+                if (!Files.isRegularFile(src)) {
+                    throw new IllegalArgumentException("dbFile not found: " + req.dbFile());
+                }
+                Files.createDirectories(dbTarget.getParent());
+                Files.copy(src, dbTarget, StandardCopyOption.REPLACE_EXISTING);
+                dbCopied = true;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("dev-run: failed writing licence / copying db", e);
+        }
+
+        List<String> notes = new ArrayList<>();
+        notes.add("Restart your local daman-backend (mvn spring-boot:run -Pdesktop, or your IntelliJ desktop run "
+                + "config) and your ng serve — config, licence and DB are only read at startup.");
+        if ("generic".equals(mode)) {
+            notes.add("Generic mode: features + base currency come from the dev licence; in-app branding stays "
+                    + "generic Daman (only receipts carry the client's logo).");
+        }
+        if (!dbCopied) {
+            notes.add("Put the client's database at " + dbTarget + " before starting the backend.");
+        }
+        return new DevRunResult(clientCode, mode, machineId, dbTarget.toString(), dbCopied,
+                home.resolve("license.dat").toString(), notes);
+    }
+
+    /**
+     * This dev machine's licence machine-ID: the locally-running POS backend's
+     * {@code /status} value when reachable (self-healing the stored copy when it
+     * differs), else the last value stored in {@code app_settings}, else a hard
+     * error telling the developer how to set it.
+     */
+    String resolveDevMachineId() {
+        String probed = probeLocalMachineId().orElse(null);
+        if (probed != null && !probed.isBlank()) {
+            appSettingRepository.findBySettingKey(DEV_MACHINE_ID_KEY)
+                    .filter(s -> !probed.equals(s.getValueJson()))
+                    .ifPresent(s -> { s.setValueJson(probed); appSettingRepository.save(s); });
+            if (appSettingRepository.findBySettingKey(DEV_MACHINE_ID_KEY).isEmpty()) {
+                AppSetting s = new AppSetting();
+                s.setSettingKey(DEV_MACHINE_ID_KEY);
+                s.setValueJson(probed);
+                appSettingRepository.save(s);
+            }
+            return probed;
+        }
+        return appSettingRepository.findBySettingKey(DEV_MACHINE_ID_KEY)
+                .map(AppSetting::getValueJson)
+                .filter(v -> v != null && !v.isBlank())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Dev machine ID unknown — start your local daman-backend once, "
+                        + "or PUT /api/clients/dev-machine-id with your machine ID."));
+    }
+
+    /**
+     * GETs {@link #LOCAL_STATUS_URL} with a 1s connect + 1s request timeout and
+     * returns its {@code machineId}. Empty on any failure (backend down, non-200,
+     * unparseable body). Package-private so tests can stub it.
+     */
+    Optional<String> probeLocalMachineId() {
+        try {
+            HttpResponse<String> resp = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(1)).build()
+                    .send(HttpRequest.newBuilder(URI.create(LOCAL_STATUS_URL))
+                                    .timeout(Duration.ofSeconds(1)).GET().build(),
+                            HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) return Optional.empty();
+            JsonNode node = JsonMapper.builder().build().readTree(resp.body());
+            String mid = node.path("machineId").asText("");
+            return mid.isBlank() ? Optional.empty() : Optional.of(mid);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Manually sets this dev machine's licence machine-ID (upsert into
+     * {@code app_settings}) — the escape hatch when the local POS backend can't be
+     * started for the {@code /status} probe. Validates {@code ^[A-Za-z0-9]{16,128}$}.
+     */
+    public void setDevMachineId(String machineId) {
+        if (machineId == null || !machineId.matches("^[A-Za-z0-9]{16,128}$")) {
+            throw new IllegalArgumentException("machineId must be 16–128 hex/alphanumeric characters");
+        }
+        AppSetting s = appSettingRepository.findBySettingKey(DEV_MACHINE_ID_KEY).orElseGet(AppSetting::new);
+        s.setSettingKey(DEV_MACHINE_ID_KEY);
+        s.setValueJson(machineId);
+        appSettingRepository.save(s);
     }
 }
