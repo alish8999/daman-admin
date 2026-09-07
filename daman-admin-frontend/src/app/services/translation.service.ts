@@ -315,6 +315,7 @@ export class TranslationService {
 
       close: 'Close',
       devRun: 'Run as this client ▶',
+      devRunShort: 'Run ▶',
       devRunTitle: 'Run the dev checkout as this client',
       devRunModePerClient: 'Per-client build',
       devRunModeGeneric: 'Generic build',
@@ -640,6 +641,7 @@ export class TranslationService {
 
       close: 'إغلاق',
       devRun: 'تشغيل كهذا العميل ▶',
+      devRunShort: 'تشغيل ▶',
       devRunTitle: 'تشغيل بيئة التطوير كهذا العميل',
       devRunModePerClient: 'نسخة خاصة بالعميل',
       devRunModeGeneric: 'نسخة عامة',

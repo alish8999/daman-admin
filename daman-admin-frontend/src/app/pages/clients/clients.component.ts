@@ -51,11 +51,16 @@ import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-b
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      transition: box-shadow 0.18s, transform 0.18s;
+      /* position:relative + top for the hover lift — NOT transform, which would
+         make it the containing block for the dev-run modal's position:fixed and
+         trap it inside the card (plus repaint-jank on hover). */
+      position: relative;
+      top: 0;
+      transition: box-shadow 0.18s, top 0.18s;
     }
     .client-card:hover {
       box-shadow: 0 6px 20px rgba(0,0,0,0.13);
-      transform: translateY(-2px);
+      top: -2px;
     }
     .client-card--active {
       background: #b8e4c6;

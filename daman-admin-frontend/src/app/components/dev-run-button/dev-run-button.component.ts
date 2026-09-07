@@ -18,6 +18,7 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
   imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './dev-run-button.component.html',
   styles: [`
+    :host { display: inline-flex; align-items: center; gap: .25rem; }
     .modal-backdrop-custom { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1050; }
     .modal-dialog-custom {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);

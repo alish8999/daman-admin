@@ -1,17 +1,15 @@
-<span class="d-inline-flex align-items-center gap-2">
-  @if (showStatus && isActive) {
-    <span class="badge bg-dark-subtle text-dark border">
-      &#9654; {{ devCurrent?.mode === 'generic' ? ('devCurrentBadgeGeneric' | t) : ('devCurrentBadgePerClient' | t) }}
-    </span>
-    <button type="button" class="btn btn-outline-dark" [class.btn-sm]="compact" (click)="reset()">
-      {{ 'devReset' | t }}
-    </button>
-  }
-  <button type="button" class="btn btn-outline-secondary" [class.btn-sm]="compact"
-          [disabled]="!clientCode" (click)="open()">
-    {{ 'devRun' | t }}
+@if (showStatus && isActive) {
+  <span class="badge bg-dark-subtle text-dark border align-self-center">
+    &#9654; {{ devCurrent?.mode === 'generic' ? ('devCurrentBadgeGeneric' | t) : ('devCurrentBadgePerClient' | t) }}
+  </span>
+  <button type="button" class="btn btn-outline-dark" [class.btn-sm]="compact" (click)="reset()">
+    {{ 'devReset' | t }}
   </button>
-</span>
+}
+<button type="button" class="btn btn-outline-secondary text-nowrap" [class.btn-sm]="compact"
+        [disabled]="!clientCode" (click)="open()">
+  {{ (compact ? 'devRunShort' : 'devRun') | t }}
+</button>
 
 @if (dialogOpen) {
   <div class="modal-backdrop-custom" (click)="close()"></div>
