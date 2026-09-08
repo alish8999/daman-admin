@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -127,6 +128,11 @@ class DevRunServiceTest {
         when(clientConfigRepository.findByClientCode(code)).thenReturn(Optional.of(cfg));
         when(clientConfigService.licenseEntitlementsFor(code)).thenReturn(
                 new ClientConfigService.LicenseEntitlements("USD", java.util.Map.of("barcode", true), null, null));
+        // devRun() now always regenerates the dev-run key from current entitlements
+        // (reuse-verbatim hid later admin-config changes); default it so tests that
+        // don't care about the key value still get a non-null one written to license.dat.
+        lenient().when(licenseKeyService.generateLicense(any(), any(), eq(code), isNull(), any(), any(), any(), any()))
+                .thenReturn(code.toUpperCase() + ".DEVRUN.KEY");
     }
 
     private AppSetting appSetting(String key, String val) {
@@ -292,21 +298,26 @@ class DevRunServiceTest {
     }
 
     @Test
-    void devRun_reusesExistingActiveDevLicence_noNewRow_no409() throws Exception {
+    void devRun_existingActiveDevLicence_refreshesKeyInPlace_noNewRow_no409() throws Exception {
         seedCheckoutGenericFiles();
         service = spyServiceWithProbe("B".repeat(64));
         stubClient("acme");
         License existing = new License();
-        existing.setLicenseKey("EXISTING.V2.KEY"); existing.setStatus("ACTIVE"); existing.setClientCode("acme");
+        existing.setId(77L);
+        existing.setLicenseKey("STALE.V2.KEY"); existing.setStatus("ACTIVE"); existing.setClientCode("acme");
+        existing.setLabel("dev-run");
         when(licenseRepository.findByMachineIdAndClientCodeAndStatus("B".repeat(64), "acme", "ACTIVE"))
                 .thenReturn(Optional.of(existing));
+        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any(), any(), any()))
+                .thenReturn("FRESH.V2.KEY");
 
         DevRunService.DevRunResult r = service.devRun("acme",
                 new DevRunService.DevRunRequest("per-client", null));
 
-        assertThat(Files.readString(damanHome().resolve("license.dat"))).isEqualTo("EXISTING.V2.KEY");
-        verify(licenseRepository, never()).save(any());
-        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any(), any(), any());
+        // regenerated from current entitlements and written, same row updated in place
+        assertThat(Files.readString(damanHome().resolve("license.dat"))).isEqualTo("FRESH.V2.KEY");
+        verify(licenseRepository).save(argThat(l -> l.getId() != null && l.getId() == 77L
+                && "FRESH.V2.KEY".equals(l.getLicenseKey()) && "dev-run".equals(l.getLabel())));
         assertThat(r.dbCopied()).isFalse();
         assertThat(r.dbPath()).endsWith(java.io.File.separator + "acme" + java.io.File.separator + "daman_db.sqlite");
     }

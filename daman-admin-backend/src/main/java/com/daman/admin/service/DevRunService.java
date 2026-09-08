@@ -213,24 +213,31 @@ public class DevRunService {
 
         String machineId = resolveDevMachineId();
 
-        String key = licenseRepository
+        // Always regenerate from the client's CURRENT admin config and refresh the
+        // dev-run licence row in place. Reusing a stored key verbatim meant any
+        // later change to the client's features / base currency / brand colours /
+        // app name stayed invisible until the licence was manually revoked — e.g.
+        // a dev-run licence minted before v2 payloads carried `colors` never
+        // delivered the client's primary/secondary, so a generic build fell back
+        // to the neutral palette. Same row is reused (no 409, activatedAt/label
+        // preserved); only the key + name are refreshed.
+        var ent = clientConfigService.licenseEntitlementsFor(clientCode);
+        String key = licenseKeyService.generateLicense(
+                machineId, cfg.getAppName(), clientCode, null, ent.baseCurrency(), ent.features(),
+                ent.colorPrimary(), ent.colorSecondary());
+        License l = licenseRepository
                 .findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE")
-                .map(License::getLicenseKey)
                 .orElseGet(() -> {
-                    var ent = clientConfigService.licenseEntitlementsFor(clientCode);
-                    String k = licenseKeyService.generateLicense(
-                            machineId, cfg.getAppName(), clientCode, null, ent.baseCurrency(), ent.features(),
-                            ent.colorPrimary(), ent.colorSecondary());
-                    License l = new License();
-                    l.setClientCode(clientCode);
-                    l.setMachineId(machineId);
-                    l.setLicenseKey(k);
-                    l.setClientName(cfg.getAppName());
-                    l.setStatus("ACTIVE");
-                    l.setLabel("dev-run");
-                    licenseRepository.save(l);
-                    return k;
+                    License n = new License();
+                    n.setClientCode(clientCode);
+                    n.setMachineId(machineId);
+                    n.setStatus("ACTIVE");
+                    n.setLabel("dev-run");
+                    return n;
                 });
+        l.setLicenseKey(key);
+        l.setClientName(cfg.getAppName());
+        licenseRepository.save(l);
 
         Path home = damanHome();
         Path dbTarget = home.resolve(clientCode).resolve("daman_db.sqlite");
