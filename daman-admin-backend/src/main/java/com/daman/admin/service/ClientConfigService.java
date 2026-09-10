@@ -262,6 +262,7 @@ public class ClientConfigService {
             if (patch.getConsignment()          != null) f.setConsignment(patch.getConsignment());
             if (patch.getShareholders()         != null) f.setShareholders(patch.getShareholders());
             if (patch.getFixedAssets()          != null) f.setFixedAssets(patch.getFixedAssets());
+            if (patch.getDeviceRepair()         != null) f.setDeviceRepair(patch.getDeviceRepair());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -306,6 +307,7 @@ public class ClientConfigService {
                 .consignment(f.isConsignment())
                 .shareholders(f.isShareholders())
                 .fixedAssets(f.isFixedAssets())
+                .deviceRepair(f.isDeviceRepair())
                 .build();
     }
 
@@ -345,6 +347,7 @@ public class ClientConfigService {
                 .consignment(f.isConsignment())
                 .shareholders(f.isShareholders())
                 .fixedAssets(f.isFixedAssets())
+                .deviceRepair(f.isDeviceRepair())
                 .build();
     }
 

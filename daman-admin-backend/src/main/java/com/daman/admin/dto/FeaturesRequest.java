@@ -65,4 +65,6 @@ public class FeaturesRequest {
     private Boolean shareholders;
     /** Fixed asset register + straight-line depreciation + disposal tracking. Independent of accounting. */
     private Boolean fixedAssets;
+    /** Device Repair tickets — standalone repair/service ticket module. */
+    private Boolean deviceRepair;
 }

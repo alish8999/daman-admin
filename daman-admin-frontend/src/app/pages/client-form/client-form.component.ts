@@ -142,7 +142,11 @@ export class ClientFormComponent implements OnInit {
       storeType:             ['mobile'],
       dashboardHeaderImage:  [''],
       adminUsername:         ['admin', Validators.required],
-      adminPassword:         ['', Validators.required],
+      // Defaults to the same credentials daman-frontend's login page assumes
+      // every fresh install ships with (see login.component.ts's DEFAULT_USERNAME/
+      // DEFAULT_PASSWORD) — leaving this blank previously meant whatever got typed
+      // here silently diverged from that hardcoded login-page guess.
+      adminPassword:         ['123456', Validators.required],
       phone:                 [''],
       email:                 [''],
       pointOfContact:        [''],
@@ -189,7 +193,8 @@ export class ClientFormComponent implements OnInit {
         cafeMode:             [false],
         consignment:          [false],
         shareholders:         [false],
-        fixedAssets:          [true]
+        fixedAssets:          [true],
+        deviceRepair:         [false]
       })
     });
     this.passwordVisible = false;
@@ -240,7 +245,8 @@ export class ClientFormComponent implements OnInit {
             cafeMode:             client.features?.cafeMode             ?? false,
             consignment:          client.features?.consignment          ?? false,
             shareholders:         client.features?.shareholders         ?? false,
-            fixedAssets:          client.features?.fixedAssets          ?? true
+            fixedAssets:          client.features?.fixedAssets          ?? true,
+            deviceRepair:         client.features?.deviceRepair         ?? false
           }
         });
       });

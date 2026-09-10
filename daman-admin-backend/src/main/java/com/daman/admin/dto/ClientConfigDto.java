@@ -99,5 +99,7 @@ public class ClientConfigDto {
         private boolean shareholders;
         /** Fixed asset register + straight-line depreciation + disposal tracking. Independent of accounting. */
         private boolean fixedAssets;
+        /** Device Repair tickets — standalone repair/service ticket module. */
+        private boolean deviceRepair;
     }
 }

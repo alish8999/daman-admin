@@ -134,6 +134,8 @@ public class ClientFeaturesJson {
      * ($20 add-on).
      */
     private boolean fixedAssets;
+    /** Device Repair tickets — standalone repair/service ticket module. Default: off — opt-in per client ($20 add-on). */
+    private boolean deviceRepair;
 
     // Explicitly disabled as a Jackson creator: Jackson 3's implicit-constructor
     // detection (with -parameters compiled classes) would otherwise pick this

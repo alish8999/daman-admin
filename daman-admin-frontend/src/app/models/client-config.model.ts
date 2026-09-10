@@ -129,6 +129,8 @@ export interface ClientFeatures {
    * client (paid add-on, $20).
    */
   fixedAssets?: boolean;
+  /** Device Repair tickets — standalone repair/service ticket module ($20 add-on). */
+  deviceRepair?: boolean;
 }
 
 export interface ClientConfig {
