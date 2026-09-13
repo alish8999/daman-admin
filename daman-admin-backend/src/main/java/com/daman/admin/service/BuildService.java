@@ -156,6 +156,9 @@ public class BuildService {
                     : writeClientConfig(clientCode, backendRoot, frontendRoot, isPos, status);
             addLog(status, "Configuration written");
 
+            addLog(status, "Setting package.json version to " + versionNumber + "...");
+            writeFrontendPackageVersion(frontendRoot, versionNumber, status);
+
             if (!isPos) {
                 addLog(status, "Embedding license public key & build metadata...");
                 writePublicKey(backendRoot);
@@ -254,6 +257,15 @@ public class BuildService {
         String ext = dotIdx >= 0 ? originalName.substring(dotIdx) : "";
 
         String prefix = platform.equalsIgnoreCase("pos") ? "DamanPOS_" : "Daman_";
+        // winx86 (32-bit) shares every other platform's filename otherwise —
+        // e.g. building generic as 32-bit after already building it as regular
+        // 64-bit win produces the identical "Daman_<ver>_generic.exe" in the
+        // same clients-build/generic/ folder, so the second build's
+        // REPLACE_EXISTING copy silently overwrites the first. Prefix with
+        // "32-" so both artifacts coexist.
+        if (platform.equalsIgnoreCase("winx86")) {
+            prefix = "32-" + prefix;
+        }
         String newName = prefix + safeVer + "_" + safeClient + ext;
 
         Path outDir = workspace.resolve("clients-build").resolve(safeClient);
@@ -423,6 +435,36 @@ public class BuildService {
                 "client.builtAt=" + LocalDateTime.now()
         ) + "\n";
         Files.writeString(dest, body);
+    }
+
+    /**
+     * Patches daman-frontend/package.json's top-level "version" field to this build's
+     * versionNumber. Electron's {@code app.getVersion()} reads that field at runtime —
+     * it's what main.js forwards to the renderer as {@code window.daman.appVersion} for
+     * the topbar badge and what the Help > About dialog shows — so without this the
+     * installed app's own version display would silently lag behind whatever the admin
+     * dashboard's build modal was told to use for the artifact filename/changelog.
+     * A regex on the first {@code "version": "..."} line (JSON conventionally emits
+     * "name"/"version" first) is used instead of a full JSON round-trip, so the rest of
+     * the file's formatting/key order is left untouched.
+     */
+    private void writeFrontendPackageVersion(Path frontendRoot, String versionNumber, BuildStatusDto status) throws IOException {
+        if (versionNumber == null || versionNumber.isBlank()) {
+            addLog(status, "No version number given — package.json version left unchanged");
+            return;
+        }
+        Path pkgJson = frontendRoot.resolve("package.json");
+        String content = Files.readString(pkgJson);
+        String escaped = versionNumber.replace("\\", "\\\\").replace("\"", "\\\"");
+        String updated = content.replaceFirst(
+                "\"version\"\\s*:\\s*\"[^\"]*\"",
+                Matcher.quoteReplacement("\"version\": \"" + escaped + "\"")
+        );
+        if (updated.equals(content)) {
+            addLog(status, "WARNING: could not find \"version\" field in package.json — left unchanged");
+            return;
+        }
+        Files.writeString(pkgJson, updated);
     }
 
     private void extractImages(ClientConfigExportDto config, String clientCode, Path frontendRoot) throws IOException {

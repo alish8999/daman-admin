@@ -8,8 +8,8 @@ import { TranslationService } from '../../services/translation.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing } from '../../models/billing.model';
 import { AppVersionService, AppVersion } from '../../services/app-version.service';
-import { ClientConfig, BuildStatus, BuildLogEntry } from '../../models/client-config.model';
-import { addonValue } from '../../models/feature-catalog';
+import { ClientConfig, ClientFeatures, BuildStatus, BuildLogEntry } from '../../models/client-config.model';
+import { FEATURE_CATALOG } from '../../models/feature-catalog';
 import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
@@ -38,73 +38,61 @@ import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-b
       font-size: 0.7rem;
       padding: 0.2em 0.5em;
     }
-    .clients-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1.1rem;
-    }
-    .client-card {
+    .clients-table-wrap {
       background: #fff;
       border-radius: 12px;
-      border-inline-start: 4px solid transparent;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      /* position:relative + top for the hover lift — NOT transform, which would
-         make it the containing block for the dev-run modal's position:fixed and
-         trap it inside the card (plus repaint-jank on hover). */
-      position: relative;
+    }
+    .clients-table {
+      margin-bottom: 0;
+    }
+    .clients-table thead th {
+      position: sticky;
       top: 0;
-      transition: box-shadow 0.18s, top 0.18s;
-    }
-    .client-card:hover {
-      box-shadow: 0 6px 20px rgba(0,0,0,0.13);
-      top: -2px;
-    }
-    .client-card--active {
-      background: #b8e4c6;
-      border-inline-start-color: #16a34a;
-    }
-    .client-card--active .client-card-footer {
-      background: #e8faf0;
-      border-top-color: #d7f3e2;
-    }
-    .client-card-header {
-      padding: 14px 16px 12px;
-    }
-    .client-app-name {
-      font-size: 1rem;
-      font-weight: 700;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.25);
-      line-height: 1.2;
-    }
-    .client-tagline {
-      font-size: 0.78rem;
-      opacity: 0.82;
-      margin-top: 4px;
-      line-height: 1.3;
-    }
-    .client-card-body {
-      padding: 10px 16px 8px;
-      flex: 1;
-    }
-    .client-card-footer {
-      padding: 10px 14px;
-      border-top: 1px solid #f0f0f0;
+      z-index: 1;
       background: #fafafa;
+      border-bottom: 2px solid #eee;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #6b7280;
+      font-weight: 700;
+      padding: 12px 14px;
+      white-space: nowrap;
     }
-    .color-swatch {
-      width: 14px;
-      height: 14px;
+    .clients-table tbody td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f2f2f2;
+      vertical-align: middle;
+    }
+    .clients-table tbody tr:hover {
+      background: #f8f9fb;
+    }
+    .clients-table tbody tr.row--active {
+      background: #f2fbf5;
+    }
+    .clients-table tbody tr.row--active:hover {
+      background: #e8faf0;
+    }
+    .clients-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .color-dot {
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       display: inline-block;
+      flex-shrink: 0;
       border: 1px solid rgba(0,0,0,0.12);
     }
-    .license-row {
-      border-top: 1px dashed #e8e8e8;
-      margin-top: 8px;
-      padding-top: 7px;
+    .btn-xs {
+      padding: 0.2rem 0.45rem;
+      font-size: 0.78rem;
+      line-height: 1.3;
+    }
+    .min-w-0 {
+      min-width: 0;
     }
   `]
 })
@@ -223,9 +211,85 @@ export class ClientsComponent implements OnInit, OnDestroy {
     return codes.size;
   }
 
-  /** Sum of priced add-ons currently enabled for this client, using the shared feature catalog. */
-  clientAddonValue(client: ClientConfig): number {
-    return addonValue(client.features ?? {});
+  /** Lifetime sum of PAID billing records for this client (same calculation as client-form's totalBillingPaid). */
+  clientTotalPaid(clientCode: string): number {
+    return this.billings
+      .filter(b => b.clientCode === clientCode && b.paymentStatus === 'PAID')
+      .reduce((sum, b) => sum + (b.amount ? +b.amount : 0), 0);
+  }
+
+  /** Date of this client's most recent PAID billing record, if any — table subtext under Total Paid. */
+  clientLatestPaidDate(clientCode: string): string | null {
+    const paid = this.billings
+      .filter(b => b.clientCode === clientCode && b.paymentStatus === 'PAID')
+      .sort((a, b) => new Date(b.paymentDate ?? b.createdAt).getTime() - new Date(a.paymentDate ?? a.createdAt).getTime());
+    return paid[0]?.paymentDate ?? paid[0]?.createdAt ?? null;
+  }
+
+  /**
+   * Short chip labels for paid add-ons only (FEATURE_CATALOG group 'addons' with a
+   * price > 0) that are enabled for this client — the pricing here is real one-time/
+   * yearly invoicing (see Billing), not a per-feature monthly fee, so unlike the old
+   * card badge these chips carry no fabricated "$/mo" figure.
+   */
+  private static readonly PAID_FEATURE_LABELS: Partial<Record<keyof ClientFeatures, { label: string; icon: string }>> = {
+    quotation:         { label: 'Quotations',     icon: '📝' },
+    userManagement:    { label: 'Users',          icon: '👥' },
+    shifts:            { label: 'Shifts',         icon: '🕐' },
+    posTerminals:      { label: 'POS Terminals',  icon: '🖥️' },
+    tableOrders:       { label: 'Table Orders',   icon: '🍽️' },
+    quickPickCards:    { label: 'Quick-Pick',     icon: '🎛️' },
+    accounting:        { label: 'Accounting',     icon: '📚' },
+    currencyExchange:  { label: 'FX Exchange',    icon: '💱' },
+    kitchenPrinter:    { label: 'Kitchen Printer',icon: '🖨️' },
+    productRecipes:    { label: 'Recipes/BOM',    icon: '☕' },
+    manufacturing:     { label: 'Manufacturing',  icon: '🏭' },
+    consignment:       { label: 'Consignment',    icon: '🚚' },
+    shareholders:      { label: 'Shareholders',   icon: '🤝' },
+    deviceRepair:      { label: 'Device Repair',  icon: '🔧' },
+  };
+
+  private static readonly PAID_FEATURES_VISIBLE_LIMIT = 3;
+
+  paidFeatureBadges(client: ClientConfig): { label: string; icon: string }[] {
+    const f: Partial<ClientFeatures> = client.features ?? {};
+    return FEATURE_CATALOG
+      .filter(entry => entry.group === 'addons' && !!entry.price && !!f[entry.key])
+      .map(entry => ClientsComponent.PAID_FEATURE_LABELS[entry.key] ?? { label: entry.key, icon: '⭐' });
+  }
+
+  /** First few paid features for the table cell — the rest collapse into a "+N" badge so a client with many add-ons doesn't blow out the row height. */
+  visiblePaidFeatureBadges(client: ClientConfig): { label: string; icon: string }[] {
+    return this.paidFeatureBadges(client).slice(0, ClientsComponent.PAID_FEATURES_VISIBLE_LIMIT);
+  }
+
+  hiddenPaidFeatureCount(client: ClientConfig): number {
+    return Math.max(0, this.paidFeatureBadges(client).length - ClientsComponent.PAID_FEATURES_VISIBLE_LIMIT);
+  }
+
+  hiddenPaidFeatureNames(client: ClientConfig): string {
+    return this.paidFeatureBadges(client)
+      .slice(ClientsComponent.PAID_FEATURES_VISIBLE_LIMIT)
+      .map(b => b.label)
+      .join(', ');
+  }
+
+  // ── License expiry helpers ───────────────────────────────────────────────
+
+  /** Days remaining until this client's primary license expires; null = no license or perpetual. */
+  licenseDaysLeft(clientCode: string): number | null {
+    const lic = this.primaryLicenseOf(clientCode);
+    if (!lic?.expiresAt) return null;
+    const ms = new Date(lic.expiresAt + 'T00:00:00').getTime() - new Date().setHours(0, 0, 0, 0);
+    return Math.round(ms / 86400000);
+  }
+
+  licenseExpiryClass(clientCode: string): string {
+    const days = this.licenseDaysLeft(clientCode);
+    if (days === null) return 'text-muted';
+    if (days < 0) return 'text-danger fw-semibold';
+    if (days <= 30) return 'text-warning fw-semibold';
+    return 'text-success';
   }
 
   // ── Contact helpers ──────────────────────────────────────────────────────
@@ -279,6 +343,11 @@ export class ClientsComponent implements OnInit, OnDestroy {
     fileExt: string;
     versionNumber: string;
   } | null = null;
+
+  /** 'select' = pick an existing AppVersion; 'manual' = free-typed string (e.g. after +1 bump). */
+  buildVersionMode: 'select' | 'manual' = 'select';
+  /** Only offered when buildVersionMode is 'manual' and the typed string isn't an existing AppVersion — persists it (today's date, empty changelog) so writeChangelog() on the backend finds it and it shows up on the Versions page. */
+  saveManualVersionAsNew = true;
 
   openDropdown: string | null = null;
   dropdownPos = { top: 0, left: 0 };
@@ -424,39 +493,6 @@ export class ClientsComponent implements OnInit, OnDestroy {
     return (this.reissuePreviewData?.skipped ?? []).map(r => r.clientCode).join(', ');
   }
 
-  colorSwatches(client: ClientConfig): string[] {
-    return [
-      client.colorPrimary, client.colorSecondary, client.colorSuccess,
-      client.colorDanger, client.colorWarning, client.colorInfo
-    ];
-  }
-
-  hasAnyFeature(client: ClientConfig): boolean {
-    return this.featureBadges(client).some(b => b.on);
-  }
-
-  featureBadges(client: ClientConfig): { label: string; icon: string; on: boolean }[] {
-    const f = client.features;
-    return [
-      { label: 'i18n',           icon: '🌐', on: !!f?.multiLanguage },
-      { label: 'Barcode',        icon: '📦', on: !!f?.barcode },
-      { label: 'Reports',        icon: '📊', on: !!f?.reports },
-      { label: 'Suppliers',      icon: '🚚', on: !!f?.suppliers },
-      { label: 'Multi-Currency', icon: '💱', on: !!f?.multiCurrency },
-      { label: 'Shifts',         icon: '🕐', on: !!f?.shifts },
-      { label: 'Client Ledger',  icon: '👤', on: !!f?.clientLedger },
-      { label: 'Supplier Ledger',icon: '🏭', on: !!f?.supplierLedger },
-      { label: 'Frac. Qty',      icon: '⚖️', on: !!f?.fractionalQuantity },
-      { label: 'Fixed Pricing',  icon: '💲', on: !!f?.multiCurrencyPricing },
-      { label: 'Acct. Statement',icon: '🧾', on: !!f?.accountStatement },
-      { label: 'Item Ledger',    icon: '📒', on: !!f?.itemLedger },
-      { label: 'Batch Stocktake',icon: '📋', on: !!f?.batchStocktake },
-      { label: 'Bulk Price',     icon: '💹', on: !!f?.bulkPriceUpdate },
-      { label: 'Recipes/BOM',    icon: '☕', on: !!f?.productRecipes },
-      { label: 'Demo Data',      icon: '🌱', on: !!f?.seedDemoData }
-    ];
-  }
-
   // -- Dropdown --
 
   toggleDropdown(clientCode: string, event: Event, btnEl: HTMLButtonElement): void {
@@ -509,6 +545,43 @@ export class ClientsComponent implements OnInit, OnDestroy {
     };
     const latestVersion = this.versions.length > 0 ? this.versions[0].versionNumber : '';
     this.buildConfirmation = { clientCode, platform, ...meta, versionNumber: latestVersion };
+    this.buildVersionMode = this.versions.length > 0 ? 'select' : 'manual';
+    this.saveManualVersionAsNew = true;
+  }
+
+  /** Switch the version field to free-typed entry, seeded with the currently selected value. */
+  useManualVersion(): void {
+    this.buildVersionMode = 'manual';
+  }
+
+  useVersionList(): void {
+    this.buildVersionMode = 'select';
+    if (this.buildConfirmation && this.versions.length > 0) {
+      this.buildConfirmation.versionNumber = this.versions[0].versionNumber;
+    }
+  }
+
+  /**
+   * Bumps the patch component of the current version (e.g. 1.4.2 → 1.4.3).
+   * Falls back to appending ".1" for anything that isn't plain x.y.z — good
+   * enough for the common case without pretending to be a full semver parser.
+   */
+  incrementBuildVersion(): void {
+    if (!this.buildConfirmation) return;
+    const current = this.buildConfirmation.versionNumber.trim();
+    const match = current.match(/^(\d+)\.(\d+)\.(\d+)$/);
+    const next = match
+      ? `${match[1]}.${match[2]}.${Number(match[3]) + 1}`
+      : (current ? `${current}.1` : '1.0.0');
+    this.buildConfirmation.versionNumber = next;
+    this.buildVersionMode = 'manual';
+  }
+
+  /** True when the typed/selected version isn't a known AppVersion — used to offer "save as new version". */
+  get buildVersionIsNew(): boolean {
+    if (!this.buildConfirmation) return false;
+    const v = this.buildConfirmation.versionNumber.trim();
+    return !!v && !this.versions.some(x => x.versionNumber === v);
   }
 
   /** Kick off the generic (client-less) installer build — routes through the same
@@ -528,8 +601,31 @@ export class ClientsComponent implements OnInit, OnDestroy {
   confirmBuild(): void {
     if (!this.buildConfirmation) return;
     const { clientCode, platform, versionNumber } = this.buildConfirmation;
+    const shouldSaveVersion = this.buildVersionMode === 'manual'
+      && this.saveManualVersionAsNew
+      && this.buildVersionIsNew;
     this.buildConfirmation = null;
-    this.triggerBuild(clientCode, platform, versionNumber);
+
+    if (!shouldSaveVersion) {
+      this.triggerBuild(clientCode, platform, versionNumber);
+      return;
+    }
+
+    this.appVersionService.create({
+      versionNumber,
+      releaseDate: new Date().toISOString().slice(0, 10),
+      changelogText: ''
+    }).subscribe({
+      next: (v) => {
+        this.versions = [v, ...this.versions];
+        this.triggerBuild(clientCode, platform, versionNumber);
+      },
+      error: () => {
+        // Version-record creation is a convenience (changelog.txt lookup) — a failure
+        // here (e.g. duplicate versionNumber from a race) shouldn't block the build.
+        this.triggerBuild(clientCode, platform, versionNumber);
+      }
+    });
   }
 
   private triggerBuild(clientCode: string, platform: string, version: string): void {

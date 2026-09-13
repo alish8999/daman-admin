@@ -19,7 +19,7 @@ import java.util.Base64;
 @Service
 public class LicenseKeyService {
 
-    private static final Path KEYS_DIR = Path.of(System.getProperty("user.home"), ".daman", "keys");
+    private static final Path KEYS_DIR = Path.of(System.getProperty("user.home"), "daman_admin", "keys");
     private static final Path PRIVATE_KEY_PATH = KEYS_DIR.resolve("license-private.pem");
     private static final Path PUBLIC_KEY_PATH = KEYS_DIR.resolve("license-public.pem");
 

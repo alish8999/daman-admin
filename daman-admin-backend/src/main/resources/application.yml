@@ -6,7 +6,7 @@ spring:
     name: daman-admin-backend
 
   datasource:
-    url: jdbc:h2:file:${user.home}/.daman/admin/admin_data;AUTO_SERVER=TRUE
+    url: jdbc:h2:file:${user.home}/daman_admin/admin/admin_data;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
     password:

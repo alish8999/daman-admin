@@ -109,144 +109,178 @@
         </button>
       </div>
     } @else {
-      <div class="clients-grid">
-        @for (client of filteredClients; track client.clientCode) {
-          <div class="client-card" [class.client-card--active]="statusOf(client).status === 'ACTIVE'">
+      <div class="table-responsive clients-table-wrap">
+        <table class="table clients-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Status</th>
+              <th>Contact</th>
+              <th>Paid Features</th>
+              <th class="text-end">Total Paid</th>
+              <th>License</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (client of filteredClients; track client.clientCode) {
+              <tr [class.row--active]="statusOf(client).status === 'ACTIVE'">
 
-            <!-- Gradient header — app identity only -->
-            <div class="client-card-header"
-                 [style.background]="'linear-gradient(135deg, ' + client.colorPrimary + ' 0%, ' + client.colorSecondary + ' 100%)'">
-              <div class="d-flex justify-content-between align-items-start gap-2">
-                <div class="client-app-name text-white">{{ client.appName }}</div>
-                <div class="d-flex gap-1 flex-shrink-0 mt-1 flex-wrap justify-content-end">
-                  <span class="badge" [ngClass]="clientStatusClass(statusOf(client).status)" style="font-size:0.65rem">
-                    {{ clientStatusLabel(statusOf(client).status) }}
-                  </span>
-                  @if (statusOf(client).lapsed) {
-                    <span class="badge bg-danger" style="font-size:0.65rem" title="Paid, but the license is expired or revoked">
-                      ⚠ Lapsed
-                    </span>
-                  }
-                  @if (primaryLicenseOf(client.clientCode); as lic) {
-                    <span class="badge ms-1" style="font-size:0.65rem"
-                          [class.bg-primary]="lic.payloadVersion === 2"
-                          [class.bg-secondary]="lic.payloadVersion !== 2">
-                      {{ lic.payloadVersion === 2 ? 'v2' : 'v1' }}
-                    </span>
-                  }
-                  @if (devCurrent?.clientCode === client.clientCode) {
-                    <span class="badge bg-dark" style="font-size:0.65rem">
-                      ▶ {{ devCurrent?.mode === 'generic' ? ('devCurrentBadgeGeneric' | t) : ('devCurrentBadgePerClient' | t) }}
-                    </span>
-                  }
-                </div>
-              </div>
-              <div class="client-tagline text-white font-monospace">{{ client.clientCode }}</div>
-            </div>
-
-            <!-- Card body — identity & features -->
-            <div class="client-card-body">
-              <!-- Code + add-on value + color swatches -->
-              <div class="d-flex align-items-center justify-content-between mb-2">
-                <div class="d-flex align-items-center gap-2">
-                  <code class="text-muted small ltr-num">{{ client.clientCode }}</code>
-                  @if (clientAddonValue(client) > 0) {
-                    <span class="badge bg-success bg-opacity-75 ltr-num" style="font-size:0.6rem" title="Enabled add-on value">
-                      ${{ clientAddonValue(client) }}/mo
-                    </span>
-                  }
-                </div>
-                <div class="d-flex gap-1">
-                  @for (color of colorSwatches(client); track color) {
-                    <span class="color-swatch" [style.background-color]="color" [title]="color"></span>
-                  }
-                </div>
-              </div>
-
-              <!-- Contact info -->
-              @if (client.pointOfContact || client.phone) {
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                  <div class="text-muted small text-truncate" style="max-width:60%">
-                    @if (client.pointOfContact) {
-                      <span>👤 {{ client.pointOfContact }}</span>
-                    }
-                    @if (client.phone && !client.pointOfContact) {
-                      <span>📞 <span class="ltr-num">{{ client.phone }}</span></span>
-                    }
-                  </div>
-                  @if (client.phone) {
-                    <div class="d-flex gap-1">
-                      <a [href]="whatsappUrl(client.phone)" target="_blank" rel="noopener"
-                         class="btn btn-xs btn-outline-success" title="WhatsApp {{ client.phone }}">
-                        <i class="bi bi-whatsapp"></i>
-                      </a>
-                      <a [href]="telegramUrl(client.phone)" target="_blank" rel="noopener"
-                         class="btn btn-xs btn-outline-primary" title="Telegram {{ client.phone }}">
-                        <i class="bi bi-telegram"></i>
-                      </a>
+                <!-- Client -->
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="color-dot" [style.background-color]="client.colorPrimary" [title]="client.colorPrimary"></span>
+                    <div class="min-w-0">
+                      <div class="fw-semibold text-truncate" style="max-width:220px"
+                           [title]="client.clientNotes || client.appName">{{ client.appName }}</div>
+                      <code class="text-muted small ltr-num">{{ client.clientCode }}</code>
                     </div>
-                  }
-                </div>
-              }
+                  </div>
+                </td>
 
-              @if (hasAnyFeature(client)) {
-                <div class="d-flex flex-wrap gap-1">
-                  @for (b of featureBadges(client); track b.label) {
-                    @if (b.on) {
-                      <span class="badge rounded-pill bg-light text-dark feature-badge border" [title]="b.label">
-                        {{ b.icon }} {{ b.label }}
+                <!-- Status -->
+                <td>
+                  <div class="d-flex flex-wrap gap-1 align-items-center">
+                    <span class="badge" [ngClass]="clientStatusClass(statusOf(client).status)" style="font-size:0.68rem">
+                      {{ clientStatusLabel(statusOf(client).status) }}
+                    </span>
+                    @if (statusOf(client).lapsed) {
+                      <span class="badge bg-danger" style="font-size:0.68rem" title="Paid, but the license is expired or revoked">
+                        ⚠ Lapsed
                       </span>
                     }
-                  }
-                </div>
-              }
+                    @if (primaryLicenseOf(client.clientCode); as lic) {
+                      <span class="badge" style="font-size:0.68rem"
+                            [class.bg-primary]="lic.payloadVersion === 2"
+                            [class.bg-secondary]="lic.payloadVersion !== 2">
+                        {{ lic.payloadVersion === 2 ? 'v2' : 'v1' }}
+                      </span>
+                    }
+                    @if (devCurrent?.clientCode === client.clientCode) {
+                      <span class="badge bg-dark" style="font-size:0.68rem">
+                        ▶ {{ devCurrent?.mode === 'generic' ? ('devCurrentBadgeGeneric' | t) : ('devCurrentBadgePerClient' | t) }}
+                      </span>
+                    }
+                  </div>
+                </td>
 
-              @if (client.clientNotes) {
-                <div class="mt-2 text-muted small text-truncate" title="{{ client.clientNotes }}" style="font-style:italic">
-                  {{ client.clientNotes }}
-                </div>
-              }
-            </div>
-
-            <!-- Footer: primary actions -->
-            <div class="client-card-footer">
-              <div class="d-flex justify-content-between align-items-center">
-                <div class="d-flex gap-1">
-                  <a [routerLink]="['/clients', client.clientCode, 'edit']"
-                     class="btn btn-sm btn-outline-primary">Edit</a>
-                  <button (click)="exportJson(client.clientCode)"
-                          class="btn btn-sm btn-outline-secondary">JSON</button>
-                  <app-dev-run-button [clientCode]="client.clientCode"
-                                      [hasActiveV2License]="hasActiveV2License(client.clientCode)"
-                                      [compact]="true" [showStatus]="false"
-                                      (changed)="loadDevCurrent()"></app-dev-run-button>
-                </div>
-                <div class="d-flex gap-1">
-                  <div class="btn-group">
-                    <button (click)="requestBuild(client.clientCode, client.defaultBuildTarget || 'win')"
-                            class="btn btn-sm btn-warning"
-                            [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'">
-                      @if (buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING') {
-                        <span class="spinner-border spinner-border-sm"></span>
-                      } @else {
-                        Build
+                <!-- Contact -->
+                <td>
+                  @if (client.pointOfContact || client.phone) {
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="text-muted small text-truncate" style="max-width:130px">
+                        @if (client.pointOfContact) {
+                          <span>👤 {{ client.pointOfContact }}</span>
+                        }
+                        @if (client.phone && !client.pointOfContact) {
+                          <span>📞 <span class="ltr-num">{{ client.phone }}</span></span>
+                        }
+                      </div>
+                      @if (client.phone) {
+                        <a [href]="whatsappUrl(client.phone)" target="_blank" rel="noopener"
+                           class="btn btn-xs btn-outline-success" title="WhatsApp {{ client.phone }}">
+                          <i class="bi bi-whatsapp"></i>
+                        </a>
+                        <a [href]="telegramUrl(client.phone)" target="_blank" rel="noopener"
+                           class="btn btn-xs btn-outline-primary" title="Telegram {{ client.phone }}">
+                          <i class="bi bi-telegram"></i>
+                        </a>
                       }
+                    </div>
+                  } @else {
+                    <span class="text-muted small">—</span>
+                  }
+                </td>
+
+                <!-- Paid Features -->
+                <td>
+                  @if (paidFeatureBadges(client).length > 0) {
+                    <div class="d-flex flex-wrap gap-1" style="max-width:220px">
+                      @for (b of visiblePaidFeatureBadges(client); track b.label) {
+                        <span class="badge rounded-pill bg-light text-dark feature-badge border" [title]="b.label">
+                          {{ b.icon }} {{ b.label }}
+                        </span>
+                      }
+                      @if (hiddenPaidFeatureCount(client) > 0) {
+                        <span class="badge rounded-pill bg-light text-muted feature-badge border" [title]="hiddenPaidFeatureNames(client)">
+                          +{{ hiddenPaidFeatureCount(client) }}
+                        </span>
+                      }
+                    </div>
+                  } @else {
+                    <span class="text-muted small">—</span>
+                  }
+                </td>
+
+                <!-- Total Paid -->
+                <td class="text-end">
+                  @if (clientTotalPaid(client.clientCode) > 0) {
+                    <div class="fw-semibold text-success ltr-num">${{ clientTotalPaid(client.clientCode) | number:'1.0-2' }}</div>
+                    @if (clientLatestPaidDate(client.clientCode); as d) {
+                      <div class="text-muted small ltr-num">{{ d | date:'dd MMM yyyy' }}</div>
+                    }
+                  } @else {
+                    <span class="text-muted small">—</span>
+                  }
+                </td>
+
+                <!-- License -->
+                <td>
+                  @if (primaryLicenseOf(client.clientCode); as lic) {
+                    @if (lic.expiresAt) {
+                      <span class="small ltr-num" [ngClass]="licenseExpiryClass(client.clientCode)">
+                        {{ lic.expiresAt | date:'dd MMM yyyy' }}
+                      </span>
+                    } @else {
+                      <span class="small text-muted">Perpetual</span>
+                    }
+                  } @else {
+                    <span class="text-muted small">—</span>
+                  }
+                </td>
+
+                <!-- Actions -->
+                <td>
+                  <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                    <a [routerLink]="['/clients', client.clientCode, 'edit']"
+                       class="btn btn-xs btn-outline-primary" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <button (click)="exportJson(client.clientCode)"
+                            class="btn btn-xs btn-outline-secondary" title="Export config JSON">
+                      <i class="bi bi-filetype-json"></i>
                     </button>
-                    <button type="button" #dropdownBtn
-                            class="btn btn-sm btn-warning dropdown-toggle dropdown-toggle-split"
-                            [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'"
-                            (click)="toggleDropdown(client.clientCode, $event, dropdownBtn)">
+                    <app-dev-run-button [clientCode]="client.clientCode"
+                                        [hasActiveV2License]="hasActiveV2License(client.clientCode)"
+                                        [compact]="true" [showStatus]="false"
+                                        (changed)="loadDevCurrent()"></app-dev-run-button>
+                    <div class="btn-group">
+                      <button (click)="requestBuild(client.clientCode, client.defaultBuildTarget || 'win')"
+                              class="btn btn-xs btn-warning" title="Build"
+                              [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'">
+                        @if (buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING') {
+                          <span class="spinner-border spinner-border-sm"></span>
+                        } @else {
+                          <i class="bi bi-box-seam"></i>
+                        }
+                      </button>
+                      <button type="button" #dropdownBtn
+                              class="btn btn-xs btn-warning dropdown-toggle dropdown-toggle-split"
+                              [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'"
+                              (click)="toggleDropdown(client.clientCode, $event, dropdownBtn)">
+                      </button>
+                    </div>
+                    <button (click)="delete(client.clientCode)"
+                            class="btn btn-xs btn-outline-danger" title="Delete client">
+                      <i class="bi bi-trash"></i>
                     </button>
                   </div>
-                  <button (click)="delete(client.clientCode)"
-                          class="btn btn-sm btn-outline-danger"
-                          title="Delete client">✕</button>
-                </div>
-              </div>
-            </div>
+                </td>
 
-          </div>
-        }
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
     }
 </div>
@@ -301,18 +335,47 @@
             <div class="alert alert-info py-2 small">{{ 'buildGenericHint' | t }}</div>
           }
           <div class="mb-3">
-            <label class="form-label fw-semibold">Version *</label>
-            @if (versions.length === 0) {
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label fw-semibold mb-0">Version *</label>
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary"
+                        [class.active]="buildVersionMode === 'select'"
+                        [disabled]="versions.length === 0"
+                        (click)="useVersionList()">Choose existing</button>
+                <button type="button" class="btn btn-outline-secondary"
+                        [class.active]="buildVersionMode === 'manual'"
+                        (click)="useManualVersion()">Type manually</button>
+              </div>
+            </div>
+
+            @if (versions.length === 0 && buildVersionMode === 'select') {
               <div class="alert alert-warning py-2 small mb-0">
                 No versions configured.
-                <a routerLink="/versions" (click)="cancelBuildConfirmation()">Go to Versions</a> to create one first.
+                <a routerLink="/versions" (click)="cancelBuildConfirmation()">Go to Versions</a> to create one first,
+                or <a href (click)="useManualVersion(); $event.preventDefault()">type a version number manually</a>.
               </div>
-            } @else {
+            } @else if (buildVersionMode === 'select') {
               <select class="form-select" [(ngModel)]="buildConfirmation.versionNumber">
                 @for (v of versions; track v.id) {
                   <option [value]="v.versionNumber">{{ v.versionNumber }} — {{ v.releaseDate | date:'mediumDate' }}</option>
                 }
               </select>
+            } @else {
+              <div class="input-group">
+                <input type="text" class="form-control" [(ngModel)]="buildConfirmation.versionNumber"
+                       placeholder="e.g. 1.4.3" />
+                <button type="button" class="btn btn-outline-secondary" title="Bump patch version"
+                        (click)="incrementBuildVersion()">+1</button>
+              </div>
+              @if (buildVersionIsNew) {
+                <div class="form-check mt-2">
+                  <input type="checkbox" class="form-check-input" id="saveManualVersion"
+                         [(ngModel)]="saveManualVersionAsNew" />
+                  <label class="form-check-label small text-muted" for="saveManualVersion">
+                    Save "{{ buildConfirmation.versionNumber }}" as a new version entry (so it appears on the Versions page and gets a changelog.txt)
+                  </label>
+                </div>
+              }
             }
           </div>
           <table class="table table-sm table-borderless mb-0">
@@ -362,7 +425,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="cancelBuildConfirmation()">Cancel</button>
-          <button type="button" class="btn btn-warning" (click)="confirmBuild()">Start Build</button>
+          <button type="button" class="btn btn-warning" [disabled]="!buildConfirmation.versionNumber.trim()" (click)="confirmBuild()">Start Build</button>
         </div>
       </div>
     </div>
