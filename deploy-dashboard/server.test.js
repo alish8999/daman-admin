@@ -51,9 +51,13 @@ SLOTS.spawnfail = { scriptPath: SPAWN_FAIL_SENTINEL, label: 'Spawn Fail Test' };
 
 const { server } = require('./server');
 
-function get(pathAndQuery) {
+// Assigned in test.before - the server binds an ephemeral port so `npm test`
+// never collides with a dashboard the developer already has running on 5500.
+let port;
+
+function get(pathAndQuery, headers) {
   return new Promise((resolve, reject) => {
-    http.get({ host: '127.0.0.1', port: 5500, path: pathAndQuery }, (res) => {
+    http.get({ host: '127.0.0.1', port, path: pathAndQuery, headers }, (res) => {
       let body = '';
       res.on('data', (chunk) => { body += chunk; });
       res.on('end', () => resolve({ statusCode: res.statusCode, body }));
@@ -61,14 +65,48 @@ function get(pathAndQuery) {
   });
 }
 
-test.before(() => {
-  server.listen(5500, '127.0.0.1');
+test.before(async () => {
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  port = server.address().port;
 });
 
 test.after(() => {
   server.close();
   fs.unlinkSync(fastOkScript);
   fs.unlinkSync(slowScript);
+});
+
+test('a cross-origin request to a deploy endpoint is rejected with 403', async () => {
+  // A GET triggers a real production deploy, so any page the developer happens
+  // to be visiting could fire one with <img src="http://127.0.0.1:5500/...">.
+  // CORS would block reading the response, but the deploy would already have
+  // happened - hence the server-side origin check.
+  const res = await get('/api/deploy/backend/stream', { Origin: 'http://evil.example' });
+  assert.strictEqual(res.statusCode, 403);
+
+  // And the lock must not have been taken by the rejected request.
+  const status = await get('/api/status');
+  assert.strictEqual(JSON.parse(status.body).backend, false);
+});
+
+test('a no-cors style request (Sec-Fetch-Site: cross-site, no Origin) is rejected with 403', async () => {
+  const res = await get('/api/deploy/backend/stream', { 'Sec-Fetch-Site': 'cross-site' });
+  assert.strictEqual(res.statusCode, 403);
+});
+
+test('a same-origin request is allowed through the origin check', async () => {
+  const res = await get('/api/status', {
+    Origin: `http://127.0.0.1:${port}`,
+    'Sec-Fetch-Site': 'same-origin',
+  });
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('generic slot with a malformed version returns 400', async () => {
+  const res = await get('/api/deploy/generic/stream?version=not-a-version');
+  assert.strictEqual(res.statusCode, 400);
 });
 
 test('unknown slot returns 404', async () => {
