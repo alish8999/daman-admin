@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Daman Admin Deploy Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Daman Admin Deploy Dashboard</h1>
+  <div class="cards">
+    <section class="card" data-slot="backend">
+      <h2>Admin Backend</h2>
+      <button class="deploy-btn">Deploy</button>
+      <pre class="log"></pre>
+      <div class="footer"></div>
+    </section>
+    <section class="card" data-slot="frontend">
+      <h2>Admin Frontend</h2>
+      <button class="deploy-btn">Deploy</button>
+      <pre class="log"></pre>
+      <div class="footer"></div>
+    </section>
+    <section class="card" data-slot="generic">
+      <h2>Generic Release</h2>
+      <label>
+        Version:
+        <input type="text" class="version-input" placeholder="1.0.4">
+      </label>
+      <button class="deploy-btn">Deploy</button>
+      <pre class="log"></pre>
+      <div class="footer"></div>
+    </section>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

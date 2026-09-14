@@ -9,8 +9,10 @@
     The health check retries for up to ~18 seconds since Spring Boot doesn't always finish
     starting within a few seconds of a restart.
 
-    Uses password auth (prompts twice: once for scp, once for ssh), matching how the server is
-    currently configured. Update $Server below if the host ever changes.
+    Uses SSH key auth - runs unattended, no password prompts. The key (~/.ssh/daman_admin_deploy)
+    is wired to this host by a "Host 162.55.51.189" stanza in ~/.ssh/config, so the plain scp/ssh
+    calls below pick it up with no extra flags. Update $Server below if the host ever changes
+    (and add a matching ~/.ssh/config stanza for the new host).
 
 .NOTES
     The Maven wrapper's cached mvn.cmd path (below) has moved between sessions before, per
@@ -36,11 +38,11 @@ if ($LASTEXITCODE -ne 0) { throw "Build failed - see Maven output above." }
 if (-not (Test-Path $JarPath)) { throw "Expected jar not found at $JarPath after build." }
 Write-Host "    Built: $JarPath" -ForegroundColor DarkGray
 
-Write-Host "==> [2/3] Uploading jar to $Server (password prompt)..." -ForegroundColor Cyan
+Write-Host "==> [2/3] Uploading jar to $Server (SSH key auth)..." -ForegroundColor Cyan
 scp $JarPath "${Server}:${RemoteJarPath}"
 if ($LASTEXITCODE -ne 0) { throw "scp upload failed." }
 
-Write-Host "==> [3/3] Restarting service and verifying (password prompt)..." -ForegroundColor Cyan
+Write-Host "==> [3/3] Restarting service and verifying (SSH key auth)..." -ForegroundColor Cyan
 
 # Single-quoted here-string: passed to ssh completely literally, so bash on the
 # remote end expands its own $CODE/$i - PowerShell must NOT touch them here.

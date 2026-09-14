@@ -1,0 +1,10 @@
+{
+  "name": "daman-admin-deploy-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Local dashboard for running the daman-admin deploy scripts with live output streaming.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}

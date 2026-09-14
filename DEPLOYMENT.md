@@ -25,11 +25,17 @@ to Cloudflare's edge, so the backend is never directly reachable from the intern
   (Nuremberg capacity was sold out for several plans at signup time — availability is
   per-location, not account-wide; if you ever need a second server, check multiple Hetzner
   locations before assuming a plan is unavailable everywhere.)
-- Access: `root@162.55.51.189`, **password auth** (SSH-key migration was deliberately deferred —
-  revisit this; it's also a prerequisite for any future GitHub Actions deploy pipeline, since CI
-  can't type a password).
-- Firewall: Hetzner Cloud Firewall, inbound SSH only. `fail2ban` installed given password auth is
-  still in use.
+- Access: `root@162.55.51.189`, **SSH key auth** (set up 2026-09-14). The key pair is
+  `~/.ssh/daman_admin_deploy` (ed25519, no passphrase) with the public half in the server's
+  `~/.ssh/authorized_keys`, wired up by a `Host 162.55.51.189` stanza in `~/.ssh/config`
+  (`User root`, `IdentityFile ~/.ssh/daman_admin_deploy`, `IdentitiesOnly yes`). Plain
+  `scp`/`ssh root@162.55.51.189` from this machine picks that up automatically — **no password
+  prompts any more**, which is also what makes a non-interactive deploy (the dashboard in §6.2,
+  or a future CI pipeline) possible at all. Password auth is still enabled server-side as a
+  fallback; the private key lives only on this dev machine, so treat it like the license key —
+  losing the machine means re-adding a new public key via the Hetzner console.
+- Firewall: Hetzner Cloud Firewall, inbound SSH only. `fail2ban` installed (password auth is
+  still accepted server-side as a fallback, so brute-force protection still earns its keep).
 - JDK 21 headless installed via `apt install openjdk-21-jre-headless`.
 
 ## 3. Backend (`daman-admin-backend`)
@@ -69,8 +75,10 @@ D:\Daman\src\daman-admin\deploy-admin-backend.ps1
 It builds the jar (JDK 21 explicitly — IntelliJ's bundled JBR silently breaks Lombok), uploads it,
 restarts the `systemd` service, and verifies both the license-key-loaded log line and a `200`
 from the public health endpoint (retrying for ~18s since Spring Boot doesn't always finish
-starting within a few seconds of a restart). Prompts for the server password twice (upload,
-restart) since SSH-key auth isn't set up yet.
+starting within a few seconds of a restart). Runs unattended — no password prompts, since both
+the `scp` and the `ssh` step authenticate with the SSH key from §2.
+
+A local dashboard for running this script (with live streamed output) is also available — see §6.2.
 
 If you ever do this by hand instead, the three commands are:
 ```powershell
@@ -121,6 +129,8 @@ and does NOT contain `localhost:8083`** before deploying (refuses to deploy othe
 for why this check exists), then runs `wrangler pages deploy`. Reuses your cached `wrangler` OAuth
 login from the first deploy; only re-prompts if that token has expired.
 
+A local dashboard for running this script (with live streamed output) is also available — see §6.2.
+
 Manual equivalent, if needed:
 ```powershell
 cd D:\Daman\src\daman-admin\daman-admin-frontend
@@ -167,11 +177,12 @@ Use the script — it does all three steps below in one go:
 D:\Daman\src\daman-admin\deploy-generic-release.ps1 -Version 1.0.4
 ```
 It finds `Daman_1.0.4_generic.exe` / `32-Daman_1.0.4_generic.exe` in `clients-build/generic/`
-(build these first via the admin portal's "Build Generic" button — see §9), uploads both to R2,
+(build these first via the admin portal's "Build Generic" button — see §8), uploads both to R2,
 verifies each is actually live at `dl.damansoft.com` with a matching file size, and rewrites the
 four download links in `daman-website/index.html` (AR/EN × 64-bit/32-bit) to point at the new
 filenames. It does **not** commit/push for you — review the diff and push yourself once you're
 happy (that site deploys via GitHub Pages on push, unlike the two Cloudflare-hosted pieces above).
+A local dashboard for running it (with live streamed output) is also available — see §6.2.
 
 Manual equivalent, if needed:
 ```powershell
@@ -181,7 +192,8 @@ npx wrangler r2 object put daman-installers/<filename>.exe --file "<local path>"
 a local Miniflare-simulated bucket on your own machine — the command reports "Upload complete"
 either way, but nothing actually reaches the real bucket. This bit us once already; the script
 above guards against it by verifying the live file size afterward, not just trusting the CLI's
-own success message.
+own success message. Going this manual route also means updating the four download links in
+`daman-website/index.html` yourself, then committing and pushing the change.
 
 - This replaced a Google Drive-hosted download — Drive isn't a great fit for large installers
   (virus-scan warnings past ~100MB, shared-link download quotas, no analytics, tied to a personal
@@ -202,8 +214,11 @@ Generic Release — each run the matching script and stream its output live; the
 version field is pre-filled from the highest version already built in `clients-build/generic/`.
 
 This is a thin wrapper: it spawns the same scripts documented above, unmodified, and adds no
-new deploy logic of its own. It requires the SSH key set up in §2 (no interactive password
-prompts), binds to `127.0.0.1` only, and has no auth of its own beyond that.
+new deploy logic of its own. It depends on the SSH key auth from §2 — a spawned script has no
+terminal to type a password into, and its stdin is deliberately closed, so anything that did
+prompt would fail fast rather than hang. It binds to `127.0.0.1` only, rejects cross-origin
+requests to its `/api/*` endpoints (a deploy is a plain `GET`, so without that check any page
+open in the same browser could trigger one), and has no auth of its own beyond that.
 
 ## 7. Connecting to the live database locally (IntelliJ / DataGrip)
 
@@ -296,10 +311,9 @@ in CI instead, fully decoupling this from any admin-backend instance or local ma
 - **Offline backup of the license private key** (`/root/daman_admin/keys/license-private.pem`).
   Losing this means no new license can ever be signed again for the existing public key. Should
   live in a password manager or similar, not just on the one server.
-- **SSH key auth** for the server (currently password-only, deliberately deferred). Also blocks
-  any future GitHub Actions deploy pipeline for the backend, since CI can't type a password.
-- **GitHub Actions CI/CD.** Both deploy scripts are manually triggered from a local machine.
-  Cloudflare Pages' Git integration would be the easy win for the frontend specifically (§5.3);
-  the backend would need a proper SSH-key-based workflow.
+- **GitHub Actions CI/CD.** Both deploy scripts are still manually triggered from a local machine
+  (or from the dashboard in §6.2, which is still local). Cloudflare Pages' Git integration would be
+  the easy win for the frontend specifically (§5.3); the backend now has what it was missing — SSH
+  key auth is set up (§2), so a CI workflow would only need that private key as a repo secret.
 - **Release-tag → R2 pipeline + public `/get/<token>` download page** — the longer-term pieces
   from the original deploy spec's §6–7, not started.
