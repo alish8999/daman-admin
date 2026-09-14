@@ -18,7 +18,7 @@ function runScript(scriptPath, args = []) {
   wireLines(child.stdout);
   wireLines(child.stderr);
 
-  child.on('exit', (code) => emitter.emit('exit', code));
+  child.on('close', (code) => emitter.emit('exit', code));
   child.on('error', (err) => emitter.emit('error', err));
 
   return emitter;
