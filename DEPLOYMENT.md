@@ -159,20 +159,51 @@ redeploy the backend.
 
 - Bucket: `daman-installers`
 - Custom domain: `https://dl.damansoft.com` (one level under the apex — fine per §4.1's rule)
-- Uploading a new build:
-  ```powershell
-  npx wrangler r2 object put daman-installers/<filename>.exe --file "<local path>" --remote
-  ```
-  **The `--remote` flag is not optional.** Without it, `wrangler r2 object put` silently writes to
-  a local Miniflare-simulated bucket on your own machine — the command reports "Upload complete"
-  either way, but nothing actually reaches the real bucket. This bit us once already; always
-  verify with a `curl -I https://dl.damansoft.com/<filename>.exe` after uploading.
-- After uploading a new version, update the four download links in `daman-website/index.html`
-  (two languages × two architectures) to point at the new filename, then commit + push (that site
-  deploys via GitHub Pages on push, unlike the two Cloudflare-hosted pieces above).
+
+### 6.1 Shipping a new generic build
+
+Use the script — it does all three steps below in one go:
+```powershell
+D:\Daman\src\daman-admin\deploy-generic-release.ps1 -Version 1.0.4
+```
+It finds `Daman_1.0.4_generic.exe` / `32-Daman_1.0.4_generic.exe` in `clients-build/generic/`
+(build these first via the admin portal's "Build Generic" button — see §9), uploads both to R2,
+verifies each is actually live at `dl.damansoft.com` with a matching file size, and rewrites the
+four download links in `daman-website/index.html` (AR/EN × 64-bit/32-bit) to point at the new
+filenames. It does **not** commit/push for you — review the diff and push yourself once you're
+happy (that site deploys via GitHub Pages on push, unlike the two Cloudflare-hosted pieces above).
+
+Manual equivalent, if needed:
+```powershell
+npx wrangler r2 object put daman-installers/<filename>.exe --file "<local path>" --remote
+```
+**The `--remote` flag is not optional.** Without it, `wrangler r2 object put` silently writes to
+a local Miniflare-simulated bucket on your own machine — the command reports "Upload complete"
+either way, but nothing actually reaches the real bucket. This bit us once already; the script
+above guards against it by verifying the live file size afterward, not just trusting the CLI's
+own success message.
+
 - This replaced a Google Drive-hosted download — Drive isn't a great fit for large installers
   (virus-scan warnings past ~100MB, shared-link download quotas, no analytics, tied to a personal
   account).
+
+### 6.2 Deploy Dashboard (optional, local convenience)
+
+Instead of running the three `.ps1` scripts by hand, `deploy-dashboard/` provides a local
+browser UI that runs them with live streamed output:
+
+```powershell
+cd daman-admin\deploy-dashboard
+npm start
+```
+
+Then open `http://127.0.0.1:5500/` in a browser. Three cards — Admin Backend, Admin Frontend,
+Generic Release — each run the matching script and stream its output live; the Generic Release
+version field is pre-filled from the highest version already built in `clients-build/generic/`.
+
+This is a thin wrapper: it spawns the same scripts documented above, unmodified, and adds no
+new deploy logic of its own. It requires the SSH key set up in §2 (no interactive password
+prompts), binds to `127.0.0.1` only, and has no auth of its own beyond that.
 
 ## 7. Connecting to the live database locally (IntelliJ / DataGrip)
 
@@ -238,7 +269,27 @@ constraints on enum columns, Hibernate `getFloat()` precision truncation, etc. �
 against. All of that risk to solve a local DB-browsing convenience problem, for a tool that
 already works. Not worth it.
 
-## 8. What's NOT done yet (tracked follow-ups)
+## 8. Building the generic installer itself
+
+The "Build Generic" button in the admin portal (`BuildService`) still only works against your
+**local** admin-backend/admin-frontend (`localhost:8083` / `:4201`), not the hosted
+`admin.damansoft.com` instance — and that's fine, not a gap to fix. Two reasons:
+
+1. It reads static, checked-in config (`client.config.generic.json`), never anything from the
+   admin database — so it was never tied to *which* admin-backend instance you're using.
+2. It needs the full local toolchain (Maven, JDK, Node, `electron-builder`) plus a checkout of
+   `daman-backend`/`daman-frontend` — none of which has any reason to live on the tiny hosting
+   box. The hosted instance is for remote client/license/billing management; building installers
+   stays a local-machine operation.
+
+Output lands in `D:\Daman\src\clients-build\generic\` as `Daman_<version>_generic.exe` /
+`32-Daman_<version>_generic.exe` — feed that version into `deploy-generic-release.ps1` (§6.1) to
+actually ship it.
+
+The longer-term plan (not started — see §9) is a GitHub Actions release-tag workflow that builds
+in CI instead, fully decoupling this from any admin-backend instance or local machine.
+
+## 9. What's NOT done yet (tracked follow-ups)
 
 - **Nightly H2 → R2 backup cron.** The server is currently a single point of failure — no
   redundancy at all if the disk fails or the instance is lost.
