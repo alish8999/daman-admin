@@ -69,16 +69,22 @@ function handleDeployStream(req, res, slot, query) {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
+  let finished = false;
+
   const args = SLOTS[slot].requiresVersion ? ['-Version', query.version] : [];
   const child = runScript(SLOTS[slot].scriptPath, args);
 
   child.on('line', (line) => send('log', { line }));
   child.on('exit', (code) => {
+    if (finished) return;
+    finished = true;
     send('done', { code });
     if (!closed) res.end();
     runLock.release(slot);
   });
   child.on('error', (err) => {
+    if (finished) return;
+    finished = true;
     send('log', { line: `Failed to start: ${err.message}` });
     send('done', { code: null });
     if (!closed) res.end();
