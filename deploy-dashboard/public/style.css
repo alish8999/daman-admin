@@ -198,6 +198,42 @@ body {
   border-color: #d7dce6;
 }
 
+/* ---------- Card group (Build + Release: two independent panels, one
+   visual card) ---------- */
+
+.card-group {
+  grid-column: span 2;
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+  overflow: hidden;
+}
+
+.card-group:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: #d7dce6;
+}
+
+/* Each panel keeps its own header/fields/button/log (they're independent
+   async actions with independent state) - only the outer chrome merges. */
+.card-group > .card {
+  flex: 1 1 0;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  height: auto;
+}
+
+.card-group > .card:first-child {
+  border-right: 1px solid var(--border);
+}
+
 /* ---------- Card header ---------- */
 
 .card-head {
@@ -502,6 +538,16 @@ body {
 
   .card {
     height: auto;
+  }
+
+  .card-group {
+    grid-column: span 1;
+    flex-direction: column;
+  }
+
+  .card-group > .card:first-child {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
   }
 }
 
