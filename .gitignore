@@ -4,3 +4,4 @@ daman-admin-frontend/.angular
 .worktrees
 daman-admin-backend/target
 daman-admin-frontend/dist
+daman-admin-frontend/.wrangler
