@@ -15,9 +15,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(authedReq).pipe(
     catchError(err => {
-      if (err.status === 401) {
+      if (err.status === 401 && !req.url.endsWith('/api/auth/login')) {
         localStorage.removeItem('admin-auth-token');
-        router.navigate(['/login']);
+        router.navigate(['/login'], { queryParams: { expired: 1 } });
       }
       return throwError(() => err);
     })

@@ -4,17 +4,17 @@
 // cohesive, modern product instead of a pile of ad-hoc Bootstrap pages.
 
 :root {
-  --admin-sidebar-from: #131427;
-  --admin-sidebar-to: #1f2142;
-  --admin-bg: #f4f5fb;
+  --admin-sidebar-from: #06303f;
+  --admin-sidebar-to: #0a4d68;
+  --admin-bg: #f4f7f8;
   --admin-surface: #ffffff;
-  --admin-border: #e7e8f2;
-  --admin-text: #17182b;
-  --admin-text-muted: #6b6b84;
-  --admin-accent: #6366f1;
-  --admin-accent-hover: #4f46e5;
-  --admin-accent-soft: #eef0ff;
-  --admin-accent-2: #8b5cf6;
+  --admin-border: #e2e9eb;
+  --admin-text: #17222b;
+  --admin-text-muted: #64757c;
+  --admin-accent: #0a4d68;
+  --admin-accent-hover: #088395;
+  --admin-accent-soft: #ebf8ff;
+  --admin-accent-2: #f59e0b;
   --admin-radius-lg: 16px;
   --admin-radius-md: 12px;
   --admin-radius-sm: 8px;
@@ -40,18 +40,30 @@ body {
   font-size: 0.86rem;
 }
 
+// Bootstrap 5.3's .btn renders via CSS custom props (--bs-btn-bg etc.) set by
+// .btn-primary/.btn-outline-primary — overriding "background"/"border-color"
+// directly ties with .btn's own var(--bs-btn-bg) rule at equal specificity
+// and loses unpredictably, so we set the same custom props Bootstrap defines.
 .btn-primary {
-  background: var(--admin-accent);
-  border-color: var(--admin-accent);
-
-  &:hover, &:focus { background: var(--admin-accent-hover); border-color: var(--admin-accent-hover); }
+  --bs-btn-bg: var(--admin-accent);
+  --bs-btn-border-color: var(--admin-accent);
+  --bs-btn-hover-bg: var(--admin-accent-hover);
+  --bs-btn-hover-border-color: var(--admin-accent-hover);
+  --bs-btn-active-bg: var(--admin-accent-hover);
+  --bs-btn-active-border-color: var(--admin-accent-hover);
+  --bs-btn-disabled-bg: var(--admin-accent);
+  --bs-btn-disabled-border-color: var(--admin-accent);
 }
 
 .btn-outline-primary {
-  color: var(--admin-accent);
-  border-color: var(--admin-accent);
-
-  &:hover { background: var(--admin-accent); border-color: var(--admin-accent); }
+  --bs-btn-color: var(--admin-accent);
+  --bs-btn-border-color: var(--admin-accent);
+  --bs-btn-hover-bg: var(--admin-accent);
+  --bs-btn-hover-border-color: var(--admin-accent);
+  --bs-btn-active-bg: var(--admin-accent);
+  --bs-btn-active-border-color: var(--admin-accent);
+  --bs-btn-disabled-color: var(--admin-accent);
+  --bs-btn-disabled-border-color: var(--admin-accent);
 }
 
 .form-control, .form-select {
@@ -61,7 +73,7 @@ body {
 
   &:focus {
     border-color: var(--admin-accent);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    box-shadow: 0 0 0 3px rgba(10, 77, 104, 0.15);
   }
 }
 
@@ -99,36 +111,40 @@ body {
 }
 
 .admin-sidebar {
-  width: 248px;
+  width: 252px;
   flex-shrink: 0;
-  background: linear-gradient(180deg, var(--admin-sidebar-from) 0%, var(--admin-sidebar-to) 100%);
+  background: linear-gradient(165deg, var(--admin-sidebar-to) 0%, var(--admin-sidebar-from) 70%);
   color: #fff;
   display: flex;
   flex-direction: column;
   position: sticky;
   top: 0;
   height: 100vh;
+  box-shadow: var(--admin-shadow-lg);
 }
 
 .admin-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 22px 22px 18px;
+  gap: 12px;
+  padding: 24px 22px 20px;
   font-weight: 800;
   font-size: 1.02rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 10px;
 }
 
 .admin-sidebar-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--admin-accent) 0%, var(--admin-accent-2) 100%);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--admin-accent-hover) 0%, var(--admin-accent-2) 100%);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.25);
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   flex-shrink: 0;
 }
 
@@ -137,7 +153,7 @@ body {
   padding: 6px 14px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   overflow-y: auto;
 }
 
@@ -160,15 +176,29 @@ body {
   font-size: 0.87rem;
   font-weight: 500;
   transition: all 0.15s ease;
+  position: relative;
 
   i { font-size: 0.95rem; width: 18px; text-align: center; }
 
-  &:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+  &:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
 
   &.admin-sidebar-link--active {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(245, 158, 11, 0.12);
     color: #fff;
     font-weight: 700;
+
+    i { color: var(--admin-accent-2); }
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset-inline-start: -14px;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      border-radius: 0 4px 4px 0;
+      background: var(--admin-accent-2);
+    }
   }
 }
 
@@ -243,7 +273,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 20% 20%, #232455 0%, var(--admin-sidebar-from) 45%, #0d0e1c 100%);
+  background: radial-gradient(circle at 20% 20%, #0e5570 0%, var(--admin-sidebar-from) 45%, #031318 100%);
   padding: 20px;
 }
 
@@ -271,6 +301,17 @@ body {
 }
 
 // ── Stat tiles (Dashboard) ──────────────────────────────────────────────────
+
+.month-count-badge {
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 8px;
+  min-width: 20px;
+  text-align: center;
+}
 
 .stat-tile {
   background: var(--admin-surface);
@@ -341,6 +382,21 @@ body {
   padding: 12px 16px;
   box-shadow: var(--admin-shadow-sm);
   border: 1px solid var(--admin-border);
+
+  .form-select, .form-control { border-color: var(--admin-border); }
+}
+
+// Distinct "soft" treatment so this reads clearly as its own action, not a
+// disabled/muted button (previously btn-outline-warning, which washed out
+// against the page's white background and the gold accent used elsewhere).
+.btn-build-generic {
+  background: var(--admin-accent-soft);
+  border: 1px solid var(--admin-accent);
+  color: var(--admin-accent);
+  font-weight: 600;
+
+  &:hover, &:focus { background: var(--admin-accent); border-color: var(--admin-accent); color: #fff; }
+  &:disabled { opacity: 0.6; }
 }
 
 .search-input-wrap {
@@ -434,6 +490,94 @@ body {
   &.status-tab--active-color.status-tab--active { background: #15803d; border-color: #15803d; }
   &.status-tab--trial-color.status-tab--active   { background: #b45309; border-color: #b45309; }
   &.status-tab--dummy-color.status-tab--active    { background: #6b7280; border-color: #6b7280; }
+}
+
+// Clients table — was bare unstyled Bootstrap `.table` with no rules of its
+// own anywhere in the app; every other page here already has real design
+// applied. This reuses the same tokens (accent, radius, shadow) rather than
+// inventing a new visual language.
+.clients-table-wrap {
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius-lg);
+  box-shadow: var(--admin-shadow-sm);
+  border: 1px solid var(--admin-border);
+  overflow: hidden;
+}
+
+.clients-table {
+  margin-bottom: 0;
+
+  thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #8a8aa0;
+    font-weight: 700;
+    background: #fafafd;
+    border-bottom: 1px solid var(--admin-border);
+    padding: 0.75rem 1rem;
+  }
+
+  tbody td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #f1f1f6;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  tbody tr:hover td {
+    background: #fafaff;
+  }
+
+  tbody tr.row--active td {
+    background: linear-gradient(90deg, rgba(22, 163, 74, 0.04), transparent 40%);
+  }
+
+  // Status/license/dev badges keep their existing bg-success/bg-warning/etc.
+  // classes (no template or component logic changes) - just restyled here
+  // from Bootstrap's solid-color-with-white-text look into a lighter pill
+  // with a status dot, matching .status-tab's pill language.
+  .badge {
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0.3em 0.65em;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    &::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    &.bg-success { background: #dcfce7 !important; color: #166534 !important; }
+    &.bg-warning { background: #fef3c7 !important; color: #92400e !important; }
+    &.bg-secondary { background: #f1f1f8 !important; color: #55566b !important; }
+    &.bg-danger { background: #fee2e2 !important; color: #991b1b !important; }
+    &.bg-primary { background: var(--admin-accent-soft) !important; color: var(--admin-accent-hover) !important; }
+    &.bg-dark { background: #17182b !important; color: #fff !important; }
+  }
+}
+
+.client-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  text-transform: uppercase;
 }
 
 // Priced feature cards (Client Form → Features tab)

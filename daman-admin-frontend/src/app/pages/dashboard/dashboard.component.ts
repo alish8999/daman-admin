@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, catchError, of } from 'rxjs';
 import { ClientService } from '../../services/client.service';
 import { LicenseService, License } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
@@ -12,6 +12,7 @@ import { computeClientStatus } from '../../models/client-status';
 interface MonthBar {
   label: string;
   amount: number;
+  count: number;
   heightPct: number;
 }
 
@@ -45,10 +46,16 @@ export class DashboardComponent implements OnInit {
       clients: this.clientService.getAll(),
       licenses: this.licenseService.getAll(),
       billings: this.billingService.getAll()
-    }).subscribe(({ clients, licenses, billings }) => {
-      this.clients = clients;
-      this.licenses = licenses;
-      this.billings = billings;
+    }).pipe(
+      catchError(() => {
+        this.loading = false;
+        return of(null);
+      })
+    ).subscribe(result => {
+      if (!result) return;
+      this.clients = result.clients;
+      this.licenses = result.licenses;
+      this.billings = result.billings;
       this.loading = false;
     });
   }
@@ -93,13 +100,14 @@ export class DashboardComponent implements OnInit {
 
   get revenueByMonth(): MonthBar[] {
     const now = new Date();
-    const buckets: { key: string; label: string; amount: number }[] = [];
+    const buckets: { key: string; label: string; amount: number; count: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       buckets.push({
         key: `${d.getFullYear()}-${d.getMonth()}`,
         label: d.toLocaleString('en', { month: 'short' }),
-        amount: 0
+        amount: 0,
+        count: 0
       });
     }
     const byKey = new Map(buckets.map(b => [b.key, b]));
@@ -110,10 +118,18 @@ export class DashboardComponent implements OnInit {
       const d = new Date(dateStr);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       const bucket = byKey.get(key);
-      if (bucket) bucket.amount += b.amount ? +b.amount : 0;
+      if (bucket) {
+        bucket.amount += b.amount ? +b.amount : 0;
+        bucket.count += 1;
+      }
     }
     const max = Math.max(1, ...buckets.map(b => b.amount));
-    return buckets.map(b => ({ label: b.label, amount: b.amount, heightPct: Math.max(4, Math.round((b.amount / max) * 100)) }));
+    return buckets.map(b => ({
+      label: b.label,
+      amount: b.amount,
+      count: b.count,
+      heightPct: Math.max(4, Math.round((b.amount / max) * 100))
+    }));
   }
 
   // ── Expiring licenses (next 30 days) ────────────────────────────────────

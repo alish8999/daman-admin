@@ -19,7 +19,7 @@
       <div class="col-6 col-lg-2">
         <div class="stat-tile">
           <div class="stat-tile-label">
-            <span class="stat-tile-icon" style="background:#eef0ff;color:#6366f1"><i class="bi bi-people-fill"></i></span>
+            <span class="stat-tile-icon" style="background:#ebf8ff;color:#0a4d68"><i class="bi bi-people-fill"></i></span>
             Clients
           </div>
           <div class="stat-tile-value">{{ clients.length }}</div>
@@ -84,14 +84,18 @@
           } @else {
             <div class="d-flex align-items-end gap-3" style="height:180px">
               @for (m of revenueByMonth; track m.label) {
-                <div class="d-flex flex-column align-items-center flex-grow-1" style="height:100%">
+                <div class="d-flex flex-column align-items-center flex-grow-1" style="height:100%"
+                     [title]="m.label + ': $' + (m.amount | number:'1.0-2') + ' · ' + m.count + ' payment' + (m.count === 1 ? '' : 's')">
+                  @if (m.amount > 0) {
+                    <div class="small fw-semibold" style="color:var(--admin-accent)">${{ m.amount | number:'1.0-0' }}</div>
+                  }
                   <div class="d-flex align-items-end flex-grow-1 w-100 justify-content-center">
                     <div [style.height.%]="m.heightPct"
-                         [title]="m.label + ': $' + (m.amount | number:'1.0-2')"
                          style="width:34px;background:var(--admin-accent);border-radius:6px 6px 3px 3px;min-height:4px;transition:height .2s ease">
                     </div>
                   </div>
-                  <div class="text-muted small mt-2">{{ m.label }}</div>
+                  <div class="month-count-badge mt-2">{{ m.count }}</div>
+                  <div class="text-muted small">{{ m.label }}</div>
                 </div>
               }
             </div>

@@ -13,7 +13,7 @@
           </button>
         }
         <div class="btn-group btn-group-sm" [title]="'buildGenericTitle' | t">
-          <button type="button" class="btn btn-outline-warning"
+          <button type="button" class="btn btn-build-generic"
                   [disabled]="isGenericBuild && buildStatus?.status === 'BUILDING'"
                   (click)="requestGenericBuild()">
             @if (isGenericBuild && buildStatus?.status === 'BUILDING') {
@@ -23,14 +23,11 @@
             }
           </button>
           <button type="button" #genericBuildBtn
-                  class="btn btn-outline-warning dropdown-toggle dropdown-toggle-split"
+                  class="btn btn-build-generic dropdown-toggle dropdown-toggle-split"
                   [disabled]="isGenericBuild && buildStatus?.status === 'BUILDING'"
                   (click)="toggleDropdown('generic', $event, genericBuildBtn)">
           </button>
         </div>
-        <button type="button" class="btn btn-outline-primary btn-sm" (click)="openReissueModal()">
-          <i class="bi bi-arrow-repeat me-1"></i>{{ 'reissueAllV2' | t }}
-        </button>
         <a routerLink="/clients/new" class="btn btn-primary fw-semibold px-4">
           <i class="bi bi-plus-lg me-1"></i>New Client
         </a>
@@ -69,16 +66,13 @@
         </div>
 
         <!-- License status filter -->
-        <div class="btn-group btn-group-sm">
-          <button class="btn" [class.btn-dark]="licenseFilter==='all'" [class.btn-outline-dark]="licenseFilter!=='all'"
-                  (click)="licenseFilter='all'">All</button>
-          <button class="btn" [class.btn-success]="licenseFilter==='active'" [class.btn-outline-success]="licenseFilter!=='active'"
-                  (click)="licenseFilter='active'">Active</button>
-          <button class="btn" [class.btn-danger]="licenseFilter==='revoked'" [class.btn-outline-danger]="licenseFilter!=='revoked'"
-                  (click)="licenseFilter='revoked'">Revoked</button>
-          <button class="btn" [class.btn-secondary]="licenseFilter==='none'" [class.btn-outline-secondary]="licenseFilter!=='none'"
-                  (click)="licenseFilter='none'">No License</button>
-        </div>
+        <select class="form-select form-select-sm" style="width:auto;min-width:130px"
+                [(ngModel)]="licenseFilter">
+          <option value="all">All Licenses</option>
+          <option value="active">Active</option>
+          <option value="revoked">Revoked</option>
+          <option value="none">No License</option>
+        </select>
 
         <!-- Expiration filter -->
         <select class="form-select form-select-sm" style="width:auto;min-width:150px"
@@ -129,7 +123,7 @@
                 <!-- Client -->
                 <td>
                   <div class="d-flex align-items-center gap-2">
-                    <span class="color-dot" [style.background-color]="client.colorPrimary" [title]="client.colorPrimary"></span>
+                    <span class="client-avatar" [style.background-color]="client.colorPrimary || '#0a4d68'" [title]="client.colorPrimary">{{ client.appName ? client.appName.charAt(0) : '?' }}</span>
                     <div class="min-w-0">
                       <div class="fw-semibold text-truncate" style="max-width:220px"
                            [title]="client.clientNotes || client.appName">{{ client.appName }}</div>
@@ -246,30 +240,10 @@
                        class="btn btn-xs btn-outline-primary" title="Edit">
                       <i class="bi bi-pencil"></i>
                     </a>
-                    <button (click)="exportJson(client.clientCode)"
-                            class="btn btn-xs btn-outline-secondary" title="Export config JSON">
-                      <i class="bi bi-filetype-json"></i>
-                    </button>
                     <app-dev-run-button [clientCode]="client.clientCode"
                                         [hasActiveV2License]="hasActiveV2License(client.clientCode)"
                                         [compact]="true" [showStatus]="false"
                                         (changed)="loadDevCurrent()"></app-dev-run-button>
-                    <div class="btn-group">
-                      <button (click)="requestBuild(client.clientCode, client.defaultBuildTarget || 'win')"
-                              class="btn btn-xs btn-warning" title="Build"
-                              [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'">
-                        @if (buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING') {
-                          <span class="spinner-border spinner-border-sm"></span>
-                        } @else {
-                          <i class="bi bi-box-seam"></i>
-                        }
-                      </button>
-                      <button type="button" #dropdownBtn
-                              class="btn btn-xs btn-warning dropdown-toggle dropdown-toggle-split"
-                              [disabled]="buildStatus?.clientCode === client.clientCode && buildStatus?.status === 'BUILDING'"
-                              (click)="toggleDropdown(client.clientCode, $event, dropdownBtn)">
-                      </button>
-                    </div>
                     <button (click)="delete(client.clientCode)"
                             class="btn btn-xs btn-outline-danger" title="Delete client">
                       <i class="bi bi-trash"></i>
@@ -516,47 +490,6 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="closeHistoryModal()">Close</button>
         </div>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- Stage-1 Re-issue all as v2 Modal -->
-@if (reissueModalOpen) {
-  <div class="modal-backdrop-custom" (click)="closeReissueModal()"></div>
-  <div class="modal-dialog-custom">
-    <div class="modal-content p-3">
-      <h5 class="mb-2"><i class="bi bi-arrow-repeat text-primary me-2"></i>{{ 'reissueAllV2Title' | t }}</h5>
-      <p class="text-muted small">{{ 'reissueAllV2Hint' | t }}</p>
-
-      @if (reissuePreviewLoading) {
-        <div class="py-3 text-center"><span class="spinner-border spinner-border-sm"></span></div>
-      }
-      @if (reissueError) {
-        <div class="alert alert-danger py-2">{{ reissueError }}</div>
-      }
-      @if (reissuePreviewData) {
-        <ul class="list-unstyled small mb-2">
-          <li><strong>{{ reissuePreviewData.eligible.length }}</strong> {{ 'reissueEligible' | t }}</li>
-          @if (reissuePreviewData.skipped.length > 0) {
-            <li class="text-warning">
-              <strong>{{ reissuePreviewData.skipped.length }}</strong> {{ 'reissueSkipped' | t }}:
-              {{ reissuePreviewSkippedCodes }}
-            </li>
-          }
-        </ul>
-      }
-
-      <div class="d-flex justify-content-end gap-2 mt-2">
-        <button class="btn btn-light btn-sm" [disabled]="reissueBusy" (click)="closeReissueModal()">
-          {{ 'cancel' | t }}
-        </button>
-        <button class="btn btn-primary btn-sm"
-                [disabled]="reissueBusy || !reissuePreviewData || reissuePreviewData.eligible.length === 0"
-                (click)="downloadReissueBundle()">
-          @if (reissueBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
-          {{ 'reissueDownloadBundle' | t }}
-        </button>
       </div>
     </div>
   </div>

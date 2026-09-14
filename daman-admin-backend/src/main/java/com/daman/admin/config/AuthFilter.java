@@ -24,6 +24,20 @@ public class AuthFilter implements Filter {
             "/api/licenses/public-key"
     );
 
+    // Mirrors CorsConfig's allowedOrigins. This filter runs before Spring MVC's
+    // CORS handling (order 1, ahead of the DispatcherServlet), so a 401 it
+    // writes directly never picks up Spring's CORS headers — without this,
+    // the browser blocks the response as a CORS violation and the frontend
+    // sees a generic network error instead of a 401, so it never redirects
+    // to login on an expired/invalid session.
+    private static final Set<String> ALLOWED_ORIGINS = Set.of(
+            "http://localhost:4201",
+            "http://localhost:4200",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "https://admin.damansoft.com"
+    );
+
     private final SessionService sessionService;
 
     public AuthFilter(SessionService sessionService) {
@@ -46,6 +60,11 @@ public class AuthFilter implements Filter {
                 ? authHeader.substring(7) : null;
 
         if (!sessionService.isValid(token)) {
+            String origin = req.getHeader("Origin");
+            if (origin != null && ALLOWED_ORIGINS.contains(origin)) {
+                res.setHeader("Access-Control-Allow-Origin", origin);
+                res.setHeader("Vary", "Origin");
+            }
             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             res.setContentType("application/json");
             res.getWriter().write("{\"error\":\"Unauthorized\"}");
