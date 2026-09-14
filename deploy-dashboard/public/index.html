@@ -2,35 +2,198 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Daman Admin Deploy Dashboard</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Daman Admin Deploy Dashboard</h1>
-  <div class="cards">
+  <header class="page-head">
+    <div class="page-head-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 17l6-6-6-6M12 19h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div>
+      <h1>Deploy Dashboard</h1>
+      <p class="page-sub">daman-admin &middot; local &middot; <code>127.0.0.1:5500</code></p>
+    </div>
+  </header>
+
+  <section class="infobar" aria-label="Server information">
+    <div class="infobar-group">
+      <div class="infobar-label">Server</div>
+      <div class="infobar-value">Hetzner CX23 &middot; Nuremberg &middot; <code>162.55.51.189</code></div>
+    </div>
+    <div class="infobar-group">
+      <div class="infobar-label">Auth</div>
+      <div class="infobar-value">SSH key (ed25519), no password prompts</div>
+    </div>
+    <div class="infobar-group">
+      <div class="infobar-label">Network</div>
+      <div class="infobar-value">Cloudflare Tunnel &middot; only SSH open inbound</div>
+    </div>
+    <div class="infobar-links">
+      <a class="infobar-link" href="https://admin.damansoft.com" target="_blank" rel="noopener">
+        <span class="status-dot" data-health="frontend"></span>Admin Portal
+      </a>
+      <a class="infobar-link" href="https://admin-api.damansoft.com/api/licenses/public-key" target="_blank" rel="noopener">
+        <span class="status-dot" data-health="backend"></span>API Health
+      </a>
+      <a class="infobar-link" href="https://dl.damansoft.com" target="_blank" rel="noopener">
+        Installers (R2)
+      </a>
+    </div>
+  </section>
+
+  <main class="cards">
     <section class="card" data-slot="backend">
-      <h2>Admin Backend</h2>
-      <button class="deploy-btn">Deploy</button>
-      <pre class="log"></pre>
-      <div class="footer"></div>
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="17" r="1" fill="currentColor"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Admin Backend</h2>
+          <p class="card-desc">Build, upload &amp; restart the Spring Boot service</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
     </section>
+
     <section class="card" data-slot="frontend">
-      <h2>Admin Frontend</h2>
-      <button class="deploy-btn">Deploy</button>
-      <pre class="log"></pre>
-      <div class="footer"></div>
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 8.5h18" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="6.25" r="0.75" fill="currentColor"/><circle cx="8.5" cy="6.25" r="0.75" fill="currentColor"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Admin Frontend</h2>
+          <p class="card-desc">Build &amp; publish to Cloudflare Pages</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
     </section>
-    <section class="card" data-slot="generic">
-      <h2>Generic Release</h2>
-      <label>
-        Version:
-        <input type="text" class="version-input" placeholder="1.0.4">
+
+    <div class="card-group">
+    <section class="card" data-slot="build-generic">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Build Generic Installer</h2>
+          <p class="card-desc">Packages a new .exe locally - needs local admin-backend (<code>:8083</code>) &amp; frontend (<code>:4201</code>) running</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <div class="build-fields">
+        <label class="version-field">
+          <span>Version</span>
+          <input type="text" class="build-version-input" placeholder="1.0.4" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="version-field">
+          <span>Platform</span>
+          <select class="build-platform-select">
+            <option value="win">64-bit (win)</option>
+            <option value="winx86">32-bit (winx86)</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="version-field">
+        <span>Session token <span class="token-hint">(from a local admin portal login, kept for this tab only)</span></span>
+        <input type="password" class="build-token-input" placeholder="paste token here" autocomplete="off" spellcheck="false">
       </label>
-      <button class="deploy-btn">Deploy</button>
-      <pre class="log"></pre>
-      <div class="footer"></div>
+
+      <button class="build-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Build</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing built yet."></pre>
+      </details>
+
+      <p class="build-note">
+        Output lands in <code>clients-build\generic\</code>. Latest built here:
+        <strong id="latest-built-version">checking&hellip;</strong>. Both platforms are needed before
+        <strong>Generic Release</strong> can deploy. Reads only local, checked-in config - never the hosted
+        database - so it never needs to run against <code>admin.damansoft.com</code>.
+      </p>
     </section>
-  </div>
+
+    <section class="card" data-slot="generic">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Generic Release</h2>
+          <p class="card-desc">Upload installers to R2 &amp; update the website</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <label class="version-field">
+        <span>Version</span>
+        <input type="text" class="version-input" placeholder="1.0.4" autocomplete="off" spellcheck="false">
+      </label>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+    </section>
+    </div>
+  </main>
+
   <script src="main.js"></script>
 </body>
 </html>

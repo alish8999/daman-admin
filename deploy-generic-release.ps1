@@ -59,7 +59,7 @@ $checks = @(
 )
 foreach ($check in $checks) {
     $url = "https://$DownloadHost/$($check.Name)"
-    $resp = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 30
+    $resp = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 30 -UseBasicParsing
     $remoteSize = [int64]$resp.Headers["Content-Length"]
     if ($resp.StatusCode -ne 200) { throw "$url returned HTTP $($resp.StatusCode)" }
     if ($remoteSize -ne $check.LocalSize) { throw "$url size mismatch: local=$($check.LocalSize) remote=$remoteSize - upload may be incomplete." }

@@ -44,8 +44,14 @@ if ($LASTEXITCODE -ne 0) { throw "scp upload failed." }
 
 Write-Host "==> [3/3] Restarting service and verifying (SSH key auth)..." -ForegroundColor Cyan
 
-# Single-quoted here-string: passed to ssh completely literally, so bash on the
-# remote end expands its own $CODE/$i - PowerShell must NOT touch them here.
+# Single-quoted here-string: literal, so bash on the remote end expands its own
+# $CODE/$i - PowerShell must NOT touch them here. Written to a real file (not
+# passed as a giant ssh command-line argument) with forced LF line endings,
+# because passing a multi-line string directly as an ssh argument is fragile
+# when this script is spawned without a real console attached (e.g. from the
+# deploy dashboard's child_process) - a stray \r has been observed sneaking in
+# under that invocation path and breaking bash on the remote end (systemd unit
+# name comes out as "daman-admin-backend\r").
 $remoteScript = @'
 systemctl restart daman-admin-backend
 CODE=000
@@ -60,8 +66,17 @@ echo ---health-check---
 echo "HTTP $CODE"
 if [ "$CODE" != "200" ]; then exit 1; fi
 '@
+$remoteScript = $remoteScript -replace "`r`n", "`n"
 
-ssh $Server $remoteScript
+$localScriptPath = Join-Path $env:TEMP "deploy-admin-backend-verify.sh"
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($localScriptPath, $remoteScript, $utf8NoBom)
+
+scp $localScriptPath "${Server}:/tmp/deploy-admin-backend-verify.sh"
+if ($LASTEXITCODE -ne 0) { throw "scp of the remote verify script failed." }
+Remove-Item $localScriptPath -ErrorAction SilentlyContinue
+
+ssh $Server "bash /tmp/deploy-admin-backend-verify.sh; RC=`$?; rm -f /tmp/deploy-admin-backend-verify.sh; exit `$RC"
 if ($LASTEXITCODE -ne 0) { throw "Remote restart/verify command failed - SSH in manually and check 'systemctl status daman-admin-backend'." }
 
 Write-Host ""
