@@ -106,6 +106,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
   licenses: License[] = [];
   billings: Billing[] = [];
   versions: AppVersion[] = [];
+  loading = true;
 
   // Search & filter
   searchQuery = '';
@@ -396,7 +397,10 @@ export class ClientsComponent implements OnInit, OnDestroy {
   }
 
   load(): void {
-    this.clientService.getAll().subscribe(data => this.clients = data);
+    this.clientService.getAll().subscribe({
+      next: data => { this.clients = data; this.loading = false; },
+      error: () => { this.loading = false; }
+    });
   }
 
   loadLicenses(): void {

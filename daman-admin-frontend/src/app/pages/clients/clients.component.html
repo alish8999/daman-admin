@@ -90,7 +90,12 @@
       </div>
     </div>
 
-    @if (clients.length === 0) {
+    @if (loading) {
+      <div class="page-loader">
+        <span class="spinner-border"></span>
+        <p class="text-muted small mb-0 mt-3">Loading clients…</p>
+      </div>
+    } @else if (clients.length === 0) {
       <div class="text-center text-muted py-5">
         <p>No clients yet.</p>
         <a routerLink="/clients/new" class="btn btn-outline-primary btn-sm">Create your first client</a>
