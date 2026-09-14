@@ -172,16 +172,19 @@ redeploy the backend.
 
 ### 6.1 Shipping a new generic build
 
-Use the script — it does all three steps below in one go:
+Use the script — it does the whole release end to end:
 ```powershell
 D:\Daman\src\daman-admin\deploy-generic-release.ps1 -Version 1.0.4
 ```
 It finds `Daman_1.0.4_generic.exe` / `32-Daman_1.0.4_generic.exe` in `clients-build/generic/`
 (build these first via the admin portal's "Build Generic" button — see §8), uploads both to R2,
-verifies each is actually live at `dl.damansoft.com` with a matching file size, and rewrites the
+verifies each is actually live at `dl.damansoft.com` with a matching file size, rewrites the
 four download links in `daman-website/index.html` (AR/EN × 64-bit/32-bit) to point at the new
-filenames. It does **not** commit/push for you — review the diff and push yourself once you're
-happy (that site deploys via GitHub Pages on push, unlike the two Cloudflare-hosted pieces above).
+filenames, and then **commits and pushes that change itself** (scoped to just `index.html`,
+never a blanket `git add -A`) — that site deploys via GitHub Pages on push, unlike the two
+Cloudflare-hosted pieces above, so this last step is what actually makes the new version live
+on the public download page. If nothing changed (the website already referenced this exact
+version), it skips the commit instead of creating an empty one.
 A local dashboard for running it (with live streamed output) is also available — see §6.2.
 
 Manual equivalent, if needed:

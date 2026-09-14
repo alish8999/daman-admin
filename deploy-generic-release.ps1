@@ -9,9 +9,11 @@
     sizes, and rewrites daman-website/index.html's four download links (AR/EN x 64-bit/32-bit) to
     point at the new files.
 
-    Does NOT commit or push automatically - review the diff yourself and push when ready
-    (daman-website deploys via GitHub Pages on push, separate from the two Cloudflare-hosted
-    pieces this repo's other deploy scripts handle).
+    Commits and pushes the index.html change automatically once the links are rewritten -
+    daman-website deploys via GitHub Pages on push, so this is what actually makes the new
+    version live on the public download page (separate from the two Cloudflare-hosted pieces
+    this repo's other deploy scripts handle). The commit is scoped to index.html only, never
+    a blanket "git add -A", so nothing else sitting uncommitted in that repo gets swept in.
 
 .PARAMETER Version
     The version string exactly as it appears in the built filenames, e.g. "1.0.4"
@@ -76,15 +78,35 @@ $newHtml = $newHtml -replace "https://$DownloadHost/32-Daman_[\d.]+_generic\.exe
 
 if ($newHtml -eq $html) {
     Write-Host "    Warning: no links were changed - website may already reference this exact version." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "==> Done. Nothing to commit - website already references $Version." -ForegroundColor Green
 } else {
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($WebsiteIndex, $newHtml, $utf8NoBom)
     Write-Host "    Updated: $WebsiteIndex" -ForegroundColor DarkGray
-}
 
-Write-Host ""
-Write-Host "==> Done. Review the diff, then commit and push to actually go live:" -ForegroundColor Green
-Write-Host "    cd D:\Daman\src\daman-website" -ForegroundColor DarkGray
-Write-Host "    git add index.html" -ForegroundColor DarkGray
-Write-Host "    git commit -m ""chore: bump generic installer to $Version""" -ForegroundColor DarkGray
-Write-Host "    git push" -ForegroundColor DarkGray
+    Write-Host "==> Committing and pushing daman-website..." -ForegroundColor Cyan
+    $WebsiteDir = Split-Path $WebsiteIndex -Parent
+    Push-Location $WebsiteDir
+    try {
+        git add -- index.html
+        if ($LASTEXITCODE -ne 0) { throw "git add failed in $WebsiteDir." }
+
+        git commit -m "chore: bump generic installer to $Version"
+        if ($LASTEXITCODE -ne 0) { throw "git commit failed in $WebsiteDir." }
+
+        $commitSha = (git rev-parse --short HEAD).Trim()
+        Write-Host "    Committed: $commitSha" -ForegroundColor DarkGray
+
+        git push
+        if ($LASTEXITCODE -ne 0) { throw "git push failed - the commit ($commitSha) exists locally in $WebsiteDir but is NOT live yet. Push it manually once you've resolved the issue: cd $WebsiteDir; git push" }
+
+        Write-Host "    Pushed $commitSha - GitHub Pages will redeploy shortly." -ForegroundColor DarkGray
+    }
+    finally {
+        Pop-Location
+    }
+
+    Write-Host ""
+    Write-Host "==> Done. $Version is now committed and pushed - live once GitHub Pages redeploys." -ForegroundColor Green
+}
