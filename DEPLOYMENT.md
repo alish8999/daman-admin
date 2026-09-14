@@ -174,6 +174,24 @@ redeploy the backend.
   (virus-scan warnings past ~100MB, shared-link download quotas, no analytics, tied to a personal
   account).
 
+### 6.1 Deploy Dashboard (optional, local convenience)
+
+Instead of running the three `.ps1` scripts by hand, `deploy-dashboard/` provides a local
+browser UI that runs them with live streamed output:
+
+```powershell
+cd daman-admin\deploy-dashboard
+npm start
+```
+
+Then open `http://127.0.0.1:5500/` in a browser. Three cards — Admin Backend, Admin Frontend,
+Generic Release — each run the matching script and stream its output live; the Generic Release
+version field is pre-filled from the highest version already built in `clients-build/generic/`.
+
+This is a thin wrapper: it spawns the same scripts documented above, unmodified, and adds no
+new deploy logic of its own. It requires the SSH key set up in §2 (no interactive password
+prompts), binds to `127.0.0.1` only, and has no auth of its own beyond that.
+
 ## 7. Connecting to the live database locally (IntelliJ / DataGrip)
 
 The server's firewall only allows SSH, so any DB client needs an SSH tunnel — and H2's
