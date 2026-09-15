@@ -100,7 +100,8 @@ public class ClientConfigService {
 
     /** The per-client inputs that vary per client and go into a v2 license payload. */
     public record LicenseEntitlements(String baseCurrency, java.util.Map<String, Boolean> features,
-                                      String colorPrimary, String colorSecondary) {}
+                                      String colorPrimary, String colorSecondary,
+                                      String adminUsername, String adminPassword) {}
 
     /**
      * Builds the {@code baseCurrency} + {@code features} that go into a v2 license
@@ -120,7 +121,8 @@ public class ClientConfigService {
         java.util.Map<String, Boolean> features = objectMapper.convertValue(
                 dto, new tools.jackson.core.type.TypeReference<java.util.Map<String, Boolean>>() {});
         return new LicenseEntitlements(baseCurrency, features,
-                c.getColorPrimary(), c.getColorSecondary());
+                c.getColorPrimary(), c.getColorSecondary(),
+                c.getAdminUsername(), c.getAdminPassword());
     }
 
     public ClientConfigExportDto export(String clientCode) {

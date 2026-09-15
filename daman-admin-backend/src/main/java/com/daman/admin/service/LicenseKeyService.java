@@ -71,13 +71,22 @@ public class LicenseKeyService {
     public String generateLicense(String machineId, String clientName, String clientCode,
                                   String expiresAt, String baseCurrency,
                                   java.util.Map<String, Boolean> features) {
-        return generateLicense(machineId, clientName, clientCode, expiresAt, baseCurrency, features, null, null);
+        return generateLicense(machineId, clientName, clientCode, expiresAt, baseCurrency, features, null, null, null, null);
     }
 
     public String generateLicense(String machineId, String clientName, String clientCode,
                                   String expiresAt, String baseCurrency,
                                   java.util.Map<String, Boolean> features,
                                   String colorPrimary, String colorSecondary) {
+        return generateLicense(machineId, clientName, clientCode, expiresAt, baseCurrency, features,
+                colorPrimary, colorSecondary, null, null);
+    }
+
+    public String generateLicense(String machineId, String clientName, String clientCode,
+                                  String expiresAt, String baseCurrency,
+                                  java.util.Map<String, Boolean> features,
+                                  String colorPrimary, String colorSecondary,
+                                  String adminUsername, String adminPassword) {
         try {
             ObjectNode payload = mapper.createObjectNode();
             payload.put("v", 2);
@@ -102,6 +111,17 @@ public class LicenseKeyService {
                 ObjectNode colors = payload.putObject("colors");
                 if (hasPrimary)   colors.put("primary", colorPrimary.trim());
                 if (hasSecondary) colors.put("secondary", colorSecondary.trim());
+            }
+            // Default admin login to seed on first activation of a generic build
+            // (additive field, same as colors above — ignored by older desktop
+            // code). Only seeded when the client has no matching user yet; see
+            // LicenseService.activate() on the desktop side.
+            boolean hasUsername = adminUsername != null && !adminUsername.isBlank();
+            boolean hasPassword = adminPassword != null && !adminPassword.isBlank();
+            if (hasUsername && hasPassword) {
+                ObjectNode credentials = payload.putObject("credentials");
+                credentials.put("username", adminUsername.trim());
+                credentials.put("password", adminPassword);
             }
             byte[] payloadBytes = mapper.writeValueAsBytes(payload);
 

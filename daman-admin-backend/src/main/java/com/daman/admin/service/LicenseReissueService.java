@@ -89,7 +89,7 @@ public class LicenseReissueService {
             String newKey = licenseKeyService.generateLicense(
                     l.getMachineId(), clientName, l.getClientCode(), expiresAt,
                     ent.baseCurrency(), ent.features(),
-                    ent.colorPrimary(), ent.colorSecondary());
+                    ent.colorPrimary(), ent.colorSecondary(), ent.adminUsername(), ent.adminPassword());
 
             // Only capture a genuine v1 -> v2 transition. On a second batch run the row
             // is already v2, so leave the stored original v1 key untouched — otherwise a
