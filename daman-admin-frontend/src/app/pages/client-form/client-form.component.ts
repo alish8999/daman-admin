@@ -12,6 +12,7 @@ import { Billing, BillingRequest } from '../../models/billing.model';
 import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup, addonValue } from '../../models/feature-catalog';
 import { ClientFeatures } from '../../models/client-config.model';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
+import { NOTO_KUFI_ARABIC_BASE64 } from './noto-kufi-arabic-font';
 
 @Component({
   selector: 'app-client-form',
@@ -680,8 +681,21 @@ export class ClientFormComponent implements OnInit {
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  ${isAr ? `
+  /* Base64-embedded (not a file path) — this HTML is written into a popup
+     via document.write(), which has no reliable asset base URL to resolve
+     a relative/root-relative font path against. Same font as the admin
+     dashboard's own [dir="rtl"] rule and daman-frontend's body.rtl rule. */
+  @font-face {
+    font-family: 'Noto Kufi Arabic';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url(data:font/woff2;base64,${NOTO_KUFI_ARABIC_BASE64}) format('woff2');
+  }` : ''}
+
   body {
-    font-family: ${isAr ? "'Segoe UI', 'Tahoma', 'Arial', sans-serif" : "'Segoe UI', 'Inter', 'Arial', sans-serif"};
+    font-family: ${isAr ? "'Noto Kufi Arabic', 'Segoe UI', 'Tahoma', 'Arial', sans-serif" : "'Segoe UI', 'Inter', 'Arial', sans-serif"};
     font-size: 13px;
     color: #1e293b;
     background: #f1f5f9;
@@ -701,7 +715,7 @@ export class ClientFormComponent implements OnInit {
 
   /* ── Header ── */
   .inv-header {
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    background: linear-gradient(135deg, #06303f 0%, #0a4d68 100%);
     padding: 36px 40px 28px;
     display: flex;
     justify-content: space-between;
@@ -719,7 +733,7 @@ export class ClientFormComponent implements OnInit {
   }
   .brand-sub {
     font-size: 12px;
-    color: #93c5fd;
+    color: #f59e0b;
     margin-top: 4px;
     font-weight: 500;
     text-transform: uppercase;
@@ -732,7 +746,7 @@ export class ClientFormComponent implements OnInit {
     gap: 4px;
   }
   .brand-phones a {
-    color: #bfdbfe;
+    color: rgba(255, 255, 255, 0.8);
     font-size: 12.5px;
     font-weight: 600;
     text-decoration: none;
@@ -754,7 +768,7 @@ export class ClientFormComponent implements OnInit {
   }
   .inv-title-block .inv-ref {
     font-size: 13px;
-    color: #93c5fd;
+    color: #f59e0b;
     margin-top: 6px;
     direction: ltr;
     unicode-bidi: embed;
@@ -762,7 +776,7 @@ export class ClientFormComponent implements OnInit {
   }
   .inv-title-block .issued {
     font-size: 11px;
-    color: #60a5fa;
+    color: rgba(255, 255, 255, 0.75);
     margin-top: 4px;
     display: block;
   }
@@ -819,7 +833,7 @@ export class ClientFormComponent implements OnInit {
   .amount-row td.val {
     font-size: 20px;
     font-weight: 800;
-    color: #0f172a;
+    color: #0a4d68;
     direction: ltr;
     unicode-bidi: embed;
   }
