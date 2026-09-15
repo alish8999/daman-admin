@@ -127,11 +127,11 @@ class DevRunServiceTest {
         cfg.setAppName(code.toUpperCase() + " POS");
         when(clientConfigRepository.findByClientCode(code)).thenReturn(Optional.of(cfg));
         when(clientConfigService.licenseEntitlementsFor(code)).thenReturn(
-                new ClientConfigService.LicenseEntitlements("USD", java.util.Map.of("barcode", true), null, null));
+                new ClientConfigService.LicenseEntitlements("USD", java.util.Map.of("barcode", true), null, null, null, null));
         // devRun() now always regenerates the dev-run key from current entitlements
         // (reuse-verbatim hid later admin-config changes); default it so tests that
         // don't care about the key value still get a non-null one written to license.dat.
-        lenient().when(licenseKeyService.generateLicense(any(), any(), eq(code), isNull(), any(), any(), any(), any()))
+        lenient().when(licenseKeyService.generateLicense(any(), any(), eq(code), isNull(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(code.toUpperCase() + ".DEVRUN.KEY");
     }
 
@@ -282,7 +282,7 @@ class DevRunServiceTest {
         stubClient("acme");
         when(licenseRepository.findByMachineIdAndClientCodeAndStatus("B".repeat(64), "acme", "ACTIVE"))
                 .thenReturn(Optional.empty());
-        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any(), any(), any()))
+        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any(), any(), any(), any(), any()))
                 .thenReturn("NEW.V2.KEY");
 
         DevRunService.DevRunResult r = service.devRun("acme",
@@ -308,7 +308,7 @@ class DevRunServiceTest {
         existing.setLabel("dev-run");
         when(licenseRepository.findByMachineIdAndClientCodeAndStatus("B".repeat(64), "acme", "ACTIVE"))
                 .thenReturn(Optional.of(existing));
-        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any(), any(), any()))
+        when(licenseKeyService.generateLicense(any(), any(), eq("acme"), isNull(), any(), any(), any(), any(), any(), any()))
                 .thenReturn("FRESH.V2.KEY");
 
         DevRunService.DevRunResult r = service.devRun("acme",
@@ -386,7 +386,7 @@ class DevRunServiceTest {
         assertThat(Files.readString(be.resolve("client.config.json"))).isEqualTo("SENTINEL-UNCHANGED");
         assertThat(Files.exists(damanHome.resolve("runtime.properties"))).isFalse();
         verify(licenseRepository, never()).save(any());
-        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(licenseKeyService, never()).generateLicense(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /** {@link #seedCheckoutGenericFiles()} without the checked exception, for non-throwing test bodies. */

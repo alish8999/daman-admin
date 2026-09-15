@@ -39,7 +39,7 @@ class LicenseReissueServiceTest {
 
         // Default: every clientCode resolves to some entitlements unless a test overrides.
         when(clientConfigService.licenseEntitlementsFor(anyString()))
-                .thenReturn(new ClientConfigService.LicenseEntitlements("USD", Map.of("barcode", true), null, null));
+                .thenReturn(new ClientConfigService.LicenseEntitlements("USD", Map.of("barcode", true), null, null, null, null));
     }
 
     private License lic(long id, String code, String machine, String status, String key) {
