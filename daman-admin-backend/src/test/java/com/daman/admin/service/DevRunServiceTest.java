@@ -14,6 +14,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -352,6 +355,77 @@ class DevRunServiceTest {
 
         assertThat(Files.readString(damanHome().resolve("acme/daman_db.sqlite"))).isEqualTo("NEW-DATA");
         assertThat(Files.exists(damanHome().resolve("acme/daman_db.sqlite.devrun-tmp"))).isFalse();
+    }
+
+    /** Creates a real SQLite file with an installation_setup_settings row, as if a
+     *  previous client's app had already completed first-run setup there. */
+    private void seedInstallationSetupDb(Path dbFile, String appName, String phone) throws Exception {
+        Files.createDirectories(dbFile.getParent());
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+             Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE installation_setup_settings (id bigint not null, app_name varchar(200), "
+                    + "base_currency varchar(10), completed boolean not null, address varchar(300), "
+                    + "phone varchar(40), primary key (id))");
+            st.execute("INSERT INTO installation_setup_settings (id, app_name, base_currency, completed, phone) "
+                    + "VALUES (1, '" + appName + "', 'USD', 1, '" + phone + "')");
+        }
+    }
+
+    private String readInstallationAppName(Path dbFile) throws Exception {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+             Statement st = conn.createStatement();
+             var rs = st.executeQuery("SELECT app_name FROM installation_setup_settings WHERE id = 1")) {
+            rs.next();
+            return rs.getString(1);
+        }
+    }
+
+    @Test
+    void devRun_syncsInstallationIdentity_intoPerClientDb_evenWithoutDbCopy() throws Exception {
+        seedCheckoutGenericFiles();
+        // Real bug repro: a previous dev-run left "OLD-CLIENT POS" here; this dev-run
+        // to "acme" provides no dbFile at all (dbCopied stays false).
+        seedInstallationSetupDb(damanHome().resolve("acme/daman_db.sqlite"), "OLD-CLIENT POS", "000");
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus(any(), any(), any()))
+                .thenReturn(Optional.of(activeLicence("acme", "K")));
+
+        service.devRun("acme", new DevRunService.DevRunRequest("generic", null));
+
+        assertThat(readInstallationAppName(damanHome().resolve("acme/daman_db.sqlite"))).isEqualTo("ACME POS");
+    }
+
+    @Test
+    void devRun_syncsInstallationIdentity_intoPackagedGenericDataFolder_evenWithoutDbCopy() throws Exception {
+        seedCheckoutGenericFiles();
+        // The exact real-world bug: the packaged Electron generic build reads a fixed
+        // ~/.daman/data/ folder, never ~/.daman/<code>/ — if that folder already existed
+        // from an earlier client, dev-running as a NEW client left the OLD client's store
+        // name showing in the actual app, with no error and no warning.
+        seedInstallationSetupDb(damanHome().resolve("data/daman_db.sqlite"), "OLD-CLIENT POS", "000");
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus(any(), any(), any()))
+                .thenReturn(Optional.of(activeLicence("acme", "K")));
+
+        service.devRun("acme", new DevRunService.DevRunRequest("generic", null));
+
+        assertThat(readInstallationAppName(damanHome().resolve("data/daman_db.sqlite"))).isEqualTo("ACME POS");
+    }
+
+    @Test
+    void devRun_noExistingDbFiles_doesNotThrow() throws Exception {
+        // Neither ~/.daman/<code>/ nor ~/.daman/data/ has a database yet (brand-new
+        // machine) — syncInstallationIdentity must be a silent no-op, not an error.
+        // An uncaught exception here fails the test on its own; no assertion needed.
+        seedCheckoutGenericFiles();
+        service = spyServiceWithProbe("B".repeat(64));
+        stubClient("acme");
+        when(licenseRepository.findByMachineIdAndClientCodeAndStatus(any(), any(), any()))
+                .thenReturn(Optional.of(activeLicence("acme", "K")));
+
+        service.devRun("acme", new DevRunService.DevRunRequest("generic", null));
     }
 
     @Test

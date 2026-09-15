@@ -22,6 +22,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -269,21 +275,65 @@ public class DevRunService {
             throw new UncheckedIOException("dev-run: failed writing licence / copying db", e);
         }
 
+        syncInstallationIdentity(clientCode, cfg.getAppName(), cfg.getPhone());
+
         List<String> notes = new ArrayList<>();
         notes.add("Restart your local daman-backend (mvn spring-boot:run -Pdesktop, or your IntelliJ desktop run "
                 + "config) and your ng serve — config, licence and DB are only read at startup.");
         if ("generic".equals(mode)) {
             notes.add("Generic mode: features + base currency come from the dev licence; in-app branding stays "
                     + "generic Daman (only receipts carry the client's logo).");
-            notes.add("This DB path is for a directly-run backend (mvn spring-boot:run -Pdesktop / IntelliJ). "
-                    + "Do NOT launch the packaged Electron generic build against it — that build resolves its own "
-                    + "data folder (~/.daman/data/) and would move this one by rename on first launch.");
+            notes.add("The packaged Electron generic build reads its own fixed data folder (~/.daman/data/), not "
+                    + "this DB path — if that folder already existed from an earlier client, this dev-run only "
+                    + "synced the store's name/phone into it, not its transactions/products. Provide dbFile if you "
+                    + "need that data to match too.");
         }
         if (!dbCopied) {
             notes.add("Put the client's database at " + dbTarget + " before starting the backend.");
         }
         return new DevRunResult(clientCode, mode, machineId, dbTarget.toString(), dbCopied,
                 home.resolve("license.dat").toString(), notes);
+    }
+
+    /**
+     * Syncs {@code clientCode}'s real appName/phone into {@code installation_setup_settings}
+     * on every local SQLite file a dev-run of this client might actually be read from — both
+     * the per-client path a directly-run backend reads ({@code ~/.daman/<code>/}) and the
+     * packaged generic build's fixed path ({@code ~/.daman/data/}), which never see the same
+     * license.dat/database in the same way (see {@link #devRun} and the class comment).
+     * Without this, switching which client you dev-run as left the PREVIOUSLY dev-run
+     * client's store name/phone showing in the app — the license (a small file, always
+     * freshly written) correctly said the new client, but the SQLite file's own business
+     * data (entered once, long ago, via the app's first-run setup wizard) silently didn't
+     * change. A no-op on any file that hasn't run its first boot yet (table doesn't exist).
+     */
+    private void syncInstallationIdentity(String clientCode, String appName, String phone) {
+        List<Path> candidates = List.of(
+                damanHome().resolve(clientCode).resolve("daman_db.sqlite"),
+                damanHome().resolve("data").resolve("daman_db.sqlite"));
+        for (Path dbPath : candidates) {
+            if (!Files.isRegularFile(dbPath)) continue;
+            String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
+            try (Connection conn = DriverManager.getConnection(url)) {
+                try (Statement check = conn.createStatement();
+                     ResultSet rs = check.executeQuery(
+                             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
+                                     + "AND name='installation_setup_settings'")) {
+                    if (!rs.next() || rs.getInt(1) == 0) continue;
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE installation_setup_settings SET app_name = ?, phone = ? WHERE id = 1")) {
+                    ps.setString(1, appName);
+                    ps.setString(2, phone);
+                    int updated = ps.executeUpdate();
+                    if (updated > 0) {
+                        log.info("dev-run: synced installation identity for '{}' into {}", clientCode, dbPath);
+                    }
+                }
+            } catch (SQLException e) {
+                log.warn("dev-run: could not sync installation identity into {} — {}", dbPath, e.getMessage());
+            }
+        }
     }
 
     /**
