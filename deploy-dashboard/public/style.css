@@ -270,6 +270,20 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* Small pill after a card title - names which hosted store a card deploys. */
+.card-tag {
+  display: inline-block;
+  margin-inline-start: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: 0.1em;
+}
+
 .card-desc {
   margin: 0.15rem 0 0;
   font-size: 0.8rem;

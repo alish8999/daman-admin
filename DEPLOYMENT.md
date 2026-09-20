@@ -204,7 +204,7 @@ own success message. Going this manual route also means updating the four downlo
 
 ### 6.2 Deploy Dashboard (optional, local convenience)
 
-Instead of running the three `.ps1` scripts by hand, `deploy-dashboard/` provides a local
+Instead of running the `.ps1` scripts by hand, `deploy-dashboard/` provides a local
 browser UI that runs them with live streamed output:
 
 ```powershell
@@ -212,9 +212,13 @@ cd daman-admin\deploy-dashboard
 npm start
 ```
 
-Then open `http://127.0.0.1:5500/` in a browser. Three cards — Admin Backend, Admin Frontend,
-Generic Release — each run the matching script and stream its output live; the Generic Release
-version field is pre-filled from the highest version already built in `clients-build/generic/`.
+Then open `http://127.0.0.1:5500/` in a browser. Each card runs the matching script and streams
+its output live: Admin Backend, Admin Frontend, Generic Release (its version field is pre-filled
+from the highest version already built in `clients-build/generic/`), and a **Hosted Store** group
+with Backend and Frontend cards for the hosted viora instance (`deploy-store-backend.ps1` /
+`deploy-store-frontend.ps1`). The hosted-store arguments (client code, port, Pages project, API
+host) are fixed in `deploy-dashboard/lib/slots.js` and never come from the request. The
+dashboard has to be restarted (`Ctrl+C`, `npm start`) to pick up slot changes.
 
 This is a thin wrapper: it spawns the same scripts documented above, unmodified, and adds no
 new deploy logic of its own. It depends on the SSH key auth from §2 — a spawned script has no

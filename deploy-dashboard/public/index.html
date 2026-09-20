@@ -37,6 +37,12 @@
       <a class="infobar-link" href="https://admin-api.damansoft.com/api/licenses/public-key" target="_blank" rel="noopener">
         <span class="status-dot" data-health="backend"></span>API Health
       </a>
+      <a class="infobar-link" href="https://viora.damansoft.com" target="_blank" rel="noopener">
+        <span class="status-dot" data-health="store-frontend"></span>Viora Store
+      </a>
+      <a class="infobar-link" href="https://viora-api.damansoft.com/api/health" target="_blank" rel="noopener">
+        <span class="status-dot" data-health="store-backend"></span>Viora API
+      </a>
       <a class="infobar-link" href="https://dl.damansoft.com" target="_blank" rel="noopener">
         Installers (R2)
       </a>
@@ -174,6 +180,66 @@
         <span>Version</span>
         <input type="text" class="version-input" placeholder="1.0.4" autocomplete="off" spellcheck="false">
       </label>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+    </section>
+    </div>
+
+    <div class="card-group">
+    <section class="card" data-slot="store-backend">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="17" r="1" fill="currentColor"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Hosted Store Backend <span class="card-tag">viora</span></h2>
+          <p class="card-desc">Build daman-backend, upload &amp; restart the <code>daman-store-viora</code> service (port <code>8090</code>)</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+    </section>
+
+    <section class="card" data-slot="store-frontend">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 8.5h18" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="6.25" r="0.75" fill="currentColor"/><circle cx="8.5" cy="6.25" r="0.75" fill="currentColor"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Hosted Store Frontend <span class="card-tag">viora</span></h2>
+          <p class="card-desc">Build the browser app &amp; publish to Cloudflare Pages (<code>daman-store-viora</code>)</p>
+        </div>
+        <span class="footer"></span>
+      </div>
 
       <button class="deploy-btn">
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>

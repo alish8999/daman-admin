@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const { spawnSync } = require('child_process');
-const { SLOTS } = require('./lib/slots');
+const { SLOTS, HOSTED_STORE } = require('./lib/slots');
 const { RunLock } = require('./lib/run-lock');
 const { findLatestGenericVersion } = require('./lib/version-scanner');
 const { runScript } = require('./lib/script-runner');
@@ -19,6 +19,8 @@ const GENERIC_BUILD_DIR = path.join(__dirname, '..', '..', 'clients-build', 'gen
 const HEALTH_TARGETS = {
   backend: 'https://admin-api.damansoft.com/api/licenses/public-key',
   frontend: 'https://admin.damansoft.com/',
+  'store-backend': `https://${HOSTED_STORE.apiHost}/api/health`,
+  'store-frontend': HOSTED_STORE.siteUrl,
 };
 const HEALTH_TIMEOUT_MS = 6000;
 
@@ -229,7 +231,10 @@ function handleDeployStream(req, res, slot, query) {
 
   let finished = false;
 
-  const args = SLOTS[slot].requiresVersion ? ['-Version', query.version] : [];
+  const args = [
+    ...(SLOTS[slot].args || []),
+    ...(SLOTS[slot].requiresVersion ? ['-Version', query.version] : []),
+  ];
   const child = runScript(SLOTS[slot].scriptPath, args);
   const pid = child.pid;
   if (pid) runningPids.add(pid);
@@ -287,7 +292,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const streamMatch = /^\/api\/deploy\/([a-z]+)\/stream$/.exec(pathname);
+  const streamMatch = /^\/api\/deploy\/([a-z]+(?:-[a-z]+)*)\/stream$/.exec(pathname);
   if (req.method === 'GET' && streamMatch) {
     handleDeployStream(req, res, streamMatch[1], parsed.query);
     return;

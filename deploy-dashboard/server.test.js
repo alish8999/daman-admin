@@ -29,6 +29,18 @@ SLOTS.frontend.scriptPath = slowScript;
 SLOTS.generic.requiresVersion = true;
 SLOTS.generic.scriptPath = fastOkScript;
 
+// The hosted-store slots pass FIXED arguments (declared in lib/slots.js). Point them at
+// throwaway scripts that echo back exactly what they were called with, so the tests can
+// prove those arguments really reach the script under their real parameter names.
+const storeBackendEchoScript = writeTempScript(
+  'param([string]$ClientCode, [int]$Port)\nWrite-Host "ARGS:${ClientCode}:${Port}"\nexit 0\n'
+);
+const storeFrontendEchoScript = writeTempScript(
+  'param([string]$PagesProject, [string]$ExpectedApiHost)\nWrite-Host "ARGS:${PagesProject}:${ExpectedApiHost}"\nexit 0\n'
+);
+SLOTS['store-backend'].scriptPath = storeBackendEchoScript;
+SLOTS['store-frontend'].scriptPath = storeFrontendEchoScript;
+
 // Regression test setup for the double-fire ('error' then 'exit') spawn-failure
 // race: add a synthetic slot whose runScript is monkey-patched to emit both
 // events in quick succession, exactly like a real Windows spawn failure can.
@@ -76,6 +88,8 @@ test.after(() => {
   server.close();
   fs.unlinkSync(fastOkScript);
   fs.unlinkSync(slowScript);
+  fs.unlinkSync(storeBackendEchoScript);
+  fs.unlinkSync(storeFrontendEchoScript);
 });
 
 test('a cross-origin request to a deploy endpoint is rejected with 403', async () => {
@@ -165,4 +179,43 @@ test('a spawn failure that fires both error and exit does not crash the process'
   const status = await get('/api/status');
   const parsed = JSON.parse(status.body);
   assert.strictEqual(parsed.spawnfail, false);
+});
+
+test('store-backend slot passes the fixed viora -ClientCode/-Port arguments to its script', async () => {
+  const res = await get('/api/deploy/store-backend/stream');
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(res.body.includes('ARGS:viora:8090'), `script did not receive the fixed args: ${res.body}`);
+  assert.ok(res.body.includes('"code":0'));
+});
+
+test('store-frontend slot passes the fixed -PagesProject/-ExpectedApiHost arguments to its script', async () => {
+  const res = await get('/api/deploy/store-frontend/stream');
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(
+    res.body.includes('ARGS:daman-store-viora:viora-api.damansoft.com'),
+    `script did not receive the fixed args: ${res.body}`
+  );
+  assert.ok(res.body.includes('"code":0'));
+});
+
+test('the fixed slot arguments cannot be overridden from the query string', async () => {
+  // A GET triggers a real production deploy - user input must never reach the script's
+  // parameters. Extra query params on a slot without requiresVersion are simply ignored.
+  const res = await get('/api/deploy/store-backend/stream?ClientCode=evil&Port=1&version=9.9.9');
+  assert.ok(res.body.includes('ARGS:viora:8090'));
+  assert.ok(!res.body.includes('evil'));
+});
+
+test('the new store slots appear in /api/status with their own independent locks', async () => {
+  const status = JSON.parse((await get('/api/status')).body);
+  assert.strictEqual(status['store-backend'], false);
+  assert.strictEqual(status['store-frontend'], false);
+});
+
+test('/api/health reports the hosted store frontend and API alongside the admin ones', async () => {
+  const health = JSON.parse((await get('/api/health')).body);
+  for (const key of ['backend', 'frontend', 'store-backend', 'store-frontend']) {
+    assert.ok(key in health, `health is missing "${key}": ${JSON.stringify(health)}`);
+    assert.strictEqual(typeof health[key], 'boolean');
+  }
 });
