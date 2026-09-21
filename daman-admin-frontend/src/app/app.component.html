@@ -1,7 +1,19 @@
 @if (translationService.getLanguage$() | async) {
   @if (showShell) {
     <div class="admin-shell">
-      <aside class="admin-sidebar">
+      <!-- Phone-only top bar (hidden on desktop via CSS) -->
+      <header class="admin-mobile-bar">
+        <button type="button" class="admin-mobile-menu-btn" (click)="toggleMobileMenu()" [attr.aria-expanded]="mobileMenuOpen" aria-label="Menu">
+          <i class="bi bi-list"></i>
+        </button>
+        <span class="admin-sidebar-mark">D</span>
+        <span class="admin-mobile-title">{{ 'appTitle' | t }}</span>
+      </header>
+      @if (mobileMenuOpen) {
+        <div class="admin-sidebar-backdrop" (click)="closeMobileMenu()"></div>
+      }
+
+      <aside class="admin-sidebar" [class.admin-sidebar--open]="mobileMenuOpen">
         <div class="admin-sidebar-brand">
           <span class="admin-sidebar-mark">D</span>
           <span>{{ 'appTitle' | t }}</span>

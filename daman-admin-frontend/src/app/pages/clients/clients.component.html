@@ -126,7 +126,7 @@
               <tr [class.row--active]="statusOf(client).status === 'ACTIVE'">
 
                 <!-- Client -->
-                <td>
+                <td class="clients-name-cell">
                   <div class="d-flex align-items-center gap-2">
                     <span class="client-avatar" [style.background-color]="client.colorPrimary || '#0a4d68'" [title]="client.colorPrimary">{{ client.appName ? client.appName.charAt(0) : '?' }}</span>
                     <div class="min-w-0">
@@ -138,7 +138,7 @@
                 </td>
 
                 <!-- Status -->
-                <td>
+                <td data-label="Status">
                   <div class="d-flex flex-wrap gap-1 align-items-center">
                     <span class="badge" [ngClass]="clientStatusClass(statusOf(client).status)" style="font-size:0.68rem">
                       {{ clientStatusLabel(statusOf(client).status) }}
@@ -164,7 +164,7 @@
                 </td>
 
                 <!-- Contact -->
-                <td>
+                <td data-label="Contact">
                   @if (client.pointOfContact || client.phone) {
                     <div class="d-flex align-items-center gap-2">
                       <div class="text-muted small text-truncate" style="max-width:130px">
@@ -192,7 +192,7 @@
                 </td>
 
                 <!-- Paid Features -->
-                <td>
+                <td data-label="Paid Features">
                   @if (paidFeatureBadges(client).length > 0) {
                     <div class="d-flex flex-wrap gap-1" style="max-width:220px">
                       @for (b of visiblePaidFeatureBadges(client); track b.label) {
@@ -212,7 +212,7 @@
                 </td>
 
                 <!-- Total Paid -->
-                <td class="text-end">
+                <td class="text-end" data-label="Total Paid">
                   @if (clientTotalPaid(client.clientCode) > 0) {
                     <div class="fw-semibold text-success ltr-num">${{ clientTotalPaid(client.clientCode) | number:'1.0-2' }}</div>
                     @if (clientLatestPaidDate(client.clientCode); as d) {
@@ -224,7 +224,7 @@
                 </td>
 
                 <!-- License -->
-                <td>
+                <td data-label="License">
                   @if (primaryLicenseOf(client.clientCode); as lic) {
                     @if (lic.expiresAt) {
                       <span class="small ltr-num" [ngClass]="licenseExpiryClass(client.clientCode)">
@@ -239,7 +239,7 @@
                 </td>
 
                 <!-- Actions -->
-                <td>
+                <td class="clients-actions-cell">
                   <div class="d-flex gap-1 justify-content-end flex-nowrap">
                     <a [routerLink]="['/clients', client.clientCode, 'edit']"
                        class="btn btn-xs btn-outline-primary" title="Edit">

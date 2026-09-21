@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { AsyncPipe } from '@angular/common';
 import { TranslationService, Language } from './services/translation.service';
@@ -13,6 +13,8 @@ import { AuthService } from './services/auth.service';
 })
 export class AppComponent {
   showShell = true;
+  /** Phone layout: the sidebar is an off-canvas drawer, toggled from the top bar. */
+  mobileMenuOpen = false;
 
   constructor(
     public translationService: TranslationService,
@@ -22,9 +24,19 @@ export class AppComponent {
     this.showShell = this.router.url !== '/login';
     this.router.events.subscribe(event => {
       if (event instanceof NavigationEnd) {
+        this.mobileMenuOpen = false;
         this.showShell = event.urlAfterRedirects !== '/login';
       }
     });
+  }
+
+  toggleMobileMenu(): void {
+    this.mobileMenuOpen = !this.mobileMenuOpen;
+  }
+
+  @HostListener('document:keydown.escape')
+  closeMobileMenu(): void {
+    this.mobileMenuOpen = false;
   }
 
   setLanguage(lang: Language): void {

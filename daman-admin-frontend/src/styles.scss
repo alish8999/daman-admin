@@ -261,6 +261,10 @@ html[dir="rtl"] body {
   &:hover { background: rgba(220, 53, 69, 0.25); border-color: rgba(220, 53, 69, 0.4); color: #fff; }
 }
 
+// Phone-only chrome — invisible on desktop, switched on in the media query below.
+.admin-mobile-bar,
+.admin-sidebar-backdrop { display: none; }
+
 .admin-content {
   flex: 1;
   min-width: 0;
@@ -533,7 +537,11 @@ html[dir="rtl"] body {
   border-radius: var(--admin-radius-lg);
   box-shadow: var(--admin-shadow-sm);
   border: 1px solid var(--admin-border);
-  overflow: hidden;
+  // hidden clipped the rounded corners but ALSO killed .table-responsive's
+  // horizontal scroll (same element, this file loads after Bootstrap) — so a
+  // narrow window just cut the table off. Keep clipping Y, scroll X.
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .clients-table {
@@ -693,4 +701,186 @@ html[dir="rtl"] body {
     padding: 2px;
     cursor: pointer;
   }
+}
+
+// ── Responsive ──────────────────────────────────────────────────────────────
+// Desktop layout is a 252px sticky sidebar next to the content. On a phone that
+// sidebar ate most of the screen and squeezed every page into a sliver, so at
+// ≤900px it becomes an off-canvas drawer opened from a slim top bar, and the
+// pages below reflow (stacked filters, wrapping headers, scrollable tabs, the
+// clients table turns into cards).
+
+@media (max-width: 900px) {
+  .admin-shell { flex-direction: column; }
+
+  .admin-mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    padding: 10px 14px;
+    color: #fff;
+    background: linear-gradient(165deg, var(--admin-sidebar-to) 0%, var(--admin-sidebar-from) 100%);
+    box-shadow: var(--admin-shadow-md);
+  }
+
+  .admin-mobile-title { font-weight: 800; font-size: 0.98rem; }
+
+  .admin-mobile-menu-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 1.35rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  // Off-canvas drawer, anchored to the inline-start edge (left in LTR, right in RTL).
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    height: auto;
+    width: min(270px, 85vw);
+    z-index: 1045;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: none;
+    overflow-y: auto;
+
+    &.admin-sidebar--open {
+      transform: translateX(0);
+      box-shadow: var(--admin-shadow-lg);
+    }
+  }
+
+  // Global stylesheet (no view encapsulation), so the document direction is matchable here.
+  html[dir="rtl"] .admin-sidebar { transform: translateX(100%); }
+  html[dir="rtl"] .admin-sidebar.admin-sidebar--open { transform: translateX(0); }
+
+  .admin-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background: rgba(6, 30, 40, 0.5);
+  }
+
+  .admin-content-inner { padding: 16px 14px 32px; }
+
+  .page-header {
+    margin-bottom: 16px;
+
+    // Action buttons drop under the title and share the row.
+    > .d-flex, > .btn { flex-wrap: wrap; }
+  }
+
+  .page-hero { padding: 18px 18px; }
+  .page-hero .text-end { text-align: start !important; }
+
+  .stat-tile { padding: 14px 14px; }
+  .stat-tile-value { font-size: 1.4rem; }
+}
+
+@media (max-width: 768px) {
+  // Tabs (Client Form) scroll sideways instead of wrapping onto several lines.
+  .nav-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar { display: none; }
+    .nav-item { flex-shrink: 0; }
+    .nav-link { white-space: nowrap; padding: 10px 12px; }
+  }
+
+  // Filter bar: every control takes the full row. The template sets inline
+  // widths on the search box / selects, hence !important.
+  .filter-bar {
+    padding: 10px 12px;
+
+    .search-input-wrap,
+    .form-select { width: 100% !important; max-width: none !important; min-width: 0 !important; }
+  }
+
+  // Clients table → one card per client (labels come from the td[data-label]s).
+  .clients-table-wrap {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .clients-table {
+    display: block;
+
+    thead { display: none; }
+    tbody { display: flex; flex-direction: column; gap: 12px; }
+
+    tbody tr {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      background: var(--admin-surface);
+      border: 1px solid var(--admin-border);
+      border-radius: var(--admin-radius-md);
+      box-shadow: var(--admin-shadow-sm);
+
+      &.row--active { border-inline-start: 3px solid #16a34a; }
+    }
+
+    tbody td,
+    tbody tr:hover td,
+    tbody tr.row--active td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      text-align: start !important;
+      box-shadow: none;
+    }
+
+    tbody td[data-label]::before {
+      content: attr(data-label);
+      flex-shrink: 0;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--admin-text-muted);
+    }
+
+    tbody td[data-label] > * { min-width: 0; }
+
+    .clients-actions-cell {
+      justify-content: flex-end;
+      padding-top: 10px;
+      border-top: 1px solid var(--admin-border);
+    }
+  }
+
+  // Modals: a little breathing room from the screen edge.
+  .modal-dialog { margin: 0.75rem; }
+}
+
+@media (max-width: 480px) {
+  .login-card { padding: 28px 22px; }
+  .page-header > .d-flex { width: 100%; }
+  .page-header > .d-flex > .btn-primary,
+  .page-header > .btn-primary { flex: 1 1 auto; }
 }
