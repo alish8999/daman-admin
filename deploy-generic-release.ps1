@@ -9,13 +9,17 @@
     sizes, and rewrites daman-website/index.html's four download links (AR/EN x 64-bit/32-bit) to
     point at the new files.
 
-    Also uploads latest.yml and the 64-bit installer's .blockmap, if BuildService.java's
-    generic build produced them (only true once package.json's build.publish is a "generic"
-    provider pointed at https://dl.damansoft.com/ - see the Windows auto-update feature). These
-    are what the shipped app's own update-checker reads to detect and download a newer version;
-    without them, everything above still works exactly as before, auto-update just stays inert.
-    Missing either file is a warning, not a failure - not every version needs to support auto-
-    update retroactively.
+    Also uploads latest.yml + the 64-bit installer's .blockmap, and latest-x86.yml + the 32-bit
+    installer's .blockmap, if BuildService.java's generic build produced them (only true once
+    package.json's build.publish is a "generic" provider pointed at https://dl.damansoft.com/ -
+    see the Windows auto-update feature). These are what the shipped app's own update-checker
+    reads to detect and download a newer version; without them, everything above still works
+    exactly as before, auto-update just stays inert. electron-updater has no built-in per-
+    architecture channel file on Windows, so the 32-bit build uses a distinct channel name
+    ("latest-x86") instead of colliding with the 64-bit one on plain "latest.yml" - see
+    update-checker.js and BuildService.java's copyUpdateMetadataIfPresent() for the other two
+    pieces of this. Missing any of these four files is a warning, not a failure - not every
+    version needs to support auto-update retroactively, on either architecture.
 
     Commits and pushes the index.html change automatically once the links are rewritten -
     daman-website deploys via GitHub Pages on push, so this is what actually makes the new
@@ -51,11 +55,17 @@ $Path32 = Join-Path $BuildDir $File32
 # Auto-update metadata (Windows generic build only) - optional, unlike the two installers
 # above. Present only once package.json's build.publish is a "generic" provider pointed at
 # https://dl.damansoft.com/ (see the Windows auto-update feature) and BuildService.java's
-# copyUpdateMetadataIfPresent() found them next to the freshly-built 64-bit installer.
+# copyUpdateMetadataIfPresent() found them next to the freshly-built installer. Separate
+# channel files per architecture (latest.yml / latest-x86.yml) - see this script's own
+# .DESCRIPTION for why they can't share one file.
 $LatestYml     = "latest.yml"
+$LatestYmlX86  = "latest-x86.yml"
 $Blockmap64    = "$File64.blockmap"
-$PathLatestYml  = Join-Path $BuildDir $LatestYml
-$PathBlockmap64 = Join-Path $BuildDir $Blockmap64
+$Blockmap32    = "$File32.blockmap"
+$PathLatestYml     = Join-Path $BuildDir $LatestYml
+$PathLatestYmlX86  = Join-Path $BuildDir $LatestYmlX86
+$PathBlockmap64    = Join-Path $BuildDir $Blockmap64
+$PathBlockmap32    = Join-Path $BuildDir $Blockmap32
 
 if (-not (Test-Path $Path64)) { throw "Not found: $Path64 - build the generic installer first." }
 if (-not (Test-Path $Path32)) { throw "Not found: $Path32 - build the 32-bit generic installer first." }
@@ -70,19 +80,20 @@ if ($LASTEXITCODE -ne 0) { throw "Upload failed for $File32." }
 
 Write-Host "==> [3/5] Uploading auto-update metadata to R2 (if present)..." -ForegroundColor Cyan
 $uploadedMetadata = @()
-if (Test-Path $PathBlockmap64) {
-    npx wrangler r2 object put "$Bucket/$Blockmap64" --file "$PathBlockmap64" --remote
-    if ($LASTEXITCODE -ne 0) { throw "Upload failed for $Blockmap64." }
-    $uploadedMetadata += @{ Name = $Blockmap64; LocalSize = (Get-Item $PathBlockmap64).Length }
-} else {
-    Write-Host "    Skipping $Blockmap64 - not found (this version wasn't built with auto-update support)." -ForegroundColor Yellow
-}
-if (Test-Path $PathLatestYml) {
-    npx wrangler r2 object put "$Bucket/$LatestYml" --file "$PathLatestYml" --remote
-    if ($LASTEXITCODE -ne 0) { throw "Upload failed for $LatestYml." }
-    $uploadedMetadata += @{ Name = $LatestYml; LocalSize = (Get-Item $PathLatestYml).Length }
-} else {
-    Write-Host "    Skipping $LatestYml - not found (this version wasn't built with auto-update support)." -ForegroundColor Yellow
+$metadataFiles = @(
+    @{ Name = $Blockmap64;   Path = $PathBlockmap64 },
+    @{ Name = $Blockmap32;   Path = $PathBlockmap32 },
+    @{ Name = $LatestYml;    Path = $PathLatestYml },
+    @{ Name = $LatestYmlX86; Path = $PathLatestYmlX86 }
+)
+foreach ($meta in $metadataFiles) {
+    if (Test-Path $meta.Path) {
+        npx wrangler r2 object put "$Bucket/$($meta.Name)" --file "$($meta.Path)" --remote
+        if ($LASTEXITCODE -ne 0) { throw "Upload failed for $($meta.Name)." }
+        $uploadedMetadata += @{ Name = $meta.Name; LocalSize = (Get-Item $meta.Path).Length }
+    } else {
+        Write-Host "    Skipping $($meta.Name) - not found (this version/architecture wasn't built with auto-update support)." -ForegroundColor Yellow
+    }
 }
 
 Write-Host "==> [4/5] Verifying all uploaded files are live at https://$DownloadHost ..." -ForegroundColor Cyan

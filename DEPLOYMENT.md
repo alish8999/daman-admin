@@ -187,17 +187,31 @@ on the public download page. If nothing changed (the website already referenced 
 version), it skips the commit instead of creating an empty one.
 A local dashboard for running it (with live streamed output) is also available — see §6.2.
 
-**Also uploads `latest.yml` and the 64-bit installer's `.blockmap`, if present** (added
-2026-09-26 for the Windows generic-build auto-update feature — `daman-frontend`'s
-`package.json` `build.publish` is a `generic` provider pointed at `https://dl.damansoft.com/`,
-and `BuildService.java`'s `copyUpdateMetadataIfPresent()` copies both out of `dist-electron/`
-into `clients-build/generic/` alongside the installer, before that directory gets wiped). These
-two files are what the shipped app's own update-checker reads to detect and download a newer
-version — `latest.yml` always uploads to the bucket root (unversioned; each release overwrites
-the previous one, matching what a live install's update-checker expects to find at a fixed
-URL). Missing either file only logs a warning and skips it — every older already-built version,
-and anything built before this feature existed, has neither, and that's fine: those installs
-just don't get an update-check notification, nothing breaks.
+**Also uploads `latest.yml` + the 64-bit installer's `.blockmap`, and `latest-x86.yml` + the
+32-bit installer's `.blockmap`, if present** (added 2026-09-26/27 for the Windows generic-build
+auto-update feature — `daman-frontend`'s `package.json` `build.publish` is a `generic` provider
+pointed at `https://dl.damansoft.com/`, and `BuildService.java`'s
+`copyUpdateMetadataIfPresent()` copies these out of `dist-electron/` into `clients-build/generic/`
+alongside the installer, before that directory gets wiped). These files are what the shipped
+app's own update-checker reads to detect and download a newer version.
+
+**Two separate channel files, one per architecture — this is load-bearing, not cosmetic.**
+electron-updater has no built-in per-architecture channel file on Windows (confirmed in its own
+source: *"due to historical reasons for windows we use channel name without platform
+specifier"*) — every Windows install, 32-bit or 64-bit, would otherwise request the exact same
+`latest.yml`. A real bug hit during live testing: the 32-bit build (which uses a separate
+`electron-builder.win-x86.json` config) was silently overwriting the correct 64-bit `latest.yml`
+with one referencing a filename that was never uploaded, breaking auto-update for *every*
+architecture on every release, regardless of build order. Fixed by giving 32-bit installs their
+own channel (`update-checker.js` sets `autoUpdater.channel = 'latest-x86'` when
+`process.arch === 'ia32'`), which is why `electron-builder.win-x86.json` needs its own
+`nsis.artifactName` and why this script uploads a distinct `latest-x86.yml` alongside the
+64-bit `latest.yml` rather than sharing one file. Each uploads to the bucket root, unversioned
+— every release overwrites its own architecture's previous file, never the other one's.
+
+Missing any of these four metadata files only logs a warning and skips it — every older
+already-built version, and anything built before this feature existed, has none of them, and
+that's fine: those installs just don't get an update-check notification, nothing breaks.
 
 Manual equivalent, if needed:
 ```powershell

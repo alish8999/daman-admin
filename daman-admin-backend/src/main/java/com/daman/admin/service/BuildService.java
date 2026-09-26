@@ -274,7 +274,7 @@ public class BuildService {
         Files.copy(src, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         addLog(status, "Artifact saved to: " + dest);
 
-        copyUpdateMetadataIfPresent(src, outDir, status);
+        copyUpdateMetadataIfPresent(src, outDir, platform, status);
         writeChangelog(outDir, versionNumber, status);
         return dest.toString();
     }
@@ -290,11 +290,24 @@ public class BuildService {
      * before anyone gets a chance to upload them if not copied here too.
      * Absent (a build whose electron-builder version/config didn't produce
      * them) is not an error — that build simply doesn't support auto-update.
+     *
+     * electron-updater has no built-in per-architecture channel file on
+     * Windows (it always requests plain "latest.yml", regardless of
+     * process.arch — confirmed in its own source). update-checker.js works
+     * around this by requesting a custom channel ("latest-x86") on ia32
+     * installs instead of the default ("latest"), so the two architectures
+     * read different files instead of colliding on one. The local copy here
+     * has to be named to match — "latest-x86.yml" for the winx86 build,
+     * "latest.yml" for every other Windows build — otherwise a 32-bit build
+     * run after a 64-bit one (or vice versa) would silently overwrite the
+     * other's channel file on disk, in clients-build/, before either ever
+     * reaches R2.
      */
-    private void copyUpdateMetadataIfPresent(Path installerSrc, Path outDir, BuildStatusDto status) throws IOException {
+    private void copyUpdateMetadataIfPresent(Path installerSrc, Path outDir, String platform, BuildStatusDto status) throws IOException {
         Path distDir = installerSrc.getParent();
         Path blockmapSrc = distDir.resolve(installerSrc.getFileName().toString() + ".blockmap");
         Path latestYmlSrc = distDir.resolve("latest.yml");
+        String channelFileName = platform.equalsIgnoreCase("winx86") ? "latest-x86.yml" : "latest.yml";
 
         if (Files.exists(blockmapSrc)) {
             Path blockmapDest = outDir.resolve(blockmapSrc.getFileName().toString());
@@ -302,7 +315,7 @@ public class BuildService {
             addLog(status, "Update metadata saved to: " + blockmapDest);
         }
         if (Files.exists(latestYmlSrc)) {
-            Path latestYmlDest = outDir.resolve("latest.yml");
+            Path latestYmlDest = outDir.resolve(channelFileName);
             Files.copy(latestYmlSrc, latestYmlDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             addLog(status, "Update metadata saved to: " + latestYmlDest);
         }
