@@ -187,6 +187,18 @@ on the public download page. If nothing changed (the website already referenced 
 version), it skips the commit instead of creating an empty one.
 A local dashboard for running it (with live streamed output) is also available — see §6.2.
 
+**Also uploads `latest.yml` and the 64-bit installer's `.blockmap`, if present** (added
+2026-09-26 for the Windows generic-build auto-update feature — `daman-frontend`'s
+`package.json` `build.publish` is a `generic` provider pointed at `https://dl.damansoft.com/`,
+and `BuildService.java`'s `copyUpdateMetadataIfPresent()` copies both out of `dist-electron/`
+into `clients-build/generic/` alongside the installer, before that directory gets wiped). These
+two files are what the shipped app's own update-checker reads to detect and download a newer
+version — `latest.yml` always uploads to the bucket root (unversioned; each release overwrites
+the previous one, matching what a live install's update-checker expects to find at a fixed
+URL). Missing either file only logs a warning and skips it — every older already-built version,
+and anything built before this feature existed, has neither, and that's fine: those installs
+just don't get an update-check notification, nothing breaks.
+
 Manual equivalent, if needed:
 ```powershell
 npx wrangler r2 object put daman-installers/<filename>.exe --file "<local path>" --remote

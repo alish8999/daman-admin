@@ -274,8 +274,38 @@ public class BuildService {
         Files.copy(src, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         addLog(status, "Artifact saved to: " + dest);
 
+        copyUpdateMetadataIfPresent(src, outDir, status);
         writeChangelog(outDir, versionNumber, status);
         return dest.toString();
+    }
+
+    /**
+     * electron-updater's "generic" provider (the generic build's Windows
+     * auto-update feature) reads latest.yml plus a differential-update
+     * .blockmap file from wherever the installer itself is hosted.
+     * electron-builder writes both alongside the raw installer in
+     * dist-electron/ — but only when package.json's build.publish is
+     * configured, and only the caller of relocateArtifact() wipes dist-
+     * electron/ right after this method returns, so both would be lost
+     * before anyone gets a chance to upload them if not copied here too.
+     * Absent (a build whose electron-builder version/config didn't produce
+     * them) is not an error — that build simply doesn't support auto-update.
+     */
+    private void copyUpdateMetadataIfPresent(Path installerSrc, Path outDir, BuildStatusDto status) throws IOException {
+        Path distDir = installerSrc.getParent();
+        Path blockmapSrc = distDir.resolve(installerSrc.getFileName().toString() + ".blockmap");
+        Path latestYmlSrc = distDir.resolve("latest.yml");
+
+        if (Files.exists(blockmapSrc)) {
+            Path blockmapDest = outDir.resolve(blockmapSrc.getFileName().toString());
+            Files.copy(blockmapSrc, blockmapDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            addLog(status, "Update metadata saved to: " + blockmapDest);
+        }
+        if (Files.exists(latestYmlSrc)) {
+            Path latestYmlDest = outDir.resolve("latest.yml");
+            Files.copy(latestYmlSrc, latestYmlDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            addLog(status, "Update metadata saved to: " + latestYmlDest);
+        }
     }
 
     private void writeChangelog(Path outDir, String versionNumber, BuildStatusDto status) {
