@@ -120,6 +120,8 @@ Write-Host "==> [5/5] Updating daman-website/index.html download links..." -Fore
 $html = [System.IO.File]::ReadAllText($WebsiteIndex, [System.Text.Encoding]::UTF8)
 $newHtml = $html -replace "https://$DownloadHost/Daman_[\d.]+_generic\.exe", "https://$DownloadHost/$File64"
 $newHtml = $newHtml -replace "https://$DownloadHost/32-Daman_[\d.]+_generic\.exe", "https://$DownloadHost/$File32"
+# The "latest version" buttons also show the version number in their label.
+$newHtml = $newHtml -replace '(<span class="dl-version">)[\d.]+(</span>)', "`${1}$Version`${2}"
 
 if ($newHtml -eq $html) {
     Write-Host "    Warning: no links were changed - website may already reference this exact version." -ForegroundColor Yellow
