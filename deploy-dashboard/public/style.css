@@ -381,6 +381,29 @@ body {
   gap: 0.75rem;
 }
 
+.platform-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfbfd;
+}
+
+.platform-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.platform-check input {
+  margin: 0;
+}
+
 .token-hint {
   font-weight: 400;
   text-transform: none;
@@ -586,4 +609,270 @@ body {
   .build-fields {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------- Changelog picker ---------- */
+
+.changelog-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.changelog-preview {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: pre-line;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  background: #fbfbfd;
+  max-height: 6rem;
+  overflow-y: auto;
+}
+
+.changelog-preview.has-content {
+  color: var(--text);
+}
+
+.changelog-picker-btn {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.changelog-picker-btn:hover {
+  background: #e0e2fc;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1.5rem;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow-hover);
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  gap: 0.85rem;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.modal-close {
+  border: none;
+  background: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+}
+
+.modal-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.modal-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+.modal-error[hidden] {
+  display: none;
+}
+
+.changelog-list {
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: 3rem;
+}
+
+.changelog-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.changelog-item:last-child {
+  border-bottom: none;
+}
+
+.changelog-item-text {
+  flex: 1;
+  cursor: pointer;
+}
+
+.changelog-item-ar {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.changelog-edit-field label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.changelog-item input[type="checkbox"] {
+  margin-top: 0.15rem;
+  flex: none;
+}
+
+.changelog-item-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex: none;
+}
+
+.changelog-item-actions button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 0.1rem 0.25rem;
+}
+
+.changelog-item-actions button:hover {
+  color: var(--accent);
+}
+
+.changelog-item-actions button.changelog-delete-btn:hover {
+  color: var(--danger);
+}
+
+.changelog-empty {
+  padding: 0.75rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.changelog-edit-textarea {
+  flex: 1;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.changelog-add-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.changelog-new-input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.changelog-add-btn {
+  flex: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+.changelog-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.modal-saving {
+  margin-right: auto;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.modal-btn {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.modal-btn-secondary {
+  background: var(--idle-soft);
+  color: var(--idle-text);
+}
+
+.modal-btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.modal-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

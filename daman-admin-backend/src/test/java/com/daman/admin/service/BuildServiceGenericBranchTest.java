@@ -2,6 +2,7 @@ package com.daman.admin.service;
 
 import com.daman.admin.dto.BuildStatusDto;
 import com.daman.admin.dto.ClientConfigExportDto;
+import com.daman.admin.entity.AppVersion;
 import com.daman.admin.repository.AppVersionRepository;
 import com.daman.admin.repository.BuildLogRepository;
 import com.daman.admin.repository.ClientConfigRepository;
@@ -14,9 +15,11 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -26,6 +29,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Locks the "generic" branch of {@link BuildService} — the local equivalent of the
@@ -40,6 +44,7 @@ class BuildServiceGenericBranchTest {
 
     private BuildService buildService;
     private ClientConfigRepository clientConfigRepository;
+    private AppVersionRepository appVersionRepository;
 
     /** Drops submitted tasks so startBuild()'s async executeBuild() never runs
      *  (and never mutates the returned status) inside a unit test. */
@@ -55,12 +60,13 @@ class BuildServiceGenericBranchTest {
     @BeforeEach
     void setUp() {
         clientConfigRepository = mock(ClientConfigRepository.class);
+        appVersionRepository = mock(AppVersionRepository.class);
         buildService = new BuildService(
                 clientConfigRepository,
                 mock(ClientConfigService.class),
                 mock(BuildLogRepository.class),
                 mock(LicenseKeyService.class),
-                mock(AppVersionRepository.class));
+                appVersionRepository);
         ReflectionTestUtils.setField(buildService, "workspacePath", tempDir.toString());
         ReflectionTestUtils.setField(buildService, "buildExecutor", new NoopExecutor());
     }
@@ -152,5 +158,40 @@ class BuildServiceGenericBranchTest {
         Path resultPath = Path.of(result);
         assertThat(resultPath.getFileName().toString()).isEqualTo("Daman_1.0.0_generic.exe");
         assertThat(resultPath.getParent()).isEqualTo(tempDir.resolve("clients-build").resolve("generic"));
+    }
+
+    @Test
+    void relocateArtifact_appendsBilingualReleaseNotes_toCopiedLatestYml() throws Exception {
+        Path frontendRoot = tempDir.resolve("daman-frontend");
+        Path distDir = frontendRoot.resolve("dist-electron");
+        Files.createDirectories(distDir);
+        Path rawInstaller = distDir.resolve("Daman Setup 1.2.3.exe");
+        Files.writeString(rawInstaller, "fake");
+        Files.writeString(distDir.resolve("latest.yml"),
+                "version: 1.2.3\npath: Daman Setup 1.2.3.exe\nsha512: abc\n");
+
+        AppVersion version = new AppVersion();
+        version.setVersionNumber("1.2.3");
+        version.setReleaseDate(LocalDate.now());
+        version.setChangelogText("[EN]\n- Fixed a bug\n\n[AR]\n- تم إصلاح خطأ");
+        when(appVersionRepository.findByVersionNumber("1.2.3")).thenReturn(Optional.of(version));
+
+        BuildStatusDto status = BuildStatusDto.builder()
+                .clientCode("generic")
+                .logs(Collections.synchronizedList(new ArrayList<>()))
+                .build();
+
+        invokePrivate("relocateArtifact",
+                new Class<?>[]{String.class, String.class, String.class, String.class, Path.class, String.class, BuildStatusDto.class},
+                rawInstaller.toString(), "generic", "Daman", "1.2.3", tempDir, "win", status);
+
+        String latestYml = Files.readString(
+                tempDir.resolve("clients-build").resolve("generic").resolve("latest.yml"));
+        assertThat(latestYml).contains("version: 1.2.3");
+        assertThat(latestYml).contains("releaseNotes: |");
+        assertThat(latestYml).contains("  [EN]");
+        assertThat(latestYml).contains("  - Fixed a bug");
+        assertThat(latestYml).contains("  [AR]");
+        assertThat(latestYml).contains("  - تم إصلاح خطأ");
     }
 }

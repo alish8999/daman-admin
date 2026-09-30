@@ -13,11 +13,12 @@ import { FEATURE_CATALOG } from '../../models/feature-catalog';
 import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
+import { ChangelogPickerComponent } from '../../components/changelog-picker/changelog-picker.component';
 
 @Component({
   selector: 'app-clients',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe, DevRunButtonComponent],
+  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe, DevRunButtonComponent, ChangelogPickerComponent],
   templateUrl: './clients.component.html',
   styles: [`
     .build-log {
@@ -343,12 +344,14 @@ export class ClientsComponent implements OnInit, OnDestroy {
     outputExt: string;
     fileExt: string;
     versionNumber: string;
+    changelogText: string;
   } | null = null;
 
   /** 'select' = pick an existing AppVersion; 'manual' = free-typed string (e.g. after +1 bump). */
   buildVersionMode: 'select' | 'manual' = 'select';
-  /** Only offered when buildVersionMode is 'manual' and the typed string isn't an existing AppVersion — persists it (today's date, empty changelog) so writeChangelog() on the backend finds it and it shows up on the Versions page. */
+  /** Only offered when buildVersionMode is 'manual' and the typed string isn't an existing AppVersion — persists it (today's date, empty changelog unless picked below) so writeChangelog() on the backend finds it and it shows up on the Versions page. */
   saveManualVersionAsNew = true;
+  showChangelogPicker = false;
 
   openDropdown: string | null = null;
   dropdownPos = { top: 0, left: 0 };
@@ -489,9 +492,16 @@ export class ClientsComponent implements OnInit, OnDestroy {
     const meta = ClientsComponent.PLATFORM_META[platform] ?? {
       label: platform, electronVersion: '28.x', outputExt: platform, fileExt: platform
     };
-    const latestVersion = this.versions.length > 0 ? this.versions[0].versionNumber : '';
-    this.buildConfirmation = { clientCode, platform, ...meta, versionNumber: latestVersion };
-    this.buildVersionMode = this.versions.length > 0 ? 'select' : 'manual';
+    // Auto-suggested as the NEXT version, not the latest itself — direct
+    // feedback: "auto increase the version and allow to edit". Manual mode by
+    // default since the suggested version doesn't exist yet; "Choose
+    // existing" (only ever the latest — see latestVersionOnly) stays one
+    // click away for the legitimate case of building another platform of a
+    // release that's already been started.
+    const latestVersion = this.latestVersionNumber;
+    const nextVersion = latestVersion ? this.bumpPatch(latestVersion) : '';
+    this.buildConfirmation = { clientCode, platform, ...meta, versionNumber: nextVersion, changelogText: '' };
+    this.buildVersionMode = 'manual';
     this.saveManualVersionAsNew = true;
   }
 
@@ -507,20 +517,78 @@ export class ClientsComponent implements OnInit, OnDestroy {
     }
   }
 
+  get latestVersionNumber(): string {
+    return this.versions.length > 0 ? this.versions[0].versionNumber : '';
+  }
+
+  /**
+   * "Choose existing" only ever offers the latest version, never the full
+   * history — direct feedback: "what is the idea of allow select old
+   * version? it should be only new number more than the old one". The one
+   * legitimate reason to reuse an existing version number is building a
+   * second platform (e.g. winx86 after win) for a release already in
+   * progress, which is always the latest one; anything older is exactly the
+   * accidental-downgrade case this restricts. Kept as a one-item list (not a
+   * plain string) so the template's existing @for/option structure didn't
+   * need to change shape.
+   */
+  get latestVersionOnly(): AppVersion[] {
+    return this.versions.length > 0 ? [this.versions[0]] : [];
+  }
+
   /**
    * Bumps the patch component of the current version (e.g. 1.4.2 → 1.4.3).
    * Falls back to appending ".1" for anything that isn't plain x.y.z — good
    * enough for the common case without pretending to be a full semver parser.
    */
-  incrementBuildVersion(): void {
-    if (!this.buildConfirmation) return;
-    const current = this.buildConfirmation.versionNumber.trim();
-    const match = current.match(/^(\d+)\.(\d+)\.(\d+)$/);
-    const next = match
+  private bumpPatch(current: string): string {
+    const match = current.trim().match(/^(\d+)\.(\d+)\.(\d+)$/);
+    return match
       ? `${match[1]}.${match[2]}.${Number(match[3]) + 1}`
       : (current ? `${current}.1` : '1.0.0');
-    this.buildConfirmation.versionNumber = next;
+  }
+
+  incrementBuildVersion(): void {
+    if (!this.buildConfirmation) return;
+    this.buildConfirmation.versionNumber = this.bumpPatch(this.buildConfirmation.versionNumber.trim());
     this.buildVersionMode = 'manual';
+  }
+
+  private parseVersion(v: string): [number, number, number] | null {
+    const m = v.trim().match(/^(\d+)\.(\d+)\.(\d+)$/);
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  }
+
+  /** Negative when `a` is older than `b`, positive when newer, 0 when equal;
+   *  null when either isn't a plain x.y.z string — left unblocked in that case,
+   *  same leniency bumpPatch() already has for non-semver strings. */
+  private compareVersions(a: string, b: string): number | null {
+    const pa = this.parseVersion(a);
+    const pb = this.parseVersion(b);
+    if (!pa || !pb) return null;
+    for (let i = 0; i < 3; i++) {
+      if (pa[i] !== pb[i]) return pa[i] - pb[i];
+    }
+    return 0;
+  }
+
+  /**
+   * Only meaningful in 'manual' mode — 'select' always uses the latest
+   * version, which is always valid (the multi-platform-rebuild case). Blocks
+   * Start Build when the typed version is older than the latest known one —
+   * the accidental-downgrade case "Choose existing" used to allow by listing
+   * every past version.
+   */
+  get buildVersionError(): string | null {
+    if (!this.buildConfirmation || this.buildVersionMode !== 'manual') return null;
+    const typed = this.buildConfirmation.versionNumber.trim();
+    const latest = this.latestVersionNumber;
+    if (!typed || !latest) return null;
+    const cmp = this.compareVersions(typed, latest);
+    if (cmp !== null && cmp < 0) {
+      return `${typed} is older than the latest version (${latest}) — pick a newer number, or use "Choose existing" to rebuild the latest for another platform.`;
+    }
+    return null;
   }
 
   /** True when the typed/selected version isn't a known AppVersion — used to offer "save as new version". */
@@ -544,34 +612,63 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.buildConfirmation = null;
   }
 
+  onChangelogSubmitted(text: string): void {
+    if (this.buildConfirmation) {
+      this.buildConfirmation.changelogText = text;
+    }
+    this.showChangelogPicker = false;
+  }
+
   confirmBuild(): void {
     if (!this.buildConfirmation) return;
-    const { clientCode, platform, versionNumber } = this.buildConfirmation;
+    const { clientCode, platform, versionNumber, changelogText } = this.buildConfirmation;
     const shouldSaveVersion = this.buildVersionMode === 'manual'
       && this.saveManualVersionAsNew
       && this.buildVersionIsNew;
     this.buildConfirmation = null;
 
-    if (!shouldSaveVersion) {
-      this.triggerBuild(clientCode, platform, versionNumber);
+    if (shouldSaveVersion) {
+      this.appVersionService.create({
+        versionNumber,
+        releaseDate: new Date().toISOString().slice(0, 10),
+        changelogText
+      }).subscribe({
+        next: (v) => {
+          this.versions = [v, ...this.versions];
+          this.triggerBuild(clientCode, platform, versionNumber);
+        },
+        error: () => {
+          // Version-record creation is a convenience (changelog.txt lookup) — a failure
+          // here (e.g. duplicate versionNumber from a race) shouldn't block the build.
+          this.triggerBuild(clientCode, platform, versionNumber);
+        }
+      });
       return;
     }
 
-    this.appVersionService.create({
-      versionNumber,
-      releaseDate: new Date().toISOString().slice(0, 10),
-      changelogText: ''
-    }).subscribe({
-      next: (v) => {
-        this.versions = [v, ...this.versions];
-        this.triggerBuild(clientCode, platform, versionNumber);
-      },
-      error: () => {
-        // Version-record creation is a convenience (changelog.txt lookup) — a failure
-        // here (e.g. duplicate versionNumber from a race) shouldn't block the build.
-        this.triggerBuild(clientCode, platform, versionNumber);
-      }
-    });
+    // Version already exists (picked from the list, or manually typed but not
+    // saved as new) — only touch its changelogText if the admin actually picked
+    // one here, so re-running a build without opening the picker never wipes
+    // out a changelog that was set earlier.
+    const existing = this.versions.find(v => v.versionNumber === versionNumber);
+    if (existing && changelogText.trim()) {
+      this.appVersionService.update(existing.id, {
+        versionNumber: existing.versionNumber,
+        releaseDate: existing.releaseDate,
+        changelogText
+      }).subscribe({
+        next: (v) => {
+          this.versions = this.versions.map(x => x.id === v.id ? v : x);
+          this.triggerBuild(clientCode, platform, versionNumber);
+        },
+        error: () => {
+          this.triggerBuild(clientCode, platform, versionNumber);
+        }
+      });
+      return;
+    }
+
+    this.triggerBuild(clientCode, platform, versionNumber);
   }
 
   private triggerBuild(clientCode: string, platform: string, version: string): void {

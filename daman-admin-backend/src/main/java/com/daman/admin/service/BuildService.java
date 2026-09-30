@@ -274,7 +274,7 @@ public class BuildService {
         Files.copy(src, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         addLog(status, "Artifact saved to: " + dest);
 
-        copyUpdateMetadataIfPresent(src, outDir, platform, status);
+        copyUpdateMetadataIfPresent(src, outDir, platform, versionNumber, status);
         writeChangelog(outDir, versionNumber, status);
         return dest.toString();
     }
@@ -303,7 +303,7 @@ public class BuildService {
      * other's channel file on disk, in clients-build/, before either ever
      * reaches R2.
      */
-    private void copyUpdateMetadataIfPresent(Path installerSrc, Path outDir, String platform, BuildStatusDto status) throws IOException {
+    private void copyUpdateMetadataIfPresent(Path installerSrc, Path outDir, String platform, String versionNumber, BuildStatusDto status) throws IOException {
         Path distDir = installerSrc.getParent();
         Path blockmapSrc = distDir.resolve(installerSrc.getFileName().toString() + ".blockmap");
         Path latestYmlSrc = distDir.resolve("latest.yml");
@@ -317,7 +317,37 @@ public class BuildService {
         if (Files.exists(latestYmlSrc)) {
             Path latestYmlDest = outDir.resolve(channelFileName);
             Files.copy(latestYmlSrc, latestYmlDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            appendReleaseNotes(latestYmlDest, versionNumber, status);
             addLog(status, "Update metadata saved to: " + latestYmlDest);
+        }
+    }
+
+    /**
+     * electron-updater's UpdateInfo accepts an optional releaseNotes string
+     * parsed straight out of latest.yml, but electron-builder's own latest.yml
+     * generation has no idea this project keeps changelog text in the
+     * AppVersion table, so it never writes that key. Append it here as a YAML
+     * literal block scalar — safe for the bilingual "[EN]\n...\n\n[AR]\n..."
+     * text as-is, no character escaping needed — so update-checker.js's
+     * autoUpdater 'update-available' handler receives it as info.releaseNotes.
+     */
+    private void appendReleaseNotes(Path latestYmlDest, String versionNumber, BuildStatusDto status) {
+        try {
+            var versionOpt = (versionNumber != null && !versionNumber.isBlank())
+                    ? appVersionRepository.findByVersionNumber(versionNumber)
+                    : appVersionRepository.findTopByOrderByReleaseDateDesc();
+            if (versionOpt.isEmpty() || versionOpt.get().getChangelogText() == null
+                    || versionOpt.get().getChangelogText().isBlank()) {
+                return;
+            }
+            String notes = versionOpt.get().getChangelogText().replace("\r\n", "\n");
+            StringBuilder yamlBlock = new StringBuilder("\nreleaseNotes: |\n");
+            for (String line : notes.split("\n", -1)) {
+                yamlBlock.append(line.isBlank() ? "" : "  " + line).append('\n');
+            }
+            Files.writeString(latestYmlDest, yamlBlock.toString(), java.nio.file.StandardOpenOption.APPEND);
+        } catch (Exception e) {
+            addLog(status, "Warning: could not append releaseNotes to " + latestYmlDest.getFileName() + " — " + e.getMessage());
         }
     }
 

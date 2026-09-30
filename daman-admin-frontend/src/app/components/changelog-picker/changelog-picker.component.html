@@ -1,0 +1,84 @@
+<div class="modal-backdrop fade show" style="z-index: 1060;" (click)="cancel()"></div>
+<div class="modal fade show d-block" style="z-index: 1061;" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Select Changelog</h5>
+        <button type="button" class="btn-close" (click)="cancel()"></button>
+      </div>
+      <div class="modal-body">
+        @if (error) {
+          <div class="alert alert-danger py-2">{{ error }}</div>
+        }
+        @if (loading) {
+          <div class="text-center text-muted py-4">
+            <span class="spinner-border spinner-border-sm me-2"></span>Loading library...
+          </div>
+        } @else {
+          <p class="text-muted small mb-2">Check the entries that apply to this release. You can also add a new one or edit an existing one below — changes are saved to the shared library for future releases. Every entry needs both languages, so the client's own app can show it in whichever language they've selected.</p>
+          <div class="list-group mb-3" style="max-height: 45vh; overflow-y: auto;">
+            @for (entry of library; track entry.id) {
+              <div class="list-group-item">
+                @if (editingEntryId === entry.id) {
+                  <div class="d-flex flex-column gap-2">
+                    <div>
+                      <label class="form-label small text-muted mb-1">English</label>
+                      <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="editingEntryEn"></textarea>
+                    </div>
+                    <div>
+                      <label class="form-label small text-muted mb-1">العربية</label>
+                      <textarea class="form-control form-control-sm" dir="rtl" rows="2" [(ngModel)]="editingEntryAr"></textarea>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-end">
+                      <button type="button" class="btn btn-sm btn-success" [disabled]="!editingEntryEn.trim() || !editingEntryAr.trim()" (click)="saveEditEntry()">
+                        <i class="bi bi-check-lg me-1"></i>Save
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancelEditEntry()">
+                        <i class="bi bi-x-lg me-1"></i>Cancel
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="d-flex gap-2 align-items-start">
+                    <input type="checkbox" class="form-check-input mt-1 flex-shrink-0"
+                           [checked]="selectedIds.has(entry.id)" (change)="toggleEntrySelected(entry.id)">
+                    <div class="flex-grow-1" (click)="toggleEntrySelected(entry.id)" style="cursor: pointer;">
+                      <div>{{ entry.en }}</div>
+                      <div class="text-muted small" dir="rtl">{{ entry.ar }}</div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-link text-secondary p-0 flex-shrink-0" (click)="startEditEntry(entry)" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-link text-danger p-0 flex-shrink-0" (click)="deleteEntry(entry.id)" title="Remove from library">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                }
+              </div>
+            } @empty {
+              <div class="list-group-item text-muted text-center py-3">No entries yet — add the first one below.</div>
+            }
+          </div>
+          <div class="d-flex flex-column gap-2">
+            <input type="text" class="form-control" placeholder="New entry — English"
+                   [(ngModel)]="newEntryEn" (keydown.enter)="addNewEntry()">
+            <input type="text" class="form-control" dir="rtl" placeholder="سطر جديد — العربية"
+                   [(ngModel)]="newEntryAr" (keydown.enter)="addNewEntry()">
+            <button type="button" class="btn btn-outline-primary align-self-end" (click)="addNewEntry()" [disabled]="!newEntryEn.trim() || !newEntryAr.trim()">
+              <i class="bi bi-plus-lg me-1"></i>Add
+            </button>
+          </div>
+        }
+      </div>
+      <div class="modal-footer">
+        @if (saving) {
+          <span class="text-muted small me-auto"><span class="spinner-border spinner-border-sm me-1"></span>Saving library...</span>
+        }
+        <button class="btn btn-secondary" (click)="cancel()">Cancel</button>
+        <button class="btn btn-primary" (click)="submit()" [disabled]="loading || selectedIds.size === 0">
+          Submit ({{ selectedIds.size }} selected)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

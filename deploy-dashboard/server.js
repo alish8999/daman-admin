@@ -125,7 +125,7 @@ async function handleHealth(req, res) {
 // never holds or requests a password, it just relays whatever token the
 // browser already sent (pasted once from a real admin-portal login) straight
 // through, unmodified, exactly like it arrived.
-function proxyToLocalAdminBackend(req, method, targetPath, res) {
+function proxyToLocalAdminBackend(req, method, targetPath, res, body) {
   let settled = false;
   const respondUnreachable = () => {
     if (settled) return;
@@ -137,23 +137,42 @@ function proxyToLocalAdminBackend(req, method, targetPath, res) {
 
   const headers = {};
   if (req.headers.authorization) headers.authorization = req.headers.authorization;
+  const payload = body != null ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
+  if (payload != null) {
+    headers['content-type'] = 'application/json';
+    headers['content-length'] = Buffer.byteLength(payload);
+  }
 
   const upstreamReq = http.request(
     { ...LOCAL_ADMIN_BACKEND, method, path: targetPath, timeout: BUILD_PROXY_TIMEOUT_MS, headers },
     (upstreamRes) => {
-      let body = '';
-      upstreamRes.on('data', (chunk) => { body += chunk; });
+      let respBody = '';
+      upstreamRes.on('data', (chunk) => { respBody += chunk; });
       upstreamRes.on('end', () => {
         if (settled) return;
         settled = true;
         res.writeHead(upstreamRes.statusCode || 502, { 'Content-Type': 'application/json' });
-        res.end(body || '{}');
+        res.end(respBody || '{}');
       });
     }
   );
   upstreamReq.on('timeout', () => { upstreamReq.destroy(); respondUnreachable(); });
   upstreamReq.on('error', respondUnreachable);
+  if (payload != null) upstreamReq.write(payload);
   upstreamReq.end();
+}
+
+// Collects a JSON request body from the browser before relaying it onward -
+// only the two proxied write endpoints below (versions, changelog-library)
+// ever send one; every other route here takes its input from the query
+// string instead.
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
 }
 
 function handleBuildGenericStart(req, res, query) {
@@ -260,7 +279,7 @@ function handleDeployStream(req, res, slot, query) {
   });
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
 
@@ -305,6 +324,34 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'GET' && pathname === '/api/build/generic/status') {
     handleBuildGenericStatus(req, res);
+    return;
+  }
+
+  // Version + changelog picker (Build Generic Installer card) - same
+  // proxy-to-:8083 pattern as build/generic above, extended to forward a
+  // JSON body for the two writes.
+  if (req.method === 'GET' && pathname === '/api/versions') {
+    proxyToLocalAdminBackend(req, 'GET', '/api/versions', res);
+    return;
+  }
+  if (req.method === 'POST' && pathname === '/api/versions') {
+    const body = await readRequestBody(req);
+    proxyToLocalAdminBackend(req, 'POST', '/api/versions', res, body);
+    return;
+  }
+  const versionUpdateMatch = /^\/api\/versions\/(\d+)$/.exec(pathname);
+  if (req.method === 'PUT' && versionUpdateMatch) {
+    const body = await readRequestBody(req);
+    proxyToLocalAdminBackend(req, 'PUT', `/api/versions/${versionUpdateMatch[1]}`, res, body);
+    return;
+  }
+  if (req.method === 'GET' && pathname === '/api/changelog-library') {
+    proxyToLocalAdminBackend(req, 'GET', '/api/changelog-library', res);
+    return;
+  }
+  if (req.method === 'PUT' && pathname === '/api/changelog-library') {
+    const body = await readRequestBody(req);
+    proxyToLocalAdminBackend(req, 'PUT', '/api/changelog-library', res, body);
     return;
   }
 

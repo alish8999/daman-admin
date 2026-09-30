@@ -123,21 +123,29 @@
 
       <div class="build-fields">
         <label class="version-field">
-          <span>Version</span>
+          <span>Version <span class="token-hint">(latest: <strong id="build-latest-version">checking&hellip;</strong>, suggested below is +1)</span></span>
           <input type="text" class="build-version-input" placeholder="1.0.4" autocomplete="off" spellcheck="false">
         </label>
-        <label class="version-field">
+        <div class="version-field">
           <span>Platform</span>
-          <select class="build-platform-select">
-            <option value="win">64-bit (win)</option>
-            <option value="winx86">32-bit (winx86)</option>
-          </select>
-        </label>
+          <div class="platform-checks">
+            <label class="platform-check"><input type="checkbox" class="build-platform-check" value="win" checked> 64-bit (win)</label>
+            <label class="platform-check"><input type="checkbox" class="build-platform-check" value="winx86"> 32-bit (winx86)</label>
+          </div>
+        </div>
       </div>
 
       <label class="version-field">
         <span>Session token <span class="token-hint">(from a local admin portal login, kept for this tab only)</span></span>
         <input type="password" class="build-token-input" placeholder="paste token here" autocomplete="off" spellcheck="false">
+      </label>
+
+      <label class="version-field">
+        <span>Changelog</span>
+        <div class="changelog-row">
+          <div class="changelog-preview" data-empty-text="No changelog selected for this build yet.">No changelog selected for this build yet.</div>
+          <button type="button" class="changelog-picker-btn">Select Changelog</button>
+        </div>
       </label>
 
       <button class="build-btn">
@@ -259,6 +267,28 @@
     </section>
     </div>
   </main>
+
+  <div class="modal-backdrop" id="changelog-modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-modal-title">
+      <div class="modal-head">
+        <h2 id="changelog-modal-title">Select Changelog</h2>
+        <button type="button" class="modal-close" id="changelog-modal-close" aria-label="Close">&times;</button>
+      </div>
+      <p class="modal-hint">Check the entries that apply to this build. You can also add a new one or edit an existing one below &mdash; changes are saved to the shared library for future releases. Every entry needs both languages, so the client's own app can show it in whichever language they've selected.</p>
+      <div class="modal-error" id="changelog-modal-error" hidden></div>
+      <div class="changelog-list" id="changelog-list"></div>
+      <div class="changelog-add-row">
+        <input type="text" class="changelog-new-input" id="changelog-new-input-en" placeholder="New entry - English">
+        <input type="text" class="changelog-new-input" id="changelog-new-input-ar" dir="rtl" placeholder="سطر جديد - العربية">
+        <button type="button" class="changelog-add-btn" id="changelog-add-btn">Add</button>
+      </div>
+      <div class="modal-footer">
+        <span class="modal-saving" id="changelog-saving" hidden>Saving library&hellip;</span>
+        <button type="button" class="modal-btn modal-btn-secondary" id="changelog-cancel-btn">Cancel</button>
+        <button type="button" class="modal-btn modal-btn-primary" id="changelog-submit-btn">Submit</button>
+      </div>
+    </div>
+  </div>
 
   <script src="main.js"></script>
 </body>

@@ -2,11 +2,12 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AppVersionService, AppVersion, AppVersionRequest } from '../../services/app-version.service';
+import { ChangelogPickerComponent } from '../../components/changelog-picker/changelog-picker.component';
 
 @Component({
   selector: 'app-versions',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ChangelogPickerComponent],
   templateUrl: './versions.component.html'
 })
 export class VersionsComponent implements OnInit {
@@ -17,6 +18,8 @@ export class VersionsComponent implements OnInit {
   form: AppVersionRequest = { versionNumber: '', releaseDate: '', changelogText: '' };
   saving = false;
   error = '';
+
+  showChangelogPicker = false;
 
   constructor(private versionService: AppVersionService) {}
 
@@ -66,7 +69,7 @@ export class VersionsComponent implements OnInit {
       },
       error: (err) => {
         this.saving = false;
-        this.error = err.error?.message || err.error?.error || 'Save failed.';
+        this.error = err.error?.message || 'Save failed.';
       }
     });
   }
@@ -74,5 +77,12 @@ export class VersionsComponent implements OnInit {
   delete(v: AppVersion): void {
     if (!confirm(`Delete version "${v.versionNumber}"? This cannot be undone.`)) return;
     this.versionService.delete(v.id).subscribe(() => this.load());
+  }
+
+  /** Composes the checked library entries into the version form's changelog field — replaces
+   *  whatever was there, since Submit is meant to build the field from scratch. */
+  onChangelogSubmitted(text: string): void {
+    this.form.changelogText = text;
+    this.showChangelogPicker = false;
   }
 }

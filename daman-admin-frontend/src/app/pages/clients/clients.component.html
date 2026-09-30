@@ -335,10 +335,11 @@
               </div>
             } @else if (buildVersionMode === 'select') {
               <select class="form-select" [(ngModel)]="buildConfirmation.versionNumber">
-                @for (v of versions; track v.id) {
-                  <option [value]="v.versionNumber">{{ v.versionNumber }} — {{ v.releaseDate | date:'mediumDate' }}</option>
+                @for (v of latestVersionOnly; track v.id) {
+                  <option [value]="v.versionNumber">{{ v.versionNumber }} — {{ v.releaseDate | date:'mediumDate' }} (latest)</option>
                 }
               </select>
+              <div class="form-text">Only the latest version is offered here — for building another platform of a release already in progress.</div>
             } @else {
               <div class="input-group">
                 <input type="text" class="form-control" [(ngModel)]="buildConfirmation.versionNumber"
@@ -346,7 +347,9 @@
                 <button type="button" class="btn btn-outline-secondary" title="Bump patch version"
                         (click)="incrementBuildVersion()">+1</button>
               </div>
-              @if (buildVersionIsNew) {
+              @if (buildVersionError) {
+                <div class="alert alert-danger py-2 small mt-2 mb-0">{{ buildVersionError }}</div>
+              } @else if (buildVersionIsNew) {
                 <div class="form-check mt-2">
                   <input type="checkbox" class="form-check-input" id="saveManualVersion"
                          [(ngModel)]="saveManualVersionAsNew" />
@@ -355,6 +358,19 @@
                   </label>
                 </div>
               }
+            }
+          </div>
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <label class="form-label fw-semibold mb-0">Changelog</label>
+              <button type="button" class="btn btn-sm btn-outline-primary" (click)="showChangelogPicker = true">
+                <i class="bi bi-list-check me-1"></i>Select Changelog
+              </button>
+            </div>
+            @if (buildConfirmation.changelogText) {
+              <div class="border rounded p-2 mt-2 small text-muted" style="white-space: pre-line;">{{ buildConfirmation.changelogText }}</div>
+            } @else {
+              <div class="form-text mt-1">No changelog selected for this build yet.</div>
             }
           </div>
           <table class="table table-sm table-borderless mb-0">
@@ -404,11 +420,15 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="cancelBuildConfirmation()">Cancel</button>
-          <button type="button" class="btn btn-warning" [disabled]="!buildConfirmation.versionNumber.trim()" (click)="confirmBuild()">Start Build</button>
+          <button type="button" class="btn btn-warning" [disabled]="!buildConfirmation.versionNumber.trim() || !!buildVersionError" (click)="confirmBuild()">Start Build</button>
         </div>
       </div>
     </div>
   </div>
+}
+
+@if (showChangelogPicker) {
+  <app-changelog-picker (submitted)="onChangelogSubmitted($event)" (cancelled)="showChangelogPicker = false"></app-changelog-picker>
 }
 
 <!-- Build Log Modal -->
