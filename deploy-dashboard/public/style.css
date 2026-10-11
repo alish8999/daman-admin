@@ -753,6 +753,33 @@ body {
   margin-top: 0.15rem;
 }
 
+/* Filter above the list — on by default, so the picker opens showing only
+   what hasn't been released yet. */
+.changelog-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* Marks a row that has already shipped. Only visible with the filter off,
+   where it explains why an old entry is in the list. */
+.changelog-badge {
+  display: inline-block;
+  margin-inline-end: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  vertical-align: 0.08rem;
+}
+
 .changelog-edit-field label {
   display: block;
   font-size: 0.72rem;

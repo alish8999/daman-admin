@@ -13,7 +13,7 @@ import { FEATURE_CATALOG } from '../../models/feature-catalog';
 import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
-import { ChangelogPickerComponent } from '../../components/changelog-picker/changelog-picker.component';
+import { ChangelogPickerComponent, ChangelogSelection } from '../../components/changelog-picker/changelog-picker.component';
 
 @Component({
   selector: 'app-clients',
@@ -345,6 +345,8 @@ export class ClientsComponent implements OnInit, OnDestroy {
     fileExt: string;
     versionNumber: string;
     changelogText: string;
+    /** Library entries the changelog was built from - see AppVersionRequest.changelogEntryIds. */
+    changelogEntryIds: string[];
   } | null = null;
 
   /** 'select' = pick an existing AppVersion; 'manual' = free-typed string (e.g. after +1 bump). */
@@ -500,7 +502,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     // release that's already been started.
     const latestVersion = this.latestVersionNumber;
     const nextVersion = latestVersion ? this.bumpPatch(latestVersion) : '';
-    this.buildConfirmation = { clientCode, platform, ...meta, versionNumber: nextVersion, changelogText: '' };
+    this.buildConfirmation = { clientCode, platform, ...meta, versionNumber: nextVersion, changelogText: '', changelogEntryIds: [] };
     this.buildVersionMode = 'manual';
     this.saveManualVersionAsNew = true;
   }
@@ -612,16 +614,17 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.buildConfirmation = null;
   }
 
-  onChangelogSubmitted(text: string): void {
+  onChangelogSubmitted(selection: ChangelogSelection): void {
     if (this.buildConfirmation) {
-      this.buildConfirmation.changelogText = text;
+      this.buildConfirmation.changelogText = selection.text;
+      this.buildConfirmation.changelogEntryIds = selection.ids;
     }
     this.showChangelogPicker = false;
   }
 
   confirmBuild(): void {
     if (!this.buildConfirmation) return;
-    const { clientCode, platform, versionNumber, changelogText } = this.buildConfirmation;
+    const { clientCode, platform, versionNumber, changelogText, changelogEntryIds } = this.buildConfirmation;
     const shouldSaveVersion = this.buildVersionMode === 'manual'
       && this.saveManualVersionAsNew
       && this.buildVersionIsNew;
@@ -631,7 +634,8 @@ export class ClientsComponent implements OnInit, OnDestroy {
       this.appVersionService.create({
         versionNumber,
         releaseDate: new Date().toISOString().slice(0, 10),
-        changelogText
+        changelogText,
+        changelogEntryIds
       }).subscribe({
         next: (v) => {
           this.versions = [v, ...this.versions];
@@ -655,7 +659,8 @@ export class ClientsComponent implements OnInit, OnDestroy {
       this.appVersionService.update(existing.id, {
         versionNumber: existing.versionNumber,
         releaseDate: existing.releaseDate,
-        changelogText
+        changelogText,
+        changelogEntryIds
       }).subscribe({
         next: (v) => {
           this.versions = this.versions.map(x => x.id === v.id ? v : x);

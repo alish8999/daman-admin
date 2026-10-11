@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AppVersionService, AppVersion, AppVersionRequest } from '../../services/app-version.service';
-import { ChangelogPickerComponent } from '../../components/changelog-picker/changelog-picker.component';
+import { ChangelogPickerComponent, ChangelogSelection } from '../../components/changelog-picker/changelog-picker.component';
 
 @Component({
   selector: 'app-versions',
@@ -81,8 +81,11 @@ export class VersionsComponent implements OnInit {
 
   /** Composes the checked library entries into the version form's changelog field — replaces
    *  whatever was there, since Submit is meant to build the field from scratch. */
-  onChangelogSubmitted(text: string): void {
-    this.form.changelogText = text;
+  onChangelogSubmitted(selection: ChangelogSelection): void {
+    this.form.changelogText = selection.text;
+    // Carried through to the save so the backend can mark these entries
+    // released — see AppVersionRequest.changelogEntryIds.
+    this.form.changelogEntryIds = selection.ids;
     this.showChangelogPicker = false;
   }
 }

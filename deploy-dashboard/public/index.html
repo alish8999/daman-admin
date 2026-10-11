@@ -276,6 +276,10 @@
       </div>
       <p class="modal-hint">Check the entries that apply to this build. You can also add a new one or edit an existing one below &mdash; changes are saved to the shared library for future releases. Every entry needs both languages, so the client's own app can show it in whichever language they've selected.</p>
       <div class="modal-error" id="changelog-modal-error" hidden></div>
+      <label class="changelog-filter">
+        <input type="checkbox" id="changelog-new-only" checked>
+        <span>Show only entries not yet released</span>
+      </label>
       <div class="changelog-list" id="changelog-list"></div>
       <div class="changelog-add-row">
         <input type="text" class="changelog-new-input" id="changelog-new-input-en" placeholder="New entry - English">

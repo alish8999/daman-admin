@@ -5,6 +5,7 @@ import com.daman.admin.repository.ChangelogEntryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -15,7 +16,15 @@ import java.util.List;
  * moved off a plain file). Same idempotency pattern as AdminUserSeeder —
  * table-empty check only, never touches existing rows, so an admin's own
  * edits/additions after first boot are never overwritten by this.
+ *
+ * <p>{@code @Order(10)} is load-bearing, not decoration. This seeder's guard
+ * is "is the table empty", and {@link ChangelogDeployedBackfillRunner} inserts
+ * rows of its own. An ApplicationRunner with no explicit order sorts LAST
+ * (Ordered.LOWEST_PRECEDENCE), so without this the backfill runner would go
+ * first on a fresh database, leave 3 rows behind, and this seeder would then
+ * see a non-empty table and skip the entire original library for good.
  */
+@Order(10)
 @Component
 @RequiredArgsConstructor
 public class ChangelogEntrySeeder implements ApplicationRunner {

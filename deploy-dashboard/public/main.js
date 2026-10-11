@@ -294,6 +294,26 @@
     const modalCancelBtn = document.getElementById('changelog-cancel-btn');
     const modalCloseBtn = document.getElementById('changelog-modal-close');
     const modalSaving = document.getElementById('changelog-saving');
+    const modalNewOnly = document.getElementById('changelog-new-only');
+
+    // Entries already shipped in a released version are hidden by default, so
+    // the list opens on exactly what is new since the last release. `deployed`
+    // is set server-side when a version is saved with the entry selected; an
+    // entry whose flag is null predates the flag and counts as released.
+    function isUnreleased(entry) {
+      return entry.deployed !== true;
+    }
+
+    function visibleChangelogEntries() {
+      if (modalNewOnly && !modalNewOnly.checked) return changelogLibrary;
+      // A selected entry stays visible even once filtered out, so submitting
+      // can never silently drop something the admin had already ticked.
+      return changelogLibrary.filter((e) => isUnreleased(e) || changelogSelectedIds.has(e.id));
+    }
+
+    if (modalNewOnly) {
+      modalNewOnly.addEventListener('change', () => renderChangelogList());
+    }
 
     function showModalError(message) {
       modalError.textContent = message;
@@ -309,7 +329,15 @@
         modalList.appendChild(empty);
         return;
       }
-      changelogLibrary.forEach((entry) => {
+      const visible = visibleChangelogEntries();
+      if (visible.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'changelog-empty';
+        empty.textContent = 'Everything in the library has already been released - untick the filter above to see it.';
+        modalList.appendChild(empty);
+        return;
+      }
+      visible.forEach((entry) => {
         const row = document.createElement('div');
         row.className = 'changelog-item';
         if (changelogEditingId === entry.id) {
@@ -370,7 +398,17 @@
           const textWrap = document.createElement('div');
           textWrap.className = 'changelog-item-text';
           const enLine = document.createElement('div');
-          enLine.textContent = entry.en;
+          if (!isUnreleased(entry)) {
+            // Only marked on the already-released ones: with the filter on by
+            // default, almost every visible row is new, so badging those would
+            // be noise. The badge earns its place by explaining why a row is
+            // showing when the filter is off.
+            const badge = document.createElement('span');
+            badge.className = 'changelog-badge';
+            badge.textContent = 'released';
+            enLine.appendChild(badge);
+          }
+          enLine.appendChild(document.createTextNode(entry.en));
           const arLine = document.createElement('div');
           arLine.className = 'changelog-item-ar';
           arLine.dir = 'rtl';
@@ -518,6 +556,10 @@
         versionNumber: version,
         releaseDate: existing ? existing.releaseDate : new Date().toISOString().slice(0, 10),
         changelogText: currentChangelogText,
+        // Saving the version is what marks these as released, so they stop
+        // showing up as new next time the picker is opened. Ids rather than
+        // the composed text: the text is editable by hand.
+        changelogEntryIds: Array.from(changelogSelectedIds),
       };
       const req = existing
         ? fetch(`/api/versions/${existing.id}`, { method: 'PUT', headers: authJsonHeaders(), body: JSON.stringify(payload) })

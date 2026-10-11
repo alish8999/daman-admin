@@ -4,6 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { ChangelogLibraryService, ChangelogEntry } from '../../services/changelog-library.service';
 
 /**
+ * What the picker hands back on Submit: the composed `[EN]`/`[AR]` changelog
+ * text, plus the ids of the library entries it was built from so the version
+ * save can mark exactly those as released.
+ */
+export interface ChangelogSelection {
+  text: string;
+  ids: string[];
+}
+
+/**
  * "Select Changelog" popup — checkbox list over the shared reusable-bullet
  * library, with inline add/edit/remove, used both from the Versions page and
  * from the Clients page's Confirm Build modal (the moment a version number is
@@ -27,7 +37,7 @@ import { ChangelogLibraryService, ChangelogEntry } from '../../services/changelo
   templateUrl: './changelog-picker.component.html'
 })
 export class ChangelogPickerComponent implements OnInit {
-  @Output() submitted = new EventEmitter<string>();
+  @Output() submitted = new EventEmitter<ChangelogSelection>();
   @Output() cancelled = new EventEmitter<void>();
 
   library: ChangelogEntry[] = [];
@@ -141,6 +151,13 @@ export class ChangelogPickerComponent implements OnInit {
     const chosen = this.library.filter(e => this.selectedIds.has(e.id));
     const enLines = chosen.map(e => '- ' + e.en).join('\n');
     const arLines = chosen.map(e => '- ' + e.ar).join('\n');
-    this.submitted.emit(`[EN]\n${enLines}\n\n[AR]\n${arLines}`);
+    // The ids ride along with the text so whoever saves the version can tell
+    // the backend which library entries it shipped — that is what marks them
+    // released. The text alone can't carry that: it is free-form and editable
+    // after the fact, so matching on it would break on the first reword.
+    this.submitted.emit({
+      text: `[EN]\n${enLines}\n\n[AR]\n${arLines}`,
+      ids: chosen.map(e => e.id)
+    });
   }
 }

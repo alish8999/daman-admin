@@ -43,4 +43,28 @@ public class ChangelogEntry {
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String ar;
+
+    /**
+     * Whether this bullet has already gone out in a released version, so the
+     * pickers can separate "new since the last release" from history.
+     *
+     * <p>Set automatically when a version is saved that includes this entry
+     * (see AppVersionService.create/update) — the admin never maintains it by
+     * hand.
+     *
+     * <p>Nullable on purpose, and the three states are NOT the same thing:
+     * <ul>
+     *   <li>{@code true}  — shipped in a version.
+     *   <li>{@code false} — added but not yet released; this is what a newly
+     *       created bullet gets.
+     *   <li>{@code null}  — predates this column entirely. Only rows written
+     *       before the deployed flag existed are null, which is exactly the
+     *       condition ChangelogDeployedBackfillRunner keys off to mark the
+     *       back catalogue as already deployed, once. Keeping new bullets at
+     *       {@code false} rather than null is what stops that one-time
+     *       backfill from sweeping up genuinely-new entries on a later boot.
+     * </ul>
+     */
+    @Column(name = "deployed")
+    private Boolean deployed;
 }

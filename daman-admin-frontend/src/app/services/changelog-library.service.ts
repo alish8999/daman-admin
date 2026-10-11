@@ -10,6 +10,13 @@ export interface ChangelogEntry {
   id: string;
   en: string;
   ar: string;
+  /**
+   * Whether this bullet has already gone out in a released version. Owned by
+   * the server — it's set when a version is saved that includes the entry, and
+   * a save that sends it back unchanged (or omits it) never clears it. Absent
+   * on entries written before the flag existed.
+   */
+  deployed?: boolean;
 }
 
 /**

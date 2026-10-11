@@ -15,6 +15,12 @@ export interface AppVersionRequest {
   versionNumber: string;
   releaseDate: string;
   changelogText: string;
+  /**
+   * Library entries this changelog was composed from. Saving the version marks
+   * them released, so they stop appearing as new in the pickers. Optional —
+   * a hand-edited changelog with no picker selection simply marks nothing.
+   */
+  changelogEntryIds?: string[];
 }
 
 @Injectable({ providedIn: 'root' })

@@ -16,6 +16,7 @@ import java.util.List;
 public class AppVersionService {
 
     private final AppVersionRepository repository;
+    private final ChangelogLibraryService changelogLibraryService;
 
     public List<AppVersionDto> findAll() {
         return repository.findAllByOrderByReleaseDateDesc().stream().map(this::toDto).toList();
@@ -30,7 +31,12 @@ public class AppVersionService {
         v.setVersionNumber(req.getVersionNumber());
         v.setReleaseDate(req.getReleaseDate());
         v.setChangelogText(req.getChangelogText());
-        return toDto(repository.save(v));
+        AppVersionDto dto = toDto(repository.save(v));
+        // Releasing a version is what "deploys" its bullets — see
+        // ChangelogEntry.deployed. After this they stop showing as new in the
+        // pickers. Done after the save so a rejected version never flags them.
+        changelogLibraryService.markDeployed(req.getChangelogEntryIds());
+        return dto;
     }
 
     public AppVersionDto update(Long id, AppVersionRequest req) {
@@ -44,7 +50,9 @@ public class AppVersionService {
         v.setVersionNumber(req.getVersionNumber());
         v.setReleaseDate(req.getReleaseDate());
         v.setChangelogText(req.getChangelogText());
-        return toDto(repository.save(v));
+        AppVersionDto dto = toDto(repository.save(v));
+        changelogLibraryService.markDeployed(req.getChangelogEntryIds());
+        return dto;
     }
 
     public void delete(Long id) {

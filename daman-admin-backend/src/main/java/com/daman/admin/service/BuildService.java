@@ -159,6 +159,9 @@ public class BuildService {
             addLog(status, "Setting package.json version to " + versionNumber + "...");
             writeFrontendPackageVersion(frontendRoot, versionNumber, status);
 
+            // Before `ng build` below, which copies src/assets into the bundle.
+            writeReleaseNotesAsset(frontendRoot, versionNumber, status);
+
             if (!isPos) {
                 addLog(status, "Embedding license public key & build metadata...");
                 writePublicKey(backendRoot);
@@ -348,6 +351,75 @@ public class BuildService {
             Files.writeString(latestYmlDest, yamlBlock.toString(), java.nio.file.StandardOpenOption.APPEND);
         } catch (Exception e) {
             addLog(status, "Warning: could not append releaseNotes to " + latestYmlDest.getFileName() + " — " + e.getMessage());
+        }
+    }
+
+    /**
+     * Stamps this version's changelog into the app bundle itself, at
+     * {@code src/assets/release-notes.json}, so the shipped app can show
+     * Settings → What's New for the version it is actually running.
+     *
+     * This exists alongside {@link #appendReleaseNotes} because that copy only
+     * reaches a client BEFORE an update: electron-updater hands it over with
+     * the update-available event, and it is gone the moment the update
+     * installs — which is exactly when the owner wants to read it. A bundled
+     * copy survives the restart, and also reaches a client who was updated by
+     * hand and never saw the update badge at all.
+     *
+     * The text is written RAW, in the picker's bilingual "[EN]…[AR]…" form —
+     * the app splits it by its own language (release-notes-core.js), so the
+     * format stays understood in one place instead of three.
+     *
+     * ALWAYS writes, even when there is no version row or no changelog text.
+     * The file lives in the shared workspace and survives between builds, so
+     * skipping the write would silently ship the PREVIOUS client's or
+     * version's notes — the same stale-artifact hazard the dist dir is wiped
+     * for. A neutral file renders as an empty What's New page, which is
+     * correct; another version's notes would be a lie.
+     */
+    private void writeReleaseNotesAsset(Path frontendRoot, String versionNumber, BuildStatusDto status) {
+        Path dest = frontendRoot.resolve("src/assets/release-notes.json");
+        Map<String, String> payload = new LinkedHashMap<>();
+        // Pre-seeded so every failure path below still writes a usable file.
+        payload.put("version", versionNumber == null ? "" : versionNumber);
+        payload.put("releaseDate", "");
+        payload.put("changelogText", "");
+        try {
+            var versionOpt = (versionNumber != null && !versionNumber.isBlank())
+                    ? appVersionRepository.findByVersionNumber(versionNumber)
+                    : appVersionRepository.findTopByOrderByReleaseDateDesc();
+
+            if (versionOpt.isPresent()) {
+                var v = versionOpt.get();
+                if (v.getVersionNumber() != null) payload.put("version", v.getVersionNumber());
+                if (v.getReleaseDate() != null) payload.put("releaseDate", v.getReleaseDate().toString());
+                if (v.getChangelogText() != null) {
+                    // Normalised like appendReleaseNotes() does: the text is
+                    // edited in a browser textarea, so it can arrive with CRLF.
+                    payload.put("changelogText", v.getChangelogText().replace("\r\n", "\n"));
+                }
+                addLog(status, "release-notes.json written for version " + payload.get("version")
+                        + (payload.get("changelogText").isBlank() ? " (no changelog text)" : ""));
+            } else {
+                addLog(status, "No version row found — release-notes.json written empty");
+            }
+        } catch (Exception e) {
+            addLog(status, "Warning: could not read changelog for release-notes.json — " + e.getMessage());
+        }
+        try {
+            Files.createDirectories(dest.getParent());
+            Files.writeString(dest, objectMapper.writeValueAsString(payload));
+        } catch (Exception e) {
+            addLog(status, "Warning: could not write release-notes.json — " + e.getMessage());
+            // Leaving the previous build's file in place would ship another
+            // version's notes as if they were this one's. Removing it is the
+            // safe failure: the app treats an absent file as "no notes".
+            try {
+                Files.deleteIfExists(dest);
+            } catch (Exception ignored) {
+                addLog(status, "Warning: stale release-notes.json could not be removed either — "
+                        + "this build may show the previous version's notes");
+            }
         }
     }
 
