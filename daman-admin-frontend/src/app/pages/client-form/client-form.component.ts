@@ -158,9 +158,15 @@ export class ClientFormComponent implements OnInit {
       // relevant only to clients with actual scale hardware), and the paid
       // add-ons (shifts $29, posTerminals $29, productRecipes $39,
       // manufacturing $20 (marginal — $59 bundle w/ BOM), userManagement
-      // $20, quotation $15, accounting $39, tableOrders $29, quickPickCards
-      // $15 — see daman-frontend's /features page) which the client must
-      // explicitly purchase.
+      // $20, quotation $15, accounting $39, tableOrders $29 — see
+      // daman-frontend's /features page) which the client must explicitly
+      // purchase.
+      //
+      // quickPickCards is NOT one of them any more: Quick Sale became free on
+      // 2026-10-19 and is toggled by the store owner in the POS app's Settings,
+      // so it was dropped from FEATURE_CATALOG and renders no checkbox. The
+      // control below stays only so the submitted payload shape is unchanged
+      // and no stored value is lost; the desktop ignores it either way.
       features: this.fb.group({
         multiLanguage:        [true],
         barcode:              [true],
