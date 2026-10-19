@@ -110,4 +110,56 @@ class LicenseKeyServiceTest {
         assertThat(service.payloadVersion("not-a-real-key")).isEqualTo(1);
         assertThat(service.payloadVersion("")).isEqualTo(1);
     }
+
+    private JsonNode decodePayload(String key) throws Exception {
+        return mapper.readTree(Base64.getDecoder().decode(key.split("\\.")[0]));
+    }
+
+    @Test
+    void payloadCarriesProfile() throws Exception {
+        String key = service.generateLicense("M1", "Cafe Rawda", "trial-1", "", "SYP",
+                Map.of("barcode", true), null, null, null, null,
+                new LicenseProfile("Cafe Rawda", "0999123456", "Aleppo", "cafe", false));
+
+        JsonNode profile = decodePayload(key).get("profile");
+        assertThat(profile.get("appName").asText()).isEqualTo("Cafe Rawda");
+        assertThat(profile.get("phone").asText()).isEqualTo("0999123456");
+        assertThat(profile.get("address").asText()).isEqualTo("Aleppo");
+        assertThat(profile.get("storeType").asText()).isEqualTo("cafe");
+        assertThat(profile.get("hasTables").asBoolean()).isFalse();
+    }
+
+    @Test
+    void existingClientWithoutProfileStillMints() throws Exception {
+        String key = service.generateLicense("M1", "Daman 1", "daman-1", "", "USD",
+                Map.of("barcode", true), null, null, null, null,
+                new LicenseProfile("Daman 1", null, "  ", null, null));
+
+        JsonNode profile = decodePayload(key).get("profile");
+        assertThat(profile.has("phone")).isFalse();
+        assertThat(profile.has("address")).isFalse();
+        assertThat(profile.has("storeType")).isFalse();
+        assertThat(profile.has("hasTables")).isFalse();
+        assertThat(profile.get("appName").asText()).isEqualTo("Daman 1");
+    }
+
+    @Test
+    void nullProfileOmitsTheObjectEntirely() throws Exception {
+        String key = service.generateLicense("M1", "X", "x", "", "USD", Map.of(), null, null, null, null,
+                (LicenseProfile) null);
+        assertThat(decodePayload(key).has("profile")).isFalse();
+    }
+
+    @Test
+    void allBlankProfileOmitsTheObjectEntirely() throws Exception {
+        String key = service.generateLicense("M1", "X", "x", "", "USD", Map.of(), null, null, null, null,
+                new LicenseProfile(null, " ", "", null, null));
+        assertThat(decodePayload(key).has("profile")).isFalse();
+    }
+
+    @Test
+    void legacyOverloadsOmitProfile() throws Exception {
+        String key = service.generateLicense("M1", "X", "x", "", "USD", Map.of(), null, null, null, null);
+        assertThat(decodePayload(key).has("profile")).isFalse();
+    }
 }

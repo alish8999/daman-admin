@@ -230,7 +230,7 @@ public class DevRunService {
         var ent = clientConfigService.licenseEntitlementsFor(clientCode);
         String key = licenseKeyService.generateLicense(
                 machineId, cfg.getAppName(), clientCode, null, ent.baseCurrency(), ent.features(),
-                ent.colorPrimary(), ent.colorSecondary(), ent.adminUsername(), ent.adminPassword());
+                ent.colorPrimary(), ent.colorSecondary(), ent.adminUsername(), ent.adminPassword(), ent.profile());
         License l = licenseRepository
                 .findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE")
                 .orElseGet(() -> {

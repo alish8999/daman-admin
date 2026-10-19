@@ -74,6 +74,10 @@ public class LicenseKeyService {
         return generateLicense(machineId, clientName, clientCode, expiresAt, baseCurrency, features, null, null, null, null);
     }
 
+    private static void putIfNotBlank(ObjectNode node, String key, String value) {
+        if (value != null && !value.isBlank()) node.put(key, value.trim());
+    }
+
     public String generateLicense(String machineId, String clientName, String clientCode,
                                   String expiresAt, String baseCurrency,
                                   java.util.Map<String, Boolean> features,
@@ -87,6 +91,16 @@ public class LicenseKeyService {
                                   java.util.Map<String, Boolean> features,
                                   String colorPrimary, String colorSecondary,
                                   String adminUsername, String adminPassword) {
+        return generateLicense(machineId, clientName, clientCode, expiresAt, baseCurrency, features,
+                colorPrimary, colorSecondary, adminUsername, adminPassword, null);
+    }
+
+    public String generateLicense(String machineId, String clientName, String clientCode,
+                                  String expiresAt, String baseCurrency,
+                                  java.util.Map<String, Boolean> features,
+                                  String colorPrimary, String colorSecondary,
+                                  String adminUsername, String adminPassword,
+                                  LicenseProfile profile) {
         try {
             ObjectNode payload = mapper.createObjectNode();
             payload.put("v", 2);
@@ -122,6 +136,18 @@ public class LicenseKeyService {
                 ObjectNode credentials = payload.putObject("credentials");
                 credentials.put("username", adminUsername.trim());
                 credentials.put("password", adminPassword);
+            }
+            // Business profile (additive, ignored by older desktop code). Emitted only when at
+            // least one field is non-blank, and then only the non-blank ones — legacy client
+            // rows have nulls and must never produce "phone": null.
+            if (profile != null) {
+                ObjectNode p = mapper.createObjectNode();
+                putIfNotBlank(p, "appName", profile.appName());
+                putIfNotBlank(p, "phone", profile.phone());
+                putIfNotBlank(p, "address", profile.address());
+                putIfNotBlank(p, "storeType", profile.storeType());
+                if (profile.hasTables() != null) p.put("hasTables", profile.hasTables().booleanValue());
+                if (!p.isEmpty()) payload.set("profile", p);
             }
             byte[] payloadBytes = mapper.writeValueAsBytes(payload);
 

@@ -39,7 +39,7 @@ class LicenseReissueServiceTest {
 
         // Default: every clientCode resolves to some entitlements unless a test overrides.
         when(clientConfigService.licenseEntitlementsFor(anyString()))
-                .thenReturn(new ClientConfigService.LicenseEntitlements("USD", Map.of("barcode", true), null, null, null, null));
+                .thenReturn(new ClientConfigService.LicenseEntitlements("USD", Map.of("barcode", true), null, null, null, null, null));
     }
 
     private License lic(long id, String code, String machine, String status, String key) {
@@ -217,5 +217,35 @@ class LicenseReissueServiceTest {
                 .allMatch(r -> r.currentVersion() == 2);
         assertThat(p.eligible()).filteredOn(r -> r.clientCode().equals("beta"))
                 .allMatch(r -> r.currentVersion() == 1);
+    }
+
+    @Test
+    void reissuePreservesProfile() throws Exception {
+        // Real ClientConfigService over a mocked repo: proves the profile reaches the
+        // re-issued key through licenseEntitlementsFor(), not through anything this test passes.
+        ClientConfigService realConfigService = new ClientConfigService(
+                clientConfigRepository, tools.jackson.databind.json.JsonMapper.builder().build());
+        LicenseReissueService reissue = new LicenseReissueService(
+                licenseRepository, clientConfigRepository, realConfigService, licenseKeyService);
+
+        ClientConfig c = cfg("acme");
+        c.setPhone("0999123456");
+        c.setStoreType("cafe");
+        c.setHasTables(true);
+        License active = lic(1, "acme", "M-AAAA", "ACTIVE", "old.key");
+        when(licenseRepository.findAllByOrderByActivatedAtDesc()).thenReturn(List.of(active));
+        when(clientConfigRepository.findByClientCode("acme")).thenReturn(Optional.of(c));
+
+        LicenseReissueService.ReissueResult r = reissue.reissueAll();
+
+        assertThat(r.reissued()).hasSize(1);
+        String payloadJson = new String(java.util.Base64.getDecoder()
+                .decode(active.getLicenseKey().split("\\.")[0]), java.nio.charset.StandardCharsets.UTF_8);
+        var profile = new tools.jackson.databind.ObjectMapper().readTree(payloadJson).get("profile");
+        assertThat(profile.get("storeType").asText()).isEqualTo("cafe");
+        assertThat(profile.get("appName").asText()).isEqualTo("acme POS");
+        assertThat(profile.get("phone").asText()).isEqualTo("0999123456");
+        assertThat(profile.get("hasTables").asBoolean()).isTrue();
+        assertThat(profile.has("address")).isFalse();
     }
 }

@@ -83,6 +83,14 @@ public class ClientConfig {
     @Column(name = "phone")
     private String phone;
 
+    /** Business address — travels in the licence profile so it can be restored after a DB reset. */
+    @Column(name = "address")
+    private String address;
+
+    /** Whether the shop serves at tables (nullable: existing rows predate the question). */
+    @Column(name = "has_tables")
+    private Boolean hasTables;
+
     @Column(name = "email")
     private String email;
 

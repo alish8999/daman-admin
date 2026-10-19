@@ -258,4 +258,37 @@ class ClientConfigServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Client not found");
     }
+
+    @Test
+    void licenseEntitlementsFor_buildsProfileFromStoredConfig() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfig cfg = new ClientConfig();
+        cfg.setClientCode("acme");
+        cfg.setAppName("Acme");
+        cfg.setPhone("0999");
+        cfg.setAddress("Aleppo");
+        cfg.setStoreType("cafe");
+        cfg.setHasTables(false);
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(cfg));
+
+        LicenseProfile p = service.licenseEntitlementsFor("acme").profile();
+
+        assertThat(p).isEqualTo(new LicenseProfile("Acme", "0999", "Aleppo", "cafe", false));
+    }
+
+    @Test
+    void licenseEntitlementsFor_legacyRowWithNullProfileFields_doesNotThrow() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfig cfg = new ClientConfig();
+        cfg.setClientCode("old");
+        cfg.setAppName("Old Shop");
+        when(repository.findByClientCode("old")).thenReturn(Optional.of(cfg));
+
+        LicenseProfile p = service.licenseEntitlementsFor("old").profile();
+
+        assertThat(p.phone()).isNull();
+        assertThat(p.hasTables()).isNull();
+    }
 }
