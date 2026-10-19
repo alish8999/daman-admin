@@ -155,18 +155,29 @@ export class ClientFormComponent implements OnInit {
       clientNotes:           [''],
       // Defaults for a NEW client: every feature enabled except seedDemoData
       // (opt-in only, per-client demo data), scaleBarcodes (opt-in only,
-      // relevant only to clients with actual scale hardware), and the paid
-      // add-ons (shifts $29, posTerminals $29, productRecipes $39,
-      // manufacturing $20 (marginal — $59 bundle w/ BOM), userManagement
-      // $20, quotation $15, accounting $39, tableOrders $29 — see
-      // daman-frontend's /features page) which the client must explicitly
-      // purchase.
+      // relevant only to clients with actual scale hardware),
+      // multiCurrencyPricing (see below), and the paid add-ons (shifts $29,
+      // posTerminals $29, productRecipes $39, manufacturing $20 (marginal —
+      // $59 bundle w/ BOM), userManagement $20, quotation $15, accounting $39,
+      // tableOrders $29 — see daman-frontend's /features page) which the
+      // client must explicitly purchase.
       //
-      // quickPickCards is NOT one of them any more: Quick Sale became free on
+      // multiCurrencyPricing ("Per-product pricing currency") is free but now
+      // defaults OFF, because turning it on adds a Pricing Currency dropdown to
+      // every product in the Product modal. That only earns its place in a shop
+      // that genuinely prices some SKUs in a currency other than the base one
+      // (top-up cards, vouchers, regulated SKUs); for everyone else it was a
+      // field to ignore on every single product. Tick it for the shops that
+      // need it.
+      //
+      // quickPickCards is no longer a paid add-on: Quick Sale became free on
       // 2026-10-19 and is toggled by the store owner in the POS app's Settings,
       // so it was dropped from FEATURE_CATALOG and renders no checkbox. The
       // control below stays only so the submitted payload shape is unchanged
-      // and no stored value is lost; the desktop ignores it either way.
+      // and no stored value is lost. It defaults to true to agree with the
+      // desktop's own default (QuickSaleSettingsService.DEFAULT_ENABLED), so a
+      // stored payload never reads "off" for a screen that is in fact on —
+      // though the desktop overlays its own setting over this either way.
       features: this.fb.group({
         multiLanguage:        [true],
         barcode:              [true],
@@ -178,7 +189,7 @@ export class ClientFormComponent implements OnInit {
         clientLedger:         [true],
         supplierLedger:       [true],
         fractionalQuantity:   [true],
-        multiCurrencyPricing: [true],
+        multiCurrencyPricing: [false],
         accountStatement:     [true],
         itemLedger:           [true],
         batchStocktake:       [true],
@@ -196,7 +207,7 @@ export class ClientFormComponent implements OnInit {
         posTerminals:         [false],
         simulatePosMode:      [false],
         tableOrders:          [false],
-        quickPickCards:       [false],
+        quickPickCards:       [true],
         cafeMode:             [false],
         consignment:          [false],
         shareholders:         [false],
@@ -248,7 +259,9 @@ export class ClientFormComponent implements OnInit {
             posTerminals:         client.features?.posTerminals         ?? false,
             simulatePosMode:      client.features?.simulatePosMode      ?? false,
             tableOrders:          client.features?.tableOrders          ?? false,
-            quickPickCards:       client.features?.quickPickCards       ?? false,
+            // ?? true to match the new-client default and the desktop's own;
+            // an explicit stored false is still honoured.
+            quickPickCards:       client.features?.quickPickCards       ?? true,
             cafeMode:             client.features?.cafeMode             ?? false,
             consignment:          client.features?.consignment          ?? false,
             shareholders:         client.features?.shareholders         ?? false,
