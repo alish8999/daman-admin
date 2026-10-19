@@ -74,48 +74,35 @@ public class LicenseController {
         ));
     }
 
-    // ── Activate (called by the desktop app) ─────────────────────────────────
-
-    @PostMapping("/activate")
-    public ResponseEntity<Map<String, Object>> activate(@RequestBody Map<String, String> body) {
-        String machineId  = body.get("machineId");
-        String clientCode = body.get("clientCode");
-
-        if (machineId == null || clientCode == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "machineId and clientCode are required"));
-        }
-
-        // Return existing active license for this machine if present
-        var existing = licenseRepository.findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE");
-        if (existing.isPresent()) {
-            return ResponseEntity.ok(Map.of(
-                "licenseKey", existing.get().getLicenseKey(),
-                "message",    "Already activated"
-            ));
-        }
-
-        var clientConfig = clientConfigRepository.findByClientCode(clientCode).orElse(null);
-        if (clientConfig == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Client not found"));
-        }
-
-        String clientName = clientConfig.getAppName();
-        var ent = clientConfigService.licenseEntitlementsFor(clientCode);
-        String licenseKey = licenseKeyService.generateLicense(
-                machineId, clientName, clientCode, null, ent.baseCurrency(), ent.features(),
-                ent.colorPrimary(), ent.colorSecondary(), ent.adminUsername(), ent.adminPassword());
-
-        License license = new License();
-        license.setClientCode(clientCode);
-        license.setMachineId(machineId);
-        license.setLicenseKey(licenseKey);
-        license.setClientName(clientName);
-        license.setStatus("ACTIVE");
-        license.setDeviceInfo(body.getOrDefault("deviceInfo", ""));
-        licenseRepository.save(license);
-
-        return ResponseEntity.ok(Map.of("licenseKey", licenseKey, "clientName", clientName));
-    }
+    // ── Activate ─────────────────────────────────────────────────────────────
+    //
+    // REMOVED 2026-10-19. An UNAUTHENTICATED `POST /api/licenses/activate`
+    // used to live here, exempted in AuthFilter.PUBLIC_PATHS and labelled
+    // "called by the desktop app". No desktop build ever called it: licences
+    // ship as `.dat` files and are verified locally against the bundled public
+    // key (daman-backend LicenseService.verifyLicenseKey), and the desktop
+    // makes no outbound HTTP calls at all. Confirmed with
+    // `git log --all -S "licenses/activate"` over daman-backend and
+    // daman-frontend — zero hits in all history, so nothing in the field
+    // depended on it.
+    //
+    // What it did, reachable from the open internet with no credentials: took
+    // machineId and clientCode from the request BODY and minted a signed
+    // licence with expiresAt = null (never expires), bound to the caller's own
+    // machineId, carrying that client's full paid entitlements AND their seeded
+    // admin username/password. The payload half of a licence key is base64, not
+    // encrypted, so the caller could decode the response and read those
+    // credentials. A wrong code answered 400 "Client not found" and a right one
+    // 200, which made client codes enumerable — and they are low-entropy
+    // (daman-1, viora, ...). Verified at the time of removal that
+    // admin-api.damansoft.com answers GET /api/clients with 401 from the public
+    // internet, i.e. AuthFilter was the ONLY gate; there is no Cloudflare Access
+    // layer in front of it.
+    //
+    // Licences are minted through the session-protected POST /api/licenses
+    // above, driven by the admin UI. If a phone-home activation flow is ever
+    // wanted, it must authenticate with a per-client short-lived activation
+    // token issued when the client is created — never clientCode alone.
 
     // ── List ─────────────────────────────────────────────────────────────────
 

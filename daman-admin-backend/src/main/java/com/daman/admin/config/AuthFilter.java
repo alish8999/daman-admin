@@ -14,13 +14,31 @@ import java.util.Set;
 
 /**
  * Guards every /api/** endpoint behind the admin session token, except the
- * handful of endpoints the shipped desktop POS apps call directly in the field.
+ * paths listed in PUBLIC_PATHS below. That sentence used to end "except the
+ * handful of endpoints the shipped desktop POS apps call directly in the
+ * field" — no shipped desktop build has ever called any of them.
  */
 public class AuthFilter implements Filter {
 
+    /**
+     * The ONLY unauthenticated surface on this backend. admin-api.damansoft.com
+     * is directly reachable from the public internet with no Cloudflare Access
+     * layer in front of it (verified 2026-10-19: GET /api/clients answers 401
+     * from outside, so this filter is the whole gate), which makes every entry
+     * here world-callable. Treat adding one as a security change, not a routing
+     * tweak: it has to be safe to invoke anonymously, at any rate, by anyone.
+     *
+     * {@code /api/licenses/activate} was removed on 2026-10-19 — it minted a
+     * signed, never-expiring licence for any caller-supplied machineId off a
+     * guessable clientCode, and returned that client's seeded admin credentials
+     * inside the base64 payload. See the note in LicenseController where it used
+     * to live.
+     *
+     * {@code /api/licenses/public-key} stays: it serves the licence PUBLIC key,
+     * which ships inside every desktop build anyway, so it discloses nothing.
+     */
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/login",
-            "/api/licenses/activate",
             "/api/licenses/public-key"
     );
 
