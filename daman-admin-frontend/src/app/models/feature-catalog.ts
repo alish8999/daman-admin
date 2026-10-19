@@ -52,7 +52,14 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'shifts',          group: 'addons', icon: 'bi-clock-history',        price: 25, labelKey: 'featShifts',          descKey: 'featShiftsDesc' },
   { key: 'posTerminals',    group: 'addons', icon: 'bi-window-stack',         price: 75, labelKey: 'featPosTerminals',    descKey: 'featPosTerminalsDesc' },
   { key: 'tableOrders',     group: 'addons', icon: 'bi-grid-3x3-gap',          price: 29, labelKey: 'featTableOrders',     descKey: 'featTableOrdersDesc' },
-  { key: 'quickPickCards',  group: 'addons', icon: 'bi-card-checklist',        price: 15, labelKey: 'featQuickPickCards',  descKey: 'featQuickPickCardsDesc' },
+  // quickPickCards (Quick Sale, was a $15 add-on) was removed from the catalog
+  // on 2026-10-19: it is now free on every installation and the store owner
+  // toggles it in the POS app's own Settings, so there is nothing to sell or
+  // tick here. Dropping the entry also takes it out of the add-on value totals
+  // and the Clients-page chips, which is correct. The flag is still carried by
+  // ClientFeatures / the licence payload for backward compatibility, but the
+  // desktop overlays it from app_settings['ui.quickSale'] and ignores whatever
+  // the licence says — see QuickSaleSettingsService in daman-backend.
   { key: 'cafeMode',        group: 'addons', icon: 'bi-shop',                 price: 0,  labelKey: 'featCafeMode',        descKey: 'featCafeModeDesc' },
   { key: 'accounting',      group: 'addons', icon: 'bi-journal-bookmark',     price: 25, labelKey: 'featAccounting',      descKey: 'featAccountingDesc' },
   { key: 'currencyExchange', group: 'addons', icon: 'bi-arrow-left-right',    price: 10, labelKey: 'featCurrencyExchange', descKey: 'featCurrencyExchangeDesc' },
