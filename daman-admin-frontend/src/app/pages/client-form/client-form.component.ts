@@ -71,7 +71,7 @@ export class ClientFormComponent implements OnInit {
   billingSaving = false;
   billingError = '';
 
-  readonly storeTypeValues = ['mobile', 'grocery', 'packaging', 'nutsdairy', 'variety', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general'];
+  readonly storeTypeValues = ['mobile', 'grocery', 'packaging', 'nutsdairy', 'variety', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general', 'restaurant', 'supermarket', 'electronics', 'wholesale'];
   readonly buildTargetValues = ['win', 'winx86', 'win7', 'mac', 'linux'];
   readonly paymentMethodValues = ['CASH', 'SHAM_CASH', 'BANK_TRANSFER', 'WESTERN_UNION', 'OTHER'];
   readonly paymentMethodLabels: Record<string, string> = {

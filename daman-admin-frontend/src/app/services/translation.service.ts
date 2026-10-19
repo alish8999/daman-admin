@@ -206,6 +206,10 @@ export class TranslationService {
       'storeType.bookstore': '📚 Books & Stationery',
       'storeType.cafe': '☕ Café & Food Service',
       'storeType.general': '🏪 General Retail',
+      'storeType.restaurant': '🍽️ Restaurant',
+      'storeType.supermarket': '🛒 Supermarket',
+      'storeType.electronics': '📱 Electronics & Repair',
+      'storeType.wholesale': '📦 Wholesale',
 
       'baseCurrency.USD': 'USD — US Dollar',
       'baseCurrency.SYP': 'SYP — Syrian Pound',
@@ -535,6 +539,10 @@ export class TranslationService {
       'storeType.bookstore': '📚 كتب ومستلزمات مكتبية',
       'storeType.cafe': '☕ مقهى وخدمات طعام',
       'storeType.general': '🏪 تجزئة عامة',
+      'storeType.restaurant': '🍽️ مطعم',
+      'storeType.supermarket': '🛒 سوبرماركت',
+      'storeType.electronics': '📱 إلكترونيات',
+      'storeType.wholesale': '📦 جملة',
 
       'baseCurrency.USD': 'USD — دولار أمريكي',
       'baseCurrency.SYP': 'SYP — ليرة سورية',
