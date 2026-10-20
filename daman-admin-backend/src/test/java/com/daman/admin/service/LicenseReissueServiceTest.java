@@ -248,4 +248,30 @@ class LicenseReissueServiceTest {
         assertThat(profile.get("hasTables").asBoolean()).isTrue();
         assertThat(profile.has("address")).isFalse();
     }
+
+    /**
+     * KNOWN GAP, pinned on purpose: entitlements carry no trial marker, so re-issuing a LIVE trial
+     * licence mints a key WITHOUT "trial": true. The desktop would then treat the trial as paid
+     * (updates re-enabled) until it expires. Conversion is the correct direction (flag absent);
+     * the mid-trial re-issue is the wrong one. If a trial marker is ever persisted and fed through
+     * LicenseEntitlements, flip this assertion.
+     */
+    @Test
+    void reissueOfLiveTrial_currentlyDropsTrialFlag() throws Exception {
+        String trialKey = licenseKeyService.generateLicense("M-AAAA", "Acme", "trial-12", "2027-01-01", "USD",
+                Map.of("barcode", true), null, null, null, null, (LicenseProfile) null, true);
+        assertThat(payloadOf(trialKey).get("trial").asBoolean()).isTrue();
+        License active = lic(1, "trial-12", "M-AAAA", "ACTIVE", trialKey);
+        when(licenseRepository.findAllByOrderByActivatedAtDesc()).thenReturn(List.of(active));
+        when(clientConfigRepository.findByClientCode("trial-12")).thenReturn(Optional.of(cfg("trial-12")));
+
+        service.reissueAll();
+
+        assertThat(payloadOf(active.getLicenseKey()).has("trial")).isFalse();
+    }
+
+    private static tools.jackson.databind.JsonNode payloadOf(String key) throws Exception {
+        return new tools.jackson.databind.ObjectMapper().readTree(
+                java.util.Base64.getDecoder().decode(key.split("[.]")[0]));
+    }
 }

@@ -101,6 +101,21 @@ public class LicenseKeyService {
                                   String colorPrimary, String colorSecondary,
                                   String adminUsername, String adminPassword,
                                   LicenseProfile profile) {
+        return generateLicense(machineId, clientName, clientCode, expiresAt, baseCurrency, features,
+                colorPrimary, colorSecondary, adminUsername, adminPassword, profile, false);
+    }
+
+    /**
+     * {@code trial} true emits {@code "trial": true}; false emits nothing (never {@code "trial": false}).
+     * Only TrialRegistrationService passes true. Conversion mints a NEW key through the ordinary paid
+     * path, which never sets it, so the flag vanishes on conversion with no clearing logic anywhere.
+     */
+    public String generateLicense(String machineId, String clientName, String clientCode,
+                                  String expiresAt, String baseCurrency,
+                                  java.util.Map<String, Boolean> features,
+                                  String colorPrimary, String colorSecondary,
+                                  String adminUsername, String adminPassword,
+                                  LicenseProfile profile, boolean trial) {
         try {
             ObjectNode payload = mapper.createObjectNode();
             payload.put("v", 2);
@@ -149,6 +164,8 @@ public class LicenseKeyService {
                 if (profile.hasTables() != null) p.put("hasTables", profile.hasTables().booleanValue());
                 if (!p.isEmpty()) payload.set("profile", p);
             }
+            // Trial marker (additive). true only for a trial mint; absent otherwise, never false.
+            if (trial) payload.put("trial", true);
             byte[] payloadBytes = mapper.writeValueAsBytes(payload);
 
             Signature sig = Signature.getInstance("SHA256withRSA");

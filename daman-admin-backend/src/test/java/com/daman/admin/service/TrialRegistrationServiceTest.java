@@ -63,7 +63,7 @@ class TrialRegistrationServiceTest {
         when(settings.presetsJson()).thenReturn(null);
         keys = mock(LicenseKeyService.class);
         when(keys.generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(), any(),
-                anyString(), anyString(), anyString(), anyString(), any())).thenReturn("KEY-1");
+                anyString(), anyString(), anyString(), anyString(), any(), eq(true))).thenReturn("KEY-1");
         clients = mock(ClientConfigRepository.class);
         when(clients.findClientCodesByPrefix("trial-")).thenReturn(List.of());
         trials = mock(TrialRegistrationRepository.class);
@@ -121,7 +121,7 @@ class TrialRegistrationServiceTest {
 
         ArgumentCaptor<Map<String, Boolean>> minted = ArgumentCaptor.forClass(Map.class);
         verify(keys).generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(),
-                minted.capture(), anyString(), anyString(), anyString(), anyString(), any());
+                minted.capture(), anyString(), anyString(), anyString(), anyString(), any(), eq(true));
         ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
         verify(clients).save(c.capture());
 
@@ -141,7 +141,7 @@ class TrialRegistrationServiceTest {
 
         InOrder order = inOrder(keys, clients, trials, licenses);
         order.verify(keys).generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(),
-                any(), anyString(), anyString(), anyString(), anyString(), any());
+                any(), anyString(), anyString(), anyString(), anyString(), any(), eq(true));
         order.verify(clients).save(any());
         order.verify(trials).save(any());
         order.verify(licenses).save(any());
@@ -150,7 +150,7 @@ class TrialRegistrationServiceTest {
     @Test
     void failedMintLeavesNoTraceByConstruction() {
         when(keys.generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(), any(),
-                anyString(), anyString(), anyString(), anyString(), any()))
+                anyString(), anyString(), anyString(), anyString(), any(), eq(true)))
                 .thenThrow(new IllegalStateException("signing failed"));
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(IllegalStateException.class);
@@ -271,7 +271,7 @@ class TrialRegistrationServiceTest {
         assertThat(r.getValue().getExpiresAt().toLocalDate()).isEqualTo(LocalDate.now().plusDays(14));
         ArgumentCaptor<String> expiry = ArgumentCaptor.forClass(String.class);
         verify(keys).generateLicense(anyString(), anyString(), anyString(), expiry.capture(), anyString(),
-                any(), anyString(), anyString(), anyString(), anyString(), any());
+                any(), anyString(), anyString(), anyString(), anyString(), any(), eq(true));
         assertThat(expiry.getValue()).isEqualTo(LocalDate.now().plusDays(14).toString());
     }
 
@@ -303,7 +303,7 @@ class TrialRegistrationServiceTest {
         // and that same password is what the licence payload carries
         ArgumentCaptor<String> pw = ArgumentCaptor.forClass(String.class);
         verify(keys, times(2)).generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(),
-                any(), anyString(), anyString(), anyString(), pw.capture(), any());
+                any(), anyString(), anyString(), anyString(), pw.capture(), any(), eq(true));
         assertThat(pw.getAllValues().get(0)).isEqualTo(p1);
     }
 
@@ -316,7 +316,7 @@ class TrialRegistrationServiceTest {
         ArgumentCaptor<Map<String, Boolean>> features = ArgumentCaptor.forClass(Map.class);
         ArgumentCaptor<LicenseProfile> profile = ArgumentCaptor.forClass(LicenseProfile.class);
         verify(keys).generateLicense(machine.capture(), eq("Corner Cafe"), eq("trial-1"), anyString(), eq("SYP"),
-                features.capture(), anyString(), anyString(), eq("admin"), anyString(), profile.capture());
+                features.capture(), anyString(), anyString(), eq("admin"), anyString(), profile.capture(), eq(true));
         assertThat(machine.getValue()).isEqualTo("M1");
         assertThat(features.getValue()).isEqualTo(
                 new TrialPresetService(settings, new ObjectMapper()).featuresFor("cafe", true));
@@ -418,7 +418,7 @@ class TrialRegistrationServiceTest {
 
         ArgumentCaptor<String> code = ArgumentCaptor.forClass(String.class);
         verify(keys, times(2)).generateLicense(anyString(), anyString(), code.capture(), anyString(), anyString(),
-                any(), anyString(), anyString(), anyString(), anyString(), any());
+                any(), anyString(), anyString(), anyString(), anyString(), any(), eq(true));
         assertThat(code.getAllValues()).containsExactly("trial-1", "trial-2");
         ArgumentCaptor<License> l = ArgumentCaptor.forClass(License.class);
         verify(licenses).save(l.capture());

@@ -129,7 +129,7 @@ public class TrialRegistrationService {
             // MINT FIRST: needs nothing from the database; a failure here has created nothing.
             String licenseKey = licenseKeyService.generateLicense(machine, shopName, clientCode,
                     expiryDate.toString(), currency, features, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
-                    "admin", adminPassword, profile);
+                    "admin", adminPassword, profile, true);
 
             try {
                 tx.executeWithoutResult(status -> {
