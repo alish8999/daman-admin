@@ -9,6 +9,8 @@ import java.util.Optional;
 public interface LicenseRepository extends JpaRepository<License, Long> {
     List<License> findByClientCodeOrderByActivatedAtDesc(String clientCode);
     Optional<License> findByMachineIdAndClientCodeAndStatus(String machineId, String clientCode, String status);
+    /** Newest first. Unlike the Optional variant this cannot throw if two ACTIVE rows exist for one machine+client. */
+    List<License> findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc(String machineId, String clientCode, String status);
     Optional<License> findByMachineIdAndStatus(String machineId, String status);
     List<License> findAllByOrderByActivatedAtDesc();
     long countByClientCodeAndStatus(String clientCode, String status);

@@ -186,7 +186,7 @@ class TrialRegistrationServiceTest {
                 Optional.of(registration("trial-1", "M1", LocalDateTime.now().plusDays(3))));
         License lic = new License();
         lic.setLicenseKey("KEY-ORIGINAL");
-        when(licenses.findByMachineIdAndClientCodeAndStatus("M1", "trial-1", "ACTIVE")).thenReturn(Optional.of(lic));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE")).thenReturn(List.of(lic));
 
         assertThat(service.register(req(), "M1", "d").licenseKey()).isEqualTo("KEY-ORIGINAL");
 
@@ -198,7 +198,7 @@ class TrialRegistrationServiceTest {
     void aLiveRegistrationWhoseLicenceIsGoneIsRefusedNotReminted() {
         when(trials.findByMachineId("M1")).thenReturn(
                 Optional.of(registration("trial-1", "M1", LocalDateTime.now().plusDays(3))));
-        when(licenses.findByMachineIdAndClientCodeAndStatus("M1", "trial-1", "ACTIVE")).thenReturn(Optional.empty());
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE")).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
 
@@ -215,7 +215,7 @@ class TrialRegistrationServiceTest {
 
         assertNothingCreated();
         verifyNoInteractions(keys);
-        verify(licenses, never()).findByMachineIdAndClientCodeAndStatus(anyString(), anyString(), anyString());
+        verify(licenses, never()).findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -380,7 +380,7 @@ class TrialRegistrationServiceTest {
         when(trials.findByMachineId("M1")).thenReturn(Optional.empty(), Optional.of(winner));
         License lic = new License();
         lic.setLicenseKey("KEY-WINNER");
-        when(licenses.findByMachineIdAndClientCodeAndStatus("M1", "trial-1", "ACTIVE")).thenReturn(Optional.of(lic));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE")).thenReturn(List.of(lic));
 
         assertThat(service.register(req(), "M1", "d").licenseKey()).isEqualTo("KEY-WINNER");
         verify(licenses, never()).save(any());
@@ -428,5 +428,87 @@ class TrialRegistrationServiceTest {
         t.setRegisteredAt(LocalDateTime.now().minusDays(1));
         t.setExpiresAt(expires);
         return t;
+    }
+
+    // ---- Task 5: refusal logging + newest-licence selection ----
+
+    private ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> captureWarnings() {
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(TrialRegistrationService.class))
+                .addAppender(appender);
+        return appender;
+    }
+
+    private static List<String> warnings(
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> a) {
+        return a.list.stream()
+                .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                .map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                .toList();
+    }
+
+    @Test
+    void anExpiredRefusalIsLoggedWithTheCauseMachineAndClientCode() {
+        var logs = captureWarnings();
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("trial-7", "M1", LocalDate.now().minusDays(1).atStartOfDay())));
+
+        assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
+
+        assertThat(warnings(logs)).hasSize(1);
+        assertThat(warnings(logs).get(0)).containsIgnoringCase("expired").contains("M1").contains("trial-7");
+    }
+
+    @Test
+    void aRevokedRefusalIsLoggedAsRevokedSoAnAdminCanFindIt() {
+        var logs = captureWarnings();
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("trial-7", "M1", LocalDateTime.now().plusDays(3))));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-7", "ACTIVE"))
+                .thenReturn(List.of());
+        License revoked = new License();
+        revoked.setClientCode("trial-7");
+        revoked.setMachineId("M1");
+        revoked.setStatus("REVOKED");
+        when(licenses.findByClientCodeOrderByActivatedAtDesc("trial-7")).thenReturn(List.of(revoked));
+
+        assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
+
+        assertThat(warnings(logs)).hasSize(1);
+        assertThat(warnings(logs).get(0)).containsIgnoringCase("revoked").contains("M1").contains("trial-7");
+    }
+
+    @Test
+    void aMissingLicenceRefusalIsLoggedAsMissing() {
+        var logs = captureWarnings();
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("trial-7", "M1", LocalDateTime.now().plusDays(3))));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-7", "ACTIVE"))
+                .thenReturn(List.of());
+        when(licenses.findByClientCodeOrderByActivatedAtDesc("trial-7")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
+
+        assertThat(warnings(logs)).hasSize(1);
+        assertThat(warnings(logs).get(0)).containsIgnoringCase("missing").contains("M1").contains("trial-7");
+        assertThat(warnings(logs).get(0)).doesNotContainIgnoringCase("revoked");
+    }
+
+    @Test
+    void twoActiveLicencesForOneMachineReturnTheNewestKeyInsteadOfA500() {
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("trial-1", "M1", LocalDateTime.now().plusDays(3))));
+        License newest = new License();
+        newest.setLicenseKey("KEY-NEWEST");
+        License older = new License();
+        older.setLicenseKey("KEY-OLDER");
+        // Repository contract is newest-first; the service must take the head, not throw.
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE"))
+                .thenReturn(List.of(newest, older));
+
+        assertThat(service.register(req(), "M1", "d").licenseKey()).isEqualTo("KEY-NEWEST");
+        assertNothingCreated();
+        verifyNoInteractions(keys);
     }
 }

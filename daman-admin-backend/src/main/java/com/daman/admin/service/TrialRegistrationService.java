@@ -187,12 +187,28 @@ public class TrialRegistrationService {
 
     /** A registration already exists for this machine: same live key back, or 409 if it has run out. */
     private TrialRegisterResponse existingKey(TrialRegistration reg) {
+        String machine = reg.getMachineId();
+        String code = reg.getClientCode();
         if (LocalDate.now().isAfter(reg.getExpiresAt().toLocalDate())) {
+            log.warn("Trial refused: EXPIRED trial (expired {}) for machineId={} clientCode={}",
+                    reg.getExpiresAt(), machine, code);
             throw new TrialAlreadyUsedException();
         }
-        return licenses.findByMachineIdAndClientCodeAndStatus(reg.getMachineId(), reg.getClientCode(), "ACTIVE")
-                .map(l -> new TrialRegisterResponse(l.getLicenseKey()))
-                .orElseThrow(TrialAlreadyUsedException::new);
+        // Newest first; a second ACTIVE row (admin re-minted without revoking) must not 500 this public endpoint.
+        List<License> active = licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc(machine, code, "ACTIVE");
+        if (!active.isEmpty()) {
+            return new TrialRegisterResponse(active.get(0).getLicenseKey());
+        }
+        boolean revoked = licenses.findByClientCodeOrderByActivatedAtDesc(code).stream()
+                .anyMatch(l -> "REVOKED".equals(l.getStatus()) && machine.equals(l.getMachineId()));
+        if (revoked) {
+            log.warn("Trial refused: licence REVOKED by an admin for machineId={} clientCode={} "
+                    + "(re-activate it in the Licenses page to let this machine continue)", machine, code);
+        } else {
+            log.warn("Trial refused: licence MISSING (live registration but no licence row for this machine) "
+                    + "for machineId={} clientCode={}", machine, code);
+        }
+        throw new TrialAlreadyUsedException();
     }
 
     private String nextClientCode() {
