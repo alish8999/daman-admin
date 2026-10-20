@@ -33,10 +33,11 @@ import static org.mockito.Mockito.when;
  */
 class AuthFilterPublicPathsTest {
 
-    /** The only two paths that may be reached without a session token. */
+    /** The only three paths that may be reached without a session token. */
     private static final List<String> ANONYMOUS = List.of(
             "/api/auth/login",
-            "/api/licenses/public-key"
+            "/api/licenses/public-key",
+            "/api/trial/register"
     );
 
     /**
@@ -52,7 +53,12 @@ class AuthFilterPublicPathsTest {
             "/api/clients",
             "/api/clients/acme/dev-run",
             "/api/clients/acme/dev-reset",
-            "/api/builds"
+            "/api/builds",
+            "/api/trial",
+            "/api/trial/",
+            "/api/trial/register/",
+            "/api/trial/registrations",
+            "/api/trial/settings"
     );
 
     SessionService sessionService;
@@ -106,12 +112,23 @@ class AuthFilterPublicPathsTest {
     }
 
     @Test
-    void onlyTheTwoAllowlistedPathsAreAnonymous() throws Exception {
+    void onlyTheAllowlistedPathsAreAnonymous() throws Exception {
         for (String path : ANONYMOUS) {
             assertThat(reached("POST", path, null))
                     .as("%s is expected to be anonymous", path)
                     .isTrue();
         }
+    }
+
+    /**
+     * Added 2026-10-20 with the self-serve trial. Safe anonymously ONLY because the
+     * request carries no client code, the response is the licence key and nothing else,
+     * and the licence is bound to the caller's own machine id with a server-set expiry.
+     */
+    @Test
+    void trialRegisterIsAnonymous() throws Exception {
+        assertThat(call("POST", "/api/trial/register", null).getStatus()).isNotEqualTo(401);
+        assertThat(reached("POST", "/api/trial/register", null)).isTrue();
     }
 
     @Test

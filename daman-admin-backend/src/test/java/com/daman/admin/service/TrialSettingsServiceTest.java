@@ -86,6 +86,30 @@ class TrialSettingsServiceTest {
         assertThat(settings.enabled()).isTrue();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"false", "FALSE", " False ", "0", "no", "NO", "off", "Off", "disabled", " DISABLED "})
+    void everyConventionalOffTokenDisablesTrials(String token) {
+        given("trial.enabled", token);
+        assertThat(settings.enabled()).isFalse();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"true", "1", "yes", "on", "", "  ", "maybe"})
+    void anythingElseLeavesTrialsEnabled(String token) {
+        given("trial.enabled", token);
+        assertThat(settings.enabled()).isTrue();
+    }
+
+    @Test
+    void daysIsCappedAndAnAbsurdValueFallsBackToTheDefault() {
+        given("trial.days", "3650");
+        assertThat(settings.days()).isEqualTo(3650);
+        given("trial.days", "3651");
+        assertThat(settings.days()).isEqualTo(7);
+        given("trial.days", "2000000000");
+        assertThat(settings.days()).isEqualTo(7);
+    }
+
     @Test
     void blankPresetsIsNull() {
         given("trial.presets", " ");

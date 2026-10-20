@@ -36,10 +36,16 @@ public class AuthFilter implements Filter {
      *
      * {@code /api/licenses/public-key} stays: it serves the licence PUBLIC key,
      * which ships inside every desktop build anyway, so it discloses nothing.
+     *
+     * {@code /api/trial/register} (added 2026-10-20) creates rows and mints a licence
+     * anonymously, and is safe only because the caller supplies no client code, the
+     * licence is bound to the caller's own machine id with a server-set expiry, and the
+     * response is the licence key alone. See TrialRegistrationService.
      */
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/login",
-            "/api/licenses/public-key"
+            "/api/licenses/public-key",
+            "/api/trial/register"
     );
 
     // Mirrors CorsConfig's allowedOrigins. This filter runs before Spring MVC's
