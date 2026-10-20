@@ -21,7 +21,7 @@ public record TrialRegistrationDto(
         long elapsedDays = Math.max(0, Duration.between(t.getRegisteredAt(), now).toDays());
         int day = (int) Math.min(total, elapsedDays + 1);
         String state = t.getConvertedAt() != null ? "CONVERTED"
-                : now.isBefore(t.getExpiresAt()) ? "ACTIVE" : "EXPIRED";
+                : !now.toLocalDate().isAfter(t.getExpiresAt().toLocalDate()) ? "ACTIVE" : "EXPIRED";
         return new TrialRegistrationDto(t.getId(), t.getClientCode(), t.getShopName(), t.getPhone(),
                 t.getAddress(), t.getStoreType(), t.getHasTables(), t.getBaseCurrency(),
                 t.getRegisteredAt(), t.getExpiresAt(), t.getConvertedAt(), day, total, state);

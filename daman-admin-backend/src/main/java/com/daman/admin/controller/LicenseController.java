@@ -96,6 +96,39 @@ public class LicenseController {
         }
     }
 
+    /**
+     * Renewing is the usual way a trial becomes a paying client: the trial's own ACTIVE licence
+     * already exists, so generate() would answer 409 and the UI offers Renew instead. But a renew
+     * is also how the owner grants a mid-trial goodwill extension, which must NOT count.
+     *
+     * <p>Rule: a renew converts only if the new expiry is perpetual (null) or lands MORE THAN ONE
+     * FULL TRIAL LENGTH past the trial's own expiry. The trial length is read from the registration
+     * row (expiresAt - registeredAt), so it follows the admin-configurable trial days. A few extra
+     * days to evaluate stays inside that window; a paid month/year does not. (clientStatus was
+     * rejected as the signal: it is a hand-edited label the owner may flip late or never.)
+     * Same safety as generate(): only null-convertedAt rows, non-trial clients no-op, never throws.
+     */
+    private void markTrialConvertedOnRenew(String clientCode, LocalDate newExpiry) {
+        try {
+            for (var trial : trialRegistrationRepository.findAllByClientCode(clientCode)) {
+                if (trial.getConvertedAt() != null) continue;
+                boolean decisive = newExpiry == null;
+                if (!decisive) {
+                    long trialDays = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(
+                            trial.getRegisteredAt().toLocalDate(), trial.getExpiresAt().toLocalDate()));
+                    decisive = newExpiry.isAfter(trial.getExpiresAt().toLocalDate().plusDays(trialDays));
+                }
+                if (decisive) {
+                    trial.setConvertedAt(LocalDateTime.now());
+                    trialRegistrationRepository.save(trial);
+                }
+            }
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(LicenseController.class)
+                    .warn("Could not stamp trial conversion on renew for {}: {}", clientCode, e.toString());
+        }
+    }
+
     // ── Activate ─────────────────────────────────────────────────────────────
     //
     // REMOVED 2026-10-19. An UNAUTHENTICATED `POST /api/licenses/activate`
@@ -219,6 +252,7 @@ public class LicenseController {
         license.setRevokedAt(null);
         license.setRenewedAt(LocalDateTime.now());
         licenseRepository.save(license);
+        markTrialConvertedOnRenew(license.getClientCode(), license.getExpiresAt());
 
         return ResponseEntity.ok(Map.of(
             "message",    "License renewed",

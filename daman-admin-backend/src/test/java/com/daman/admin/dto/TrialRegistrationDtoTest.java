@@ -46,4 +46,12 @@ class TrialRegistrationDtoTest {
     void dayNumberNeverBelowOne() {
         assertThat(TrialRegistrationDto.of(row(null), REG.minusDays(1)).dayNumber()).isEqualTo(1);
     }
+
+    @Test
+    void stillActiveThroughoutTheExpiryDateLikeTheService() {
+        // expiresAt is midnight at the START of the last day; the service/desktop treat the trial as live all that day.
+        assertThat(TrialRegistrationDto.of(row(null), REG.plusDays(7).withHour(0).withMinute(0).plusHours(15)).state())
+                .isEqualTo("ACTIVE");
+        assertThat(TrialRegistrationDto.of(row(null), REG.plusDays(8)).state()).isEqualTo("EXPIRED");
+    }
 }

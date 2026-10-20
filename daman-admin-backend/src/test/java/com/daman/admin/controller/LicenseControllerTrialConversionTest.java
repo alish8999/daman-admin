@@ -104,4 +104,68 @@ class LicenseControllerTrialConversionTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         verify(licenses).save(any());
     }
+
+    private TrialRegistration sevenDayTrial() {
+        TrialRegistration t = trial(null);
+        t.setRegisteredAt(LocalDateTime.of(2026, 10, 10, 12, 0));
+        t.setExpiresAt(LocalDateTime.of(2026, 10, 17, 0, 0));
+        return t;
+    }
+
+    private void renew(TrialRegistration t, String expiresAt) {
+        com.daman.admin.entity.License l = new com.daman.admin.entity.License();
+        l.setClientCode("trial-1");
+        l.setMachineId("M1");
+        l.setClientName("Shop");
+        l.setStatus("ACTIVE");
+        when(licenses.findById(1L)).thenReturn(Optional.of(l));
+        when(trials.findAllByClientCode("trial-1")).thenReturn(List.of(t));
+        var resp = controller.renewById(1L, expiresAt == null ? new java.util.HashMap<>() : Map.of("expiresAt", expiresAt));
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void aMidTrialExtensionDoesNotCountAsConversion() {
+        TrialRegistration t = sevenDayTrial();
+        renew(t, "2026-10-22"); // +5 days: goodwill
+        assertThat(t.getConvertedAt()).isNull();
+        verify(trials, never()).save(any());
+    }
+
+    @Test
+    void renewingFarBeyondTheTrialWindowIsAConversion() {
+        TrialRegistration t = sevenDayTrial();
+        renew(t, "2027-10-17");
+        assertThat(t.getConvertedAt()).isNotNull();
+    }
+
+    @Test
+    void renewingToPerpetualIsAConversion() {
+        TrialRegistration t = sevenDayTrial();
+        renew(t, null);
+        assertThat(t.getConvertedAt()).isNotNull();
+    }
+
+    @Test
+    void renewForANonTrialClientStillSucceedsAndStampsNothing() {
+        com.daman.admin.entity.License l = new com.daman.admin.entity.License();
+        l.setClientCode("daman-1");
+        l.setMachineId("M1");
+        l.setClientName("X");
+        when(licenses.findById(2L)).thenReturn(Optional.of(l));
+        when(trials.findAllByClientCode("daman-1")).thenReturn(List.of());
+        assertThat(controller.renewById(2L, Map.of("expiresAt", "2027-01-01")).getStatusCode().value()).isEqualTo(200);
+        verify(trials, never()).save(any());
+    }
+
+    @Test
+    void aFailureStampingOnRenewNeverBreaksTheRenewal() {
+        when(trials.findAllByClientCode(anyString())).thenThrow(new RuntimeException("db down"));
+        com.daman.admin.entity.License l = new com.daman.admin.entity.License();
+        l.setClientCode("daman-1");
+        l.setMachineId("M1");
+        l.setClientName("X");
+        when(licenses.findById(3L)).thenReturn(Optional.of(l));
+        assertThat(controller.renewById(3L, Map.of("expiresAt", "2027-01-01")).getStatusCode().value()).isEqualTo(200);
+    }
 }
