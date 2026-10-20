@@ -1,5 +1,6 @@
 package com.daman.admin.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -9,7 +10,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -26,6 +27,7 @@ import java.util.Map;
  * <p>Also owns the body-size cap ({@link #MAX_BODY_BYTES}) so the abuse controls for this one
  * endpoint live in one reviewable place.
  */
+@Slf4j
 @Component
 public class TrialRateLimiter {
 
@@ -39,7 +41,7 @@ public class TrialRateLimiter {
 
     private final Clock clock;
     private final int maxKeys;
-    private final Map<String, Deque<Long>> hits = new HashMap<>();
+    private final Map<String, Deque<Long>> hits = new LinkedHashMap<>();
     private long lastSweep;
 
     @Autowired
@@ -71,17 +73,42 @@ public class TrialRateLimiter {
         if (count(ipKey, cutoff) >= IP_LIMIT || count(machineKey, cutoff) >= MACHINE_LIMIT) {
             return false;
         }
-        int newKeys = (hits.containsKey(ipKey) ? 0 : 1) + (hits.containsKey(machineKey) ? 0 : 1);
-        if (hits.size() + newKeys > maxKeys) {
-            sweep(cutoff);
-            lastSweep = now;
-            if (hits.size() + newKeys > maxKeys) {
-                return false; // fail closed
-            }
-        }
-        hits.computeIfAbsent(ipKey, k -> new ArrayDeque<>()).addLast(now);
-        hits.computeIfAbsent(machineKey, k -> new ArrayDeque<>()).addLast(now);
+        evictIfFull();
+        record(ipKey, now);
+        record(machineKey, now);
         return true;
+    }
+
+    /** Appends a hit and moves the key to the tail, so the head is always the least recently used key. */
+    private void record(String key, long now) {
+        Deque<Long> q = hits.remove(key);
+        if (q == null) {
+            q = new ArrayDeque<>();
+        }
+        q.addLast(now);
+        hits.put(key, q);
+    }
+
+    /**
+     * At the cap, drop the least recently used keys down to ~90% and carry on serving. A caller is
+     * never refused because OTHER keys exist; the unique machineId index is the real guarantee, so
+     * this map is a convenience and must not become a global kill switch. O(evicted), not O(n),
+     * and it only runs when the table is full.
+     */
+    private void evictIfFull() {
+        if (hits.size() + 2 <= maxKeys) {
+            return;
+        }
+        int before = hits.size();
+        int target = Math.max(0, (int) (maxKeys * 0.9) - 2);
+        Iterator<String> it = hits.keySet().iterator();
+        while (hits.size() > target && it.hasNext()) {
+            it.next();
+            it.remove();
+        }
+        log.error("Trial rate limiter reached its key cap ({} keys, max {}); evicted {} least-recently-used keys. "
+                + "A very large number of distinct sources is hitting /api/trial/register.",
+                before, maxKeys, before - hits.size());
     }
 
     synchronized int trackedKeys() {

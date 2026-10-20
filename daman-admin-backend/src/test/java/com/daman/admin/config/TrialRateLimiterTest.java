@@ -97,16 +97,6 @@ class TrialRateLimiterTest {
         assertThat(limiter.trackedKeys()).isEqualTo(2); // only 1.1.1.1 and Fresh remain
     }
 
-    @Test
-    void failsClosedWhenTheKeyTableIsFull() {
-        TrialRateLimiter tiny = new TrialRateLimiter(clock, 10);
-        int allowed = 0;
-        for (int i = 0; i < 100; i++) {
-            if (tiny.allow("10.0.0." + i, "M" + i)) allowed++;
-        }
-        assertThat(allowed).isLessThan(100);
-        assertThat(tiny.trackedKeys()).isLessThanOrEqualTo(10);
-    }
 
     @Test
     void ipAndMachineKeyspacesDoNotCollide() {
@@ -120,5 +110,74 @@ class TrialRateLimiterTest {
     @Test
     void aNullMachineIdIsHandled() {
         assertThat(limiter.allow("1.2.3.4", null)).isTrue();
+    }
+
+    @Test
+    void atTheCapItEvictsTheStalestKeysInsteadOfDenyingNewCallers() {
+        TrialRateLimiter tiny = new TrialRateLimiter(clock, 10);
+        for (int i = 0; i < 100; i++) {
+            assertThat(tiny.allow("10.0.0." + i, "M" + i)).isTrue(); // never refused for other keys' sake
+            clock.advance(Duration.ofSeconds(1));
+        }
+        assertThat(tiny.trackedKeys()).isLessThanOrEqualTo(10);
+    }
+
+    @Test
+    void evictionDropsTheOldestAndKeepsTheNewestEnforced() {
+        TrialRateLimiter tiny = new TrialRateLimiter(clock, 10);
+        for (int i = 0; i < 100; i++) {
+            tiny.allow("10.0.0." + i, "M" + i);
+            clock.advance(Duration.ofSeconds(1));
+        }
+        // The most recent machine is still tracked: burn its 3 allowances from fresh IPs.
+        assertThat(tiny.allow("9.9.9.1", "M99")).isTrue();
+        assertThat(tiny.allow("9.9.9.2", "M99")).isTrue();
+        assertThat(tiny.allow("9.9.9.3", "M99")).isFalse();
+    }
+
+    @Test
+    void evictionIsLoggedAtErrorWithTheKeyCount() {
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(TrialRateLimiter.class))
+                .addAppender(appender);
+        TrialRateLimiter tiny = new TrialRateLimiter(clock, 10);
+        for (int i = 0; i < 20; i++) {
+            tiny.allow("10.0.0." + i, "M" + i);
+        }
+        var errors = appender.list.stream()
+                .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR)
+                .map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage).toList();
+        assertThat(errors).isNotEmpty();
+        assertThat(errors.get(0)).contains("10");
+    }
+
+    /** InputStream whose available()/length hints lie; only the bytes matter. */
+    private static java.io.InputStream stream(int n) {
+        return new java.io.ByteArrayInputStream(new byte[n]) {
+            @Override public synchronized int available() { return 0; }
+        };
+    }
+
+    @Test
+    void readCappedReturnsABodyOfExactlyTheCap() throws Exception {
+        assertThat(TrialRateLimiter.readCapped(stream(TrialRateLimiter.MAX_BODY_BYTES)))
+                .hasSize(TrialRateLimiter.MAX_BODY_BYTES);
+    }
+
+    @Test
+    void readCappedReturnsNullOneByteOverTheCapEvenIfTheStreamHidesItsLength() throws Exception {
+        assertThat(TrialRateLimiter.readCapped(stream(TrialRateLimiter.MAX_BODY_BYTES + 1))).isNull();
+    }
+
+    @Test
+    void readCappedNeverReadsMuchPastTheCapFromAHugeStream() throws Exception {
+        java.util.concurrent.atomic.AtomicLong read = new java.util.concurrent.atomic.AtomicLong();
+        java.io.InputStream endless = new java.io.InputStream() {
+            @Override public int read() { read.incrementAndGet(); return 'x'; }
+            @Override public int read(byte[] b, int off, int len) { read.addAndGet(len); java.util.Arrays.fill(b, off, off + len, (byte) 'x'); return len; }
+        };
+        assertThat(TrialRateLimiter.readCapped(endless)).isNull();
+        assertThat(read.get()).isLessThan(TrialRateLimiter.MAX_BODY_BYTES * 4L);
     }
 }
