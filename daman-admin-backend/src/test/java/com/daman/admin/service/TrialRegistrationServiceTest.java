@@ -71,7 +71,8 @@ class TrialRegistrationServiceTest {
         licenses = mock(LicenseRepository.class);
         TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
         service = new TrialRegistrationService(settings,
-                new TrialPresetService(settings, new ObjectMapper()), keys, clients, trials, licenses, tx);
+                new TrialPresetService(settings, new ObjectMapper()), keys, clients, trials, licenses, tx,
+                new ObjectMapper());
     }
 
     private static TrialRegisterRequest req() {
@@ -111,6 +112,27 @@ class TrialRegistrationServiceTest {
         assertThat(l.getValue().getMachineId()).isEqualTo("M1");
         assertThat(l.getValue().getClientCode()).isEqualTo("trial-1");
         assertThat(l.getValue().getExpiresAt()).isEqualTo(LocalDate.now().plusDays(7));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void storedFeaturesMatchTheMintedLicenceSoLaterMintsKeepThem() {
+        service.register(req(), "M1", "d");
+
+        ArgumentCaptor<Map<String, Boolean>> minted = ArgumentCaptor.forClass(Map.class);
+        verify(keys).generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(),
+                minted.capture(), anyString(), anyString(), anyString(), anyString(), any());
+        ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
+        verify(clients).save(c.capture());
+
+        ClientConfigRepository repo = mock(ClientConfigRepository.class);
+        when(repo.findByClientCode("trial-1")).thenReturn(Optional.of(c.getValue()));
+        Map<String, Boolean> later = new ClientConfigService(repo, new ObjectMapper())
+                .licenseEntitlementsFor("trial-1").features();
+
+        assertThat(later).containsEntry("cafeMode", true).containsEntry("tableOrders", true);
+        // The preset map may omit flags that are false; every flag it does name must survive unchanged.
+        assertThat(later).containsAllEntriesOf(minted.getValue());
     }
 
     @Test

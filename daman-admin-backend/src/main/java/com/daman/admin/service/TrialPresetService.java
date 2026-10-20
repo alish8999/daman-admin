@@ -59,7 +59,12 @@ public class TrialPresetService {
             "electronics", List.of("deviceRepair"),
             "wholesale", List.of("consignment"));
 
-    /** Must stay in step with the admin frontend's {@code storeTypeValues}. */
+    /**
+     * Every key here must exist in the admin frontend's {@code storeTypeValues} (the frontend list is a
+     * superset: 15 values vs 6 here), not the reverse. NOTE: {@code List.copyOf(Map.of(..).keySet())} has
+     * JVM-dependent order; harmless today as only {@code .contains()} is used, but if a future picker
+     * endpoint serves this list, sort it first.
+     */
     public static final List<String> KNOWN_STORE_TYPES = List.copyOf(BUILT_IN.keySet());
 
     private final TrialSettingsService settings;

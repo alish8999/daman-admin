@@ -21,7 +21,8 @@ import java.util.Map;
  * that pass BOTH buckets are recorded, so a blocked caller cannot burn someone else's quota.
  * The table is fed by anonymous input, so it is bounded twice over: expired timestamps (and
  * emptied keys) are swept at most once a minute, and above {@code maxKeys} live keys the limiter
- * fails closed (denies) rather than growing. State is per-process and lost on restart, which is
+ * the limiter evicts the least-recently-used keys down to ~90% of the cap (logged at ERROR) rather than
+ * growing or denying everyone. State is per-process and lost on restart, which is
  * acceptable: the unique index on machine id is the real one-trial-per-machine guarantee.
  *
  * <p>Also owns the body-size cap ({@link #MAX_BODY_BYTES}) so the abuse controls for this one

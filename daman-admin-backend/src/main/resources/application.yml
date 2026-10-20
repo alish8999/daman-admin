@@ -18,7 +18,9 @@ spring:
 
   h2:
     console:
-      enabled: true
+      # OFF on purpose: /h2-console sits outside AuthFilter ('/api/*' only) and the DB is sa with a blank
+      # password, so enabling it would expose an unauthenticated console if the ingress ever maps the whole hostname.
+      enabled: false
       path: /h2-console
 
 daman:

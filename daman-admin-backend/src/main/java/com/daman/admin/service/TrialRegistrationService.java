@@ -1,5 +1,6 @@
 package com.daman.admin.service;
 
+import com.daman.admin.dto.ClientFeaturesJson;
 import com.daman.admin.dto.TrialRegisterRequest;
 import com.daman.admin.dto.TrialRegisterResponse;
 import com.daman.admin.entity.ClientConfig;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import java.security.SecureRandom;
 import java.time.LocalDate;
@@ -61,12 +63,13 @@ public class TrialRegistrationService {
     private final TrialRegistrationRepository trials;
     private final LicenseRepository licenses;
     private final TransactionTemplate tx;
+    private final ObjectMapper objectMapper;
     private final SecureRandom random = new SecureRandom();
 
     public TrialRegistrationService(TrialSettingsService settings, TrialPresetService presets,
                                     LicenseKeyService licenseKeyService, ClientConfigRepository clients,
                                     TrialRegistrationRepository trials, LicenseRepository licenses,
-                                    TransactionTemplate tx) {
+                                    TransactionTemplate tx, ObjectMapper objectMapper) {
         this.settings = settings;
         this.presets = presets;
         this.licenseKeyService = licenseKeyService;
@@ -74,6 +77,7 @@ public class TrialRegistrationService {
         this.trials = trials;
         this.licenses = licenses;
         this.tx = tx;
+        this.objectMapper = objectMapper;
     }
 
     public TrialRegisterResponse register(TrialRegisterRequest req, String machineId, String deviceInfo) {
@@ -114,6 +118,8 @@ public class TrialRegistrationService {
         LocalDate expiryDate = LocalDate.now().plusDays(settings.days());
         Map<String, Boolean> features = presets.featuresFor(storeType, hasTables);
         LicenseProfile profile = new LicenseProfile(shopName, phone, address, storeType, hasTables);
+        // ONE featuresFor() result feeds both the minted licence and the stored config, so they cannot diverge.
+        String featuresJson = toFeaturesJson(features);
 
         DataIntegrityViolationException last = null;
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -143,6 +149,7 @@ public class TrialRegistrationService {
                     // Only trial registration ever writes these two: they are in no client DTO.
                     c.setAddress(address);
                     c.setHasTables(hasTables);
+                    c.setFeaturesJson(featuresJson);
                     c.setClientStatus("TRIAL");
                     clients.save(c);
 
@@ -209,6 +216,25 @@ public class TrialRegistrationService {
                     + "for machineId={} clientCode={}", machine, code);
         }
         throw new TrialAlreadyUsedException();
+    }
+
+    /**
+     * Serialises the preset flags into the {@code features_json} shape every later mint
+     * ({@code licenseEntitlementsFor}) reads; unset flags keep ClientFeaturesJson defaults.
+     */
+    private String toFeaturesJson(Map<String, Boolean> features) {
+        try {
+            Map<String, Object> all = objectMapper.convertValue(new ClientFeaturesJson(false, false, false),
+                    new tools.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            features.forEach((k, v) -> {
+                if (all.containsKey(k)) {
+                    all.put(k, v);
+                }
+            });
+            return objectMapper.writeValueAsString(all);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not serialize trial features", e);
+        }
     }
 
     private String nextClientCode() {

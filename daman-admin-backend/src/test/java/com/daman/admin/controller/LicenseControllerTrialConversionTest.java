@@ -168,4 +168,27 @@ class LicenseControllerTrialConversionTest {
         when(licenses.findById(3L)).thenReturn(Optional.of(l));
         assertThat(controller.renewById(3L, Map.of("expiresAt", "2027-01-01")).getStatusCode().value()).isEqualTo(200);
     }
+
+    @Test
+    void bothConversionPathsPassTheEntitlementsProfileToTheMint() {
+        var profile = new com.daman.admin.service.LicenseProfile("Shop", "0999", "Main St", "cafe", true);
+        when(clientConfigService.licenseEntitlementsFor(anyString())).thenReturn(
+                new ClientConfigService.LicenseEntitlements("USD", Map.of(), null, null, null, null, profile));
+        when(trials.findAllByClientCode(anyString())).thenReturn(List.of());
+
+        controller.generate(body("trial-1"));
+
+        com.daman.admin.entity.License l = new com.daman.admin.entity.License();
+        l.setClientCode("trial-1");
+        l.setMachineId("M1");
+        l.setClientName("Shop");
+        when(licenses.findById(9L)).thenReturn(Optional.of(l));
+        controller.renewById(9L, Map.of("expiresAt", "2027-01-01"));
+
+        org.mockito.ArgumentCaptor<com.daman.admin.service.LicenseProfile> cap =
+                org.mockito.ArgumentCaptor.forClass(com.daman.admin.service.LicenseProfile.class);
+        verify(keys, times(2)).generateLicense(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                cap.capture());
+        assertThat(cap.getAllValues()).containsExactly(profile, profile);
+    }
 }
