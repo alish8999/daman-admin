@@ -58,7 +58,9 @@ class AuthFilterPublicPathsTest {
             "/api/trial/",
             "/api/trial/register/",
             "/api/trial/registrations",
-            "/api/trial/settings"
+            "/api/trial/settings",
+            // Trials tab listing: prospects' names and phones. Never anonymous.
+            "/api/trials"
     );
 
     SessionService sessionService;
@@ -129,6 +131,13 @@ class AuthFilterPublicPathsTest {
     void trialRegisterIsAnonymous() throws Exception {
         assertThat(call("POST", "/api/trial/register", null).getStatus()).isNotEqualTo(401);
         assertThat(reached("POST", "/api/trial/register", null)).isTrue();
+    }
+
+    @Test
+    void trialsListingRequiresASessionToken() throws Exception {
+        assertThat(call("GET", "/api/trials", null).getStatus()).isEqualTo(401);
+        assertThat(reached("GET", "/api/trials", null)).isFalse();
+        assertThat(reached("GET", "/api/trials", "good-token")).isTrue();
     }
 
     @Test

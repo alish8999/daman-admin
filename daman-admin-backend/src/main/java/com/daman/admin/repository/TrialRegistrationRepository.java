@@ -10,4 +10,7 @@ public interface TrialRegistrationRepository extends JpaRepository<TrialRegistra
     Optional<TrialRegistration> findByMachineId(String machineId);
 
     List<TrialRegistration> findAllByOrderByRegisteredAtDesc();
+
+    /** A List, not an Optional: clientCode is not DB-unique here, and a throw would be swallowed anyway. */
+    List<TrialRegistration> findAllByClientCode(String clientCode);
 }

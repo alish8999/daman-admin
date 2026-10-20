@@ -37,7 +37,8 @@ class LicenseControllerReissueTest {
         licenseReissueService = mock(LicenseReissueService.class);
         licenseBundleZipper = mock(LicenseBundleZipper.class);
         controller = new LicenseController(licenseKeyService, licenseRepository,
-                clientConfigRepository, clientConfigService, licenseReissueService, licenseBundleZipper);
+                clientConfigRepository, clientConfigService, licenseReissueService, licenseBundleZipper,
+                mock(com.daman.admin.repository.TrialRegistrationRepository.class));
     }
 
     @Test

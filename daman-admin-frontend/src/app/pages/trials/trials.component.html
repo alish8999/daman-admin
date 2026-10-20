@@ -1,0 +1,55 @@
+<div class="admin-content-inner">
+  <div class="page-header">
+    <div>
+      <h3>{{ 'trialsTitle' | t }}</h3>
+      <p>
+        {{ trials.length }} {{ 'trialsTotal' | t }} ·
+        {{ count('ACTIVE') }} {{ 'trialStateActive' | t }} ·
+        {{ count('CONVERTED') }} {{ 'trialStateConverted' | t }}
+      </p>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm"></span></div>
+  } @else if (error) {
+    <div class="alert alert-danger">{{ 'trialsLoadError' | t }}</div>
+  } @else if (trials.length === 0) {
+    <div class="text-center text-muted py-5">{{ 'trialsEmpty' | t }}</div>
+  } @else {
+    <div class="surface-card table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>{{ 'trialColShop' | t }}</th>
+            <th>{{ 'trialColPhone' | t }}</th>
+            <th>{{ 'trialColStoreType' | t }}</th>
+            <th>{{ 'trialColDay' | t }}</th>
+            <th>{{ 'trialColState' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of trials; track t.id) {
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ t.shopName }}</div>
+                <div class="small text-muted">{{ t.clientCode }}</div>
+              </td>
+              <td dir="ltr" class="text-start">{{ t.phone || '—' }}</td>
+              <td>{{ t.storeType ? ('storeType.' + t.storeType | t) : '—' }}</td>
+              <td>{{ 'trialDayOf' | t:{ n: t.dayNumber, m: t.totalDays } }}</td>
+              <td>
+                <span class="trial-chip"
+                      [class.trial-chip--active]="t.state === 'ACTIVE'"
+                      [class.trial-chip--expired]="t.state === 'EXPIRED'"
+                      [class.trial-chip--converted]="t.state === 'CONVERTED'">
+                  {{ (t.state === 'ACTIVE' ? 'trialStateActive' : t.state === 'EXPIRED' ? 'trialStateExpired' : 'trialStateConverted') | t }}
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

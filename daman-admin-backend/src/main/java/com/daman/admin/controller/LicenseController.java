@@ -24,6 +24,7 @@ public class LicenseController {
     private final com.daman.admin.service.ClientConfigService clientConfigService;
     private final com.daman.admin.service.LicenseReissueService licenseReissueService;
     private final com.daman.admin.service.LicenseBundleZipper licenseBundleZipper;
+    private final com.daman.admin.repository.TrialRegistrationRepository trialRegistrationRepository;
 
     // ── Generate ──────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ public class LicenseController {
         license.setLabel(label.isBlank() ? null : label);
         license.setExpiresAt(expiresAt != null && !expiresAt.isBlank() ? LocalDate.parse(expiresAt) : null);
         licenseRepository.save(license);
+        markTrialConverted(clientCode);
 
         return ResponseEntity.ok(Map.of(
             "licenseKey", licenseKey,
@@ -72,6 +74,26 @@ public class LicenseController {
             "machineId",  machineId,
             "label",      label
         ));
+    }
+
+    /**
+     * A normal paid licence minted for a self-serve trial's clientCode is what "converted" means.
+     * Every existing client passes through generate(), so this must never throw or alter anything
+     * for a non-trial client: a missing registration is a silent no-op, and any failure here is
+     * logged and swallowed rather than failing the licence that was just saved.
+     */
+    private void markTrialConverted(String clientCode) {
+        try {
+            for (var trial : trialRegistrationRepository.findAllByClientCode(clientCode)) {
+                if (trial.getConvertedAt() == null) {
+                    trial.setConvertedAt(LocalDateTime.now());
+                    trialRegistrationRepository.save(trial);
+                }
+            }
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(LicenseController.class)
+                    .warn("Could not stamp trial conversion for {}: {}", clientCode, e.toString());
+        }
     }
 
     // ── Activate ─────────────────────────────────────────────────────────────
