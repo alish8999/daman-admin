@@ -52,7 +52,7 @@ class LicenseControllerTrialConversionTest {
 
     private static TrialRegistration trial(LocalDateTime converted) {
         TrialRegistration t = new TrialRegistration();
-        t.setClientCode("trial-1");
+        t.setClientCode("c-1");
         t.setConvertedAt(converted);
         return t;
     }
@@ -64,9 +64,9 @@ class LicenseControllerTrialConversionTest {
     @Test
     void issuingAPaidLicenceStampsConvertedAt() {
         TrialRegistration t = trial(null);
-        when(trials.findAllByClientCode("trial-1")).thenReturn(List.of(t));
+        when(trials.findAllByClientCode("c-1")).thenReturn(List.of(t));
 
-        controller.generate(body("trial-1"));
+        controller.generate(body("c-1"));
 
         assertThat(t.getConvertedAt()).isNotNull();
         verify(trials).save(t);
@@ -76,9 +76,9 @@ class LicenseControllerTrialConversionTest {
     void anAlreadyStampedConversionIsNotOverwritten() {
         LocalDateTime first = LocalDateTime.of(2026, 1, 1, 0, 0);
         TrialRegistration t = trial(first);
-        when(trials.findAllByClientCode("trial-1")).thenReturn(List.of(t));
+        when(trials.findAllByClientCode("c-1")).thenReturn(List.of(t));
 
-        controller.generate(body("trial-1"));
+        controller.generate(body("c-1"));
 
         assertThat(t.getConvertedAt()).isEqualTo(first);
         verify(trials, never()).save(any());
@@ -114,12 +114,12 @@ class LicenseControllerTrialConversionTest {
 
     private void renew(TrialRegistration t, String expiresAt) {
         com.daman.admin.entity.License l = new com.daman.admin.entity.License();
-        l.setClientCode("trial-1");
+        l.setClientCode("c-1");
         l.setMachineId("M1");
         l.setClientName("Shop");
         l.setStatus("ACTIVE");
         when(licenses.findById(1L)).thenReturn(Optional.of(l));
-        when(trials.findAllByClientCode("trial-1")).thenReturn(List.of(t));
+        when(trials.findAllByClientCode("c-1")).thenReturn(List.of(t));
         var resp = controller.renewById(1L, expiresAt == null ? new java.util.HashMap<>() : Map.of("expiresAt", expiresAt));
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
     }
@@ -176,10 +176,10 @@ class LicenseControllerTrialConversionTest {
                 new ClientConfigService.LicenseEntitlements("USD", Map.of(), null, null, null, null, profile));
         when(trials.findAllByClientCode(anyString())).thenReturn(List.of());
 
-        controller.generate(body("trial-1"));
+        controller.generate(body("c-1"));
 
         com.daman.admin.entity.License l = new com.daman.admin.entity.License();
-        l.setClientCode("trial-1");
+        l.setClientCode("c-1");
         l.setMachineId("M1");
         l.setClientName("Shop");
         when(licenses.findById(9L)).thenReturn(Optional.of(l));

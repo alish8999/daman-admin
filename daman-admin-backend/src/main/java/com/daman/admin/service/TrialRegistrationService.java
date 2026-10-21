@@ -27,7 +27,7 @@ import java.util.Set;
 /**
  * Self-serve trial registration behind the ANONYMOUS {@code POST /api/trial/register}.
  *
- * <p>Safe to expose because: the caller never names a client code (we generate {@code trial-N}),
+ * <p>Safe to expose because: the caller never names a client code (we generate {@code c-N}),
  * the licence is bound to the caller's own machine id, expiry comes from server settings, the
  * response is the licence key only, and one machine id maps to one registration (unique index).
  *
@@ -42,7 +42,15 @@ import java.util.Set;
 @Service
 public class TrialRegistrationService {
 
-    static final String CODE_PREFIX = "trial-";
+    /**
+     * Sequential, neutral and PERMANENT. Deliberately not "trial-": conversion mints an
+     * ordinary paid licence for this same code and nothing renames it, so a prefix saying
+     * "trial" would mislabel a paying customer for the life of the account. Trial-ness is
+     * recorded where it can actually change - the TrialRegistration row (convertedAt), the
+     * licence LABEL below, and the signed `trial` flag in the payload. Its own namespace,
+     * so an auto-allocated code is still distinguishable from a name-slug one.
+     */
+    static final String CODE_PREFIX = "c-";
     static final String LABEL = "TRIAL";
     static final int MAX_MACHINE_ID = 128;
     static final int MAX_SHOP_NAME = 100;
@@ -185,7 +193,7 @@ public class TrialRegistrationService {
                 if (winner.isPresent()) {
                     return existingKey(winner.get());
                 }
-                // Otherwise it was a trial-N collision: loop with a fresh code (and a fresh mint).
+                // Otherwise it was a client-code collision: loop with a fresh code (and a fresh mint).
                 log.warn("Trial registration attempt {} failed on an integrity violation; retrying", attempt + 1);
             }
         }

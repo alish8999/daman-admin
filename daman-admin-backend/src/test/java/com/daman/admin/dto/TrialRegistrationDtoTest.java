@@ -13,7 +13,7 @@ class TrialRegistrationDtoTest {
 
     private static TrialRegistration row(LocalDateTime converted) {
         TrialRegistration t = new TrialRegistration();
-        t.setClientCode("trial-1");
+        t.setClientCode("c-1");
         t.setShopName("Shop");
         t.setRegisteredAt(REG);
         t.setExpiresAt(REG.plusDays(7));

@@ -65,7 +65,7 @@ class TrialRegistrationServiceTest {
         when(keys.generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(), any(),
                 anyString(), anyString(), anyString(), anyString(), any(), eq(true))).thenReturn("KEY-1");
         clients = mock(ClientConfigRepository.class);
-        when(clients.findClientCodesByPrefix("trial-")).thenReturn(List.of());
+        when(clients.findClientCodesByPrefix("c-")).thenReturn(List.of());
         trials = mock(TrialRegistrationRepository.class);
         when(trials.findByMachineId(anyString())).thenReturn(Optional.empty());
         licenses = mock(LicenseRepository.class);
@@ -94,14 +94,14 @@ class TrialRegistrationServiceTest {
 
         ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
         verify(clients).save(c.capture());
-        assertThat(c.getValue().getClientCode()).isEqualTo("trial-1");
+        assertThat(c.getValue().getClientCode()).isEqualTo("c-1");
         assertThat(c.getValue().getAppName()).isEqualTo("Corner Cafe");
         assertThat(c.getValue().getClientStatus()).isEqualTo("TRIAL");
 
         ArgumentCaptor<TrialRegistration> r = ArgumentCaptor.forClass(TrialRegistration.class);
         verify(trials).save(r.capture());
         assertThat(r.getValue().getMachineId()).isEqualTo("M1");
-        assertThat(r.getValue().getClientCode()).isEqualTo("trial-1");
+        assertThat(r.getValue().getClientCode()).isEqualTo("c-1");
         assertThat(r.getValue().getExpiresAt().toLocalDate()).isEqualTo(LocalDate.now().plusDays(7));
 
         ArgumentCaptor<License> l = ArgumentCaptor.forClass(License.class);
@@ -110,7 +110,7 @@ class TrialRegistrationServiceTest {
         assertThat(l.getValue().getStatus()).isEqualTo("ACTIVE");
         assertThat(l.getValue().getLicenseKey()).isEqualTo("KEY-1");
         assertThat(l.getValue().getMachineId()).isEqualTo("M1");
-        assertThat(l.getValue().getClientCode()).isEqualTo("trial-1");
+        assertThat(l.getValue().getClientCode()).isEqualTo("c-1");
         assertThat(l.getValue().getExpiresAt()).isEqualTo(LocalDate.now().plusDays(7));
     }
 
@@ -126,9 +126,9 @@ class TrialRegistrationServiceTest {
         verify(clients).save(c.capture());
 
         ClientConfigRepository repo = mock(ClientConfigRepository.class);
-        when(repo.findByClientCode("trial-1")).thenReturn(Optional.of(c.getValue()));
+        when(repo.findByClientCode("c-1")).thenReturn(Optional.of(c.getValue()));
         Map<String, Boolean> later = new ClientConfigService(repo, new ObjectMapper())
-                .licenseEntitlementsFor("trial-1").features();
+                .licenseEntitlementsFor("c-1").features();
 
         assertThat(later).containsEntry("cafeMode", true).containsEntry("tableOrders", true);
         // The preset map may omit flags that are false; every flag it does name must survive unchanged.
@@ -160,13 +160,13 @@ class TrialRegistrationServiceTest {
 
     @Test
     void clientCodeIncrementsFromTheHighestExistingTrialCode() {
-        when(clients.findClientCodesByPrefix("trial-")).thenReturn(List.of("trial-2", "trial-10", "trial-x", "trial-9"));
+        when(clients.findClientCodesByPrefix("c-")).thenReturn(List.of("c-2", "c-10", "c-x", "c-9"));
 
         service.register(req(), "M1", "d");
 
         ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
         verify(clients).save(c.capture());
-        assertThat(c.getValue().getClientCode()).isEqualTo("trial-11");
+        assertThat(c.getValue().getClientCode()).isEqualTo("c-11");
     }
 
     @Test
@@ -205,10 +205,10 @@ class TrialRegistrationServiceTest {
     @Test
     void secondCallFromTheSameMachineReturnsTheSameKeyAndCreatesNothing() {
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-1", "M1", LocalDateTime.now().plusDays(3))));
+                Optional.of(registration("c-1", "M1", LocalDateTime.now().plusDays(3))));
         License lic = new License();
         lic.setLicenseKey("KEY-ORIGINAL");
-        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE")).thenReturn(List.of(lic));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-1", "ACTIVE")).thenReturn(List.of(lic));
 
         assertThat(service.register(req(), "M1", "d").licenseKey()).isEqualTo("KEY-ORIGINAL");
 
@@ -219,8 +219,8 @@ class TrialRegistrationServiceTest {
     @Test
     void aLiveRegistrationWhoseLicenceIsGoneIsRefusedNotReminted() {
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-1", "M1", LocalDateTime.now().plusDays(3))));
-        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE")).thenReturn(List.of());
+                Optional.of(registration("c-1", "M1", LocalDateTime.now().plusDays(3))));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-1", "ACTIVE")).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
 
@@ -231,7 +231,7 @@ class TrialRegistrationServiceTest {
     @Test
     void anExpiredTrialIsRefusedAndGrantsNothing() {
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-1", "M1", LocalDate.now().minusDays(1).atStartOfDay())));
+                Optional.of(registration("c-1", "M1", LocalDate.now().minusDays(1).atStartOfDay())));
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
 
@@ -254,7 +254,7 @@ class TrialRegistrationServiceTest {
     void disabledTrialsAlsoRefuseAMachineThatAlreadyHasOne() {
         when(settings.enabled()).thenReturn(false);
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-1", "M1", LocalDateTime.now().plusDays(3))));
+                Optional.of(registration("c-1", "M1", LocalDateTime.now().plusDays(3))));
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialsDisabledException.class);
         verifyNoInteractions(keys);
@@ -286,7 +286,7 @@ class TrialRegistrationServiceTest {
         ArgumentCaptor<TrialRegistration> r = ArgumentCaptor.forClass(TrialRegistration.class);
         verify(trials).save(r.capture());
         assertThat(r.getValue().getExpiresAt().toLocalDate()).isEqualTo(LocalDate.now().plusDays(7));
-        assertThat(r.getValue().getClientCode()).isEqualTo("trial-1");
+        assertThat(r.getValue().getClientCode()).isEqualTo("c-1");
     }
 
     @Test
@@ -315,7 +315,7 @@ class TrialRegistrationServiceTest {
         ArgumentCaptor<String> machine = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Map<String, Boolean>> features = ArgumentCaptor.forClass(Map.class);
         ArgumentCaptor<LicenseProfile> profile = ArgumentCaptor.forClass(LicenseProfile.class);
-        verify(keys).generateLicense(machine.capture(), eq("Corner Cafe"), eq("trial-1"), anyString(), eq("SYP"),
+        verify(keys).generateLicense(machine.capture(), eq("Corner Cafe"), eq("c-1"), anyString(), eq("SYP"),
                 features.capture(), anyString(), anyString(), eq("admin"), anyString(), profile.capture(), eq(true));
         assertThat(machine.getValue()).isEqualTo("M1");
         assertThat(features.getValue()).isEqualTo(
@@ -398,11 +398,11 @@ class TrialRegistrationServiceTest {
         // We lose the race: the unique index on machineId rejects our registration insert,
         // and the winner's rows are already committed by the time we re-read.
         when(trials.save(any())).thenThrow(new DataIntegrityViolationException("uk_machine_id"));
-        TrialRegistration winner = registration("trial-1", "M1", LocalDateTime.now().plusDays(7));
+        TrialRegistration winner = registration("c-1", "M1", LocalDateTime.now().plusDays(7));
         when(trials.findByMachineId("M1")).thenReturn(Optional.empty(), Optional.of(winner));
         License lic = new License();
         lic.setLicenseKey("KEY-WINNER");
-        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE")).thenReturn(List.of(lic));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-1", "ACTIVE")).thenReturn(List.of(lic));
 
         assertThat(service.register(req(), "M1", "d").licenseKey()).isEqualTo("KEY-WINNER");
         verify(licenses, never()).save(any());
@@ -412,17 +412,17 @@ class TrialRegistrationServiceTest {
     void aClientCodeCollisionRetriesWithAFreshCodeAndReMints() {
         when(clients.save(any())).thenThrow(new DataIntegrityViolationException("uk_client_code"))
                 .thenAnswer(i -> i.getArgument(0));
-        when(clients.findClientCodesByPrefix("trial-")).thenReturn(List.of(), List.of("trial-1"));
+        when(clients.findClientCodesByPrefix("c-")).thenReturn(List.of(), List.of("c-1"));
 
         service.register(req(), "M1", "d");
 
         ArgumentCaptor<String> code = ArgumentCaptor.forClass(String.class);
         verify(keys, times(2)).generateLicense(anyString(), anyString(), code.capture(), anyString(), anyString(),
                 any(), anyString(), anyString(), anyString(), anyString(), any(), eq(true));
-        assertThat(code.getAllValues()).containsExactly("trial-1", "trial-2");
+        assertThat(code.getAllValues()).containsExactly("c-1", "c-2");
         ArgumentCaptor<License> l = ArgumentCaptor.forClass(License.class);
         verify(licenses).save(l.capture());
-        assertThat(l.getValue().getClientCode()).isEqualTo("trial-2");
+        assertThat(l.getValue().getClientCode()).isEqualTo("c-2");
     }
 
     @Test
@@ -474,59 +474,59 @@ class TrialRegistrationServiceTest {
     void anExpiredRefusalIsLoggedWithTheCauseMachineAndClientCode() {
         var logs = captureWarnings();
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-7", "M1", LocalDate.now().minusDays(1).atStartOfDay())));
+                Optional.of(registration("c-7", "M1", LocalDate.now().minusDays(1).atStartOfDay())));
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
 
         assertThat(warnings(logs)).hasSize(1);
-        assertThat(warnings(logs).get(0)).containsIgnoringCase("expired").contains("M1").contains("trial-7");
+        assertThat(warnings(logs).get(0)).containsIgnoringCase("expired").contains("M1").contains("c-7");
     }
 
     @Test
     void aRevokedRefusalIsLoggedAsRevokedSoAnAdminCanFindIt() {
         var logs = captureWarnings();
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-7", "M1", LocalDateTime.now().plusDays(3))));
-        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-7", "ACTIVE"))
+                Optional.of(registration("c-7", "M1", LocalDateTime.now().plusDays(3))));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-7", "ACTIVE"))
                 .thenReturn(List.of());
         License revoked = new License();
-        revoked.setClientCode("trial-7");
+        revoked.setClientCode("c-7");
         revoked.setMachineId("M1");
         revoked.setStatus("REVOKED");
-        when(licenses.findByClientCodeOrderByActivatedAtDesc("trial-7")).thenReturn(List.of(revoked));
+        when(licenses.findByClientCodeOrderByActivatedAtDesc("c-7")).thenReturn(List.of(revoked));
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
 
         assertThat(warnings(logs)).hasSize(1);
-        assertThat(warnings(logs).get(0)).containsIgnoringCase("revoked").contains("M1").contains("trial-7");
+        assertThat(warnings(logs).get(0)).containsIgnoringCase("revoked").contains("M1").contains("c-7");
     }
 
     @Test
     void aMissingLicenceRefusalIsLoggedAsMissing() {
         var logs = captureWarnings();
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-7", "M1", LocalDateTime.now().plusDays(3))));
-        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-7", "ACTIVE"))
+                Optional.of(registration("c-7", "M1", LocalDateTime.now().plusDays(3))));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-7", "ACTIVE"))
                 .thenReturn(List.of());
-        when(licenses.findByClientCodeOrderByActivatedAtDesc("trial-7")).thenReturn(List.of());
+        when(licenses.findByClientCodeOrderByActivatedAtDesc("c-7")).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.register(req(), "M1", "d")).isInstanceOf(TrialAlreadyUsedException.class);
 
         assertThat(warnings(logs)).hasSize(1);
-        assertThat(warnings(logs).get(0)).containsIgnoringCase("missing").contains("M1").contains("trial-7");
+        assertThat(warnings(logs).get(0)).containsIgnoringCase("missing").contains("M1").contains("c-7");
         assertThat(warnings(logs).get(0)).doesNotContainIgnoringCase("revoked");
     }
 
     @Test
     void twoActiveLicencesForOneMachineReturnTheNewestKeyInsteadOfA500() {
         when(trials.findByMachineId("M1")).thenReturn(
-                Optional.of(registration("trial-1", "M1", LocalDateTime.now().plusDays(3))));
+                Optional.of(registration("c-1", "M1", LocalDateTime.now().plusDays(3))));
         License newest = new License();
         newest.setLicenseKey("KEY-NEWEST");
         License older = new License();
         older.setLicenseKey("KEY-OLDER");
         // Repository contract is newest-first; the service must take the head, not throw.
-        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "trial-1", "ACTIVE"))
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-1", "ACTIVE"))
                 .thenReturn(List.of(newest, older));
 
         assertThat(service.register(req(), "M1", "d").licenseKey()).isEqualTo("KEY-NEWEST");

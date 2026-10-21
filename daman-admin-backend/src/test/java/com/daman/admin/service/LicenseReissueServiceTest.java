@@ -258,12 +258,12 @@ class LicenseReissueServiceTest {
      */
     @Test
     void reissueOfLiveTrial_currentlyDropsTrialFlag() throws Exception {
-        String trialKey = licenseKeyService.generateLicense("M-AAAA", "Acme", "trial-12", "2027-01-01", "USD",
+        String trialKey = licenseKeyService.generateLicense("M-AAAA", "Acme", "c-12", "2027-01-01", "USD",
                 Map.of("barcode", true), null, null, null, null, (LicenseProfile) null, true);
         assertThat(payloadOf(trialKey).get("trial").asBoolean()).isTrue();
-        License active = lic(1, "trial-12", "M-AAAA", "ACTIVE", trialKey);
+        License active = lic(1, "c-12", "M-AAAA", "ACTIVE", trialKey);
         when(licenseRepository.findAllByOrderByActivatedAtDesc()).thenReturn(List.of(active));
-        when(clientConfigRepository.findByClientCode("trial-12")).thenReturn(Optional.of(cfg("trial-12")));
+        when(clientConfigRepository.findByClientCode("c-12")).thenReturn(Optional.of(cfg("c-12")));
 
         service.reissueAll();
 

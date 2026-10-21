@@ -117,7 +117,7 @@ class LicenseKeyServiceTest {
 
     @Test
     void payloadCarriesProfile() throws Exception {
-        String key = service.generateLicense("M1", "Cafe Rawda", "trial-1", "", "SYP",
+        String key = service.generateLicense("M1", "Cafe Rawda", "c-1", "", "SYP",
                 Map.of("barcode", true), null, null, null, null,
                 new LicenseProfile("Cafe Rawda", "0999123456", "Aleppo", "cafe", false));
 
@@ -165,21 +165,21 @@ class LicenseKeyServiceTest {
 
     @Test
     void trialMintCarriesTrialTrue() throws Exception {
-        String key = service.generateLicense("M1", "X", "trial-12", "", "USD", Map.of(), null, null, null, null,
+        String key = service.generateLicense("M1", "X", "c-12", "", "USD", Map.of(), null, null, null, null,
                 (LicenseProfile) null, true);
         assertThat(decodePayload(key).get("trial").asBoolean()).isTrue();
     }
 
     @Test
     void paidMintForSameClientCodeHasNoTrialKey_conversionCase() throws Exception {
-        String key = service.generateLicense("M1", "X", "trial-12", "", "USD", Map.of(), null, null, null, null,
+        String key = service.generateLicense("M1", "X", "c-12", "", "USD", Map.of(), null, null, null, null,
                 (LicenseProfile) null);
         assertThat(decodePayload(key).has("trial")).isFalse();
     }
 
     @Test
     void explicitTrialFalseEmitsNothing() throws Exception {
-        String key = service.generateLicense("M1", "X", "trial-12", "", "USD", Map.of(), null, null, null, null,
+        String key = service.generateLicense("M1", "X", "c-12", "", "USD", Map.of(), null, null, null, null,
                 (LicenseProfile) null, false);
         assertThat(decodePayload(key).has("trial")).isFalse();
     }
