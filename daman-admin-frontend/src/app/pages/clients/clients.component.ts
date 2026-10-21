@@ -419,8 +419,20 @@ export class ClientsComponent implements OnInit, OnDestroy {
   delete(clientCode: string): void {
     this.deleteConfirm = {
       title: 'Delete Client',
-      message: `Delete "${clientCode}" and all its data permanently?`,
-      onConfirm: () => this.clientService.delete(clientCode).subscribe(() => this.load())
+      // Spells out what goes, because it really does cascade now: before, this said "all its
+      // data" while deleting only the client row and orphaning four tables.
+      message: `Delete "${clientCode}" permanently, along with its licences, trial record, `
+             + `build history and billing? This cannot be undone.`,
+      onConfirm: () => this.clientService.delete(clientCode).subscribe({
+        next: () => this.load(),
+        // 409 means the client has real payments and is deliberately protected. Without a
+        // handler the refusal was swallowed and the row just stayed in the list, unexplained.
+        error: (err) => alert(
+          err?.status === 409
+            ? (err.error?.message
+               || 'This client has recorded payments and cannot be deleted. Revoke its licence instead.')
+            : (err?.error?.message || err?.message || 'Delete failed.'))
+      })
     };
   }
 
