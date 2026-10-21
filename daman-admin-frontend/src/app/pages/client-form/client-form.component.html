@@ -360,7 +360,7 @@
                      [class.text-warning]="(billingSupportDaysLeft(latestBilling!) ?? 0) >= 0 && (billingSupportDaysLeft(latestBilling!) ?? 0) < 30"
                      [class.text-danger]="(billingSupportDaysLeft(latestBilling!) ?? 0) < 0">
                   {{ latestBilling!.supportEndDate | date:'dd MMM yyyy' }}
-                  <span class="small">({{ billingSupportDaysLeft(latestBilling!) }}d)</span>
+                  <span class="small">({{ billingSupportDaysLeft(latestBilling!) | daysLeft }})</span>
                 </div>
               </div>
             }
@@ -509,7 +509,7 @@
                         @if (b.supportStartDate || b.supportEndDate) {
                           <span>{{ b.supportStartDate | date:'dd MMM yy' }} → {{ b.supportEndDate | date:'dd MMM yy' }}</span>
                           @if (billingSupportDaysLeft(b) !== null) {
-                            <span class="ms-1 text-muted">({{ billingSupportDaysLeft(b) }}d)</span>
+                            <span class="ms-1 text-muted">({{ billingSupportDaysLeft(b) | daysLeft }})</span>
                           }
                         } @else { <span class="text-muted">—</span> }
                       </td>
@@ -700,7 +700,7 @@
                         } @else {
                           {{ lic.expiresAt | date:'dd MMM yyyy' }}
                           @if (daysUntilExpiry(lic) !== null && !isLicenseExpired(lic)) {
-                            <span class="text-muted small ms-1">({{ daysUntilExpiry(lic) }}d)</span>
+                            <span class="text-muted small ms-1">({{ daysUntilExpiry(lic) | daysLeft }})</span>
                           }
                         }
                       </td>

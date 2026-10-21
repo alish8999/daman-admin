@@ -6,6 +6,7 @@ import { AsyncPipe } from '@angular/common';
 import { ClientService } from '../../services/client.service';
 import { TranslationService } from '../../services/translation.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
+import { DaysLeftPipe } from '../../pipes/days-left.pipe';
 import { LicenseService, License, GenerateLicenseResponse } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing, BillingRequest } from '../../models/billing.model';
@@ -17,7 +18,7 @@ import { NOTO_KUFI_ARABIC_BASE64 } from './noto-kufi-arabic-font';
 @Component({
   selector: 'app-client-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe, DevRunButtonComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe, DaysLeftPipe, DevRunButtonComponent],
   templateUrl: './client-form.component.html'
 })
 export class ClientFormComponent implements OnInit {

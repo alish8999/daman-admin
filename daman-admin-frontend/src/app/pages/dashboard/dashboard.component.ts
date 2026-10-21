@@ -1,3 +1,5 @@
+import { TranslatePipe } from '../../pipes/translate.pipe';
+import { DaysLeftPipe } from '../../pipes/days-left.pipe';
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -26,7 +28,7 @@ interface ExpiringItem {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, TranslatePipe, DaysLeftPipe],
   templateUrl: './dashboard.component.html'
 })
 export class DashboardComponent implements OnInit {
