@@ -295,22 +295,28 @@ class TrialRegistrationServiceTest {
         assertThat(r.getValue().getClientCode()).isEqualTo("c-1");
     }
 
+    /**
+     * REVERSED 2026-10-21 on the owner's instruction. This asserted the opposite - a random
+     * per-trial password of at least 12 characters, explicitly not "123456" - because a
+     * shared default is normally indefensible. For a TRIAL it is a deliberate trade: the
+     * prospect is evaluating the app on their own empty install and should not have to be
+     * read a random string before they can open Settings. The risk is not the trial, it is
+     * a shop that converts to paid and never changes it; see TRIAL_ADMIN_PASSWORD.
+     */
     @Test
-    void generatedAdminPasswordIsNotTheSharedDefaultAndDiffersPerTrial() {
+    void everyTrialIsSeededWithTheSameKnownAdminPassword() {
         service.register(req(), "M1", "d");
         service.register(req(), "M2", "d");
 
         ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
         verify(clients, times(2)).save(c.capture());
-        String p1 = c.getAllValues().get(0).getAdminPassword();
-        String p2 = c.getAllValues().get(1).getAdminPassword();
-        assertThat(p1).isNotBlank().isNotEqualTo("123456").hasSizeGreaterThanOrEqualTo(12);
-        assertThat(p2).isNotEqualTo(p1);
+        assertThat(c.getAllValues().get(0).getAdminPassword()).isEqualTo("123456");
+        assertThat(c.getAllValues().get(1).getAdminPassword()).isEqualTo("123456");
         // and that same password is what the licence payload carries
         ArgumentCaptor<String> pw = ArgumentCaptor.forClass(String.class);
         verify(keys, times(2)).generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(),
                 any(), anyString(), anyString(), anyString(), pw.capture(), any(), eq(true));
-        assertThat(pw.getAllValues().get(0)).isEqualTo(p1);
+        assertThat(pw.getAllValues().get(0)).isEqualTo("123456");
     }
 
     @Test

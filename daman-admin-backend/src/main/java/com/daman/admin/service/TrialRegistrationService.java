@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
-import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -59,8 +58,20 @@ public class TrialRegistrationService {
     static final int MAX_DEVICE_INFO = 255;
     private static final int MAX_ATTEMPTS = 3;
     private static final Set<String> CURRENCIES = Set.of("USD", "SYP");
-    private static final String PW_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    private static final int PW_LENGTH = 16;
+    /**
+     * The admin password every trial is seeded with. Fixed, and deliberately trivial: a
+     * prospect evaluating the app should not have to be told a 16-character random string
+     * before they can open Settings. Owner's call, 2026-10-21.
+     *
+     * <p>It is NOT a secret and must never be treated as one. It protects a brand-new,
+     * empty install on the prospect's own machine, and the licence payload carries it in
+     * clear anyway (base64, not encryption). {@code seedAdminUserFromLicense} only creates
+     * the user when that username does not already exist, so a shop that changes it keeps
+     * their own password through every later renewal - but a shop that never changes it
+     * still has 123456 after converting to paid, with real takings behind it. Prompting
+     * for a new password on first login after conversion is the open follow-up.
+     */
+    static final String TRIAL_ADMIN_PASSWORD = "123456";
     private static final String DEFAULT_PRIMARY = "#667eea";
     private static final String DEFAULT_SECONDARY = "#764ba2";
 
@@ -72,7 +83,6 @@ public class TrialRegistrationService {
     private final LicenseRepository licenses;
     private final TransactionTemplate tx;
     private final ObjectMapper objectMapper;
-    private final SecureRandom random = new SecureRandom();
 
     public TrialRegistrationService(TrialSettingsService settings, TrialPresetService presets,
                                     LicenseKeyService licenseKeyService, ClientConfigRepository clients,
@@ -139,7 +149,7 @@ public class TrialRegistrationService {
         DataIntegrityViolationException last = null;
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
             String clientCode = nextClientCode();
-            String adminPassword = generatePassword();
+            String adminPassword = TRIAL_ADMIN_PASSWORD;
 
             // MINT FIRST: needs nothing from the database; a failure here has created nothing.
             String licenseKey = licenseKeyService.generateLicense(machine, shopName, clientCode,
@@ -277,14 +287,6 @@ public class TrialRegistrationService {
             max = Math.max(max, Long.parseLong(tail));
         }
         return CODE_PREFIX + (max + 1);
-    }
-
-    private String generatePassword() {
-        StringBuilder sb = new StringBuilder(PW_LENGTH);
-        for (int i = 0; i < PW_LENGTH; i++) {
-            sb.append(PW_ALPHABET.charAt(random.nextInt(PW_ALPHABET.length())));
-        }
-        return sb.toString();
     }
 
     private static String truncate(String s, int max) {
