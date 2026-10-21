@@ -105,6 +105,13 @@ public class TrialRegistrationService {
             return existingKey(existing.get());
         }
 
+        if (Boolean.TRUE.equals(req.restoreOnly())) {
+            // A restore asks "does this machine already have a trial?" and must NEVER mint one.
+            // Reached only when the lookup above found nothing, so every other field is still
+            // unvalidated and unread - which is the point: the caller sent no form data.
+            throw new NoTrialForMachineException();
+        }
+
         // Validate + normalise before anything is minted or written.
         String shopName = truncate(req.shopName(), MAX_SHOP_NAME);
         if (shopName == null || shopName.isBlank()) {

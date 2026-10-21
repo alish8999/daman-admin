@@ -31,7 +31,7 @@ class TrialControllerTest {
     private TrialController controller;
     private final JsonMapper mapper = JsonMapper.builder().build();
     private final TrialRegisterRequest req =
-            new TrialRegisterRequest("M1", "Win11", "Shop", null, null, "general", false, "USD");
+            new TrialRegisterRequest("M1", "Win11", "Shop", null, null, "general", false, "USD", null);
 
     @BeforeEach
     void setUp() {

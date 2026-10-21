@@ -35,6 +35,8 @@ public class TrialRateLimiter {
     public static final int MAX_BODY_BYTES = 8 * 1024;
     static final int IP_LIMIT = 5;
     static final int MACHINE_LIMIT = 3;
+    static final int RESTORE_IP_LIMIT = 20;
+    static final int RESTORE_MACHINE_LIMIT = 10;
     static final Duration WINDOW = Duration.ofHours(1);
     static final int DEFAULT_MAX_KEYS = 100_000;
     private static final long SWEEP_EVERY_MS = 60_000;
@@ -62,16 +64,38 @@ public class TrialRateLimiter {
 
     /** True and recorded when both buckets have room; false (nothing recorded) when either is full. */
     public synchronized boolean allow(String ip, String machineId) {
+        return allow("ip:", IP_LIMIT, "m:", MACHINE_LIMIT, ip, machineId);
+    }
+
+    /**
+     * Separate, more generous bucket for {@code restoreOnly} probes.
+     *
+     * <p>It must not share the registration bucket: the desktop probes once per "start a trial"
+     * click, so three clicks would exhaust {@link #MACHINE_LIMIT} and leave the user unable to
+     * actually register - the limiter would have blocked the very thing it exists to protect.
+     *
+     * <p>The higher limit does not widen the read-oracle noted in the design: a probe returns the
+     * same key an ordinary registration already returns for a known machine id, and a machine id
+     * is a hardware fingerprint - not guessable and not enumerable. An attacker who already has
+     * one needs a single request, so 3/hour and 10/hour are equivalent to them; the limit only
+     * ever matters to a real user clicking a button.
+     */
+    public synchronized boolean allowRestore(String ip, String machineId) {
+        return allow("rip:", RESTORE_IP_LIMIT, "rm:", RESTORE_MACHINE_LIMIT, ip, machineId);
+    }
+
+    private boolean allow(String ipPrefix, int ipLimit, String machinePrefix, int machineLimit,
+                          String ip, String machineId) {
         long now = clock.millis();
         long cutoff = now - WINDOW.toMillis();
         if (now - lastSweep >= SWEEP_EVERY_MS) {
             sweep(cutoff);
             lastSweep = now;
         }
-        String ipKey = "ip:" + clip(ip);
-        String machineKey = "m:" + clip(machineId);
+        String ipKey = ipPrefix + clip(ip);
+        String machineKey = machinePrefix + clip(machineId);
 
-        if (count(ipKey, cutoff) >= IP_LIMIT || count(machineKey, cutoff) >= MACHINE_LIMIT) {
+        if (count(ipKey, cutoff) >= ipLimit || count(machineKey, cutoff) >= machineLimit) {
             return false;
         }
         evictIfFull();

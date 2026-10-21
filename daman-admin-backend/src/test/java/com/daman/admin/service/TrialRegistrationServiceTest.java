@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -76,7 +77,7 @@ class TrialRegistrationServiceTest {
     }
 
     private static TrialRegisterRequest req() {
-        return new TrialRegisterRequest("M1", "Win11/HP", "Corner Cafe", "0999", "Main St", "cafe", true, "SYP");
+        return new TrialRegisterRequest("M1", "Win11/HP", "Corner Cafe", "0999", "Main St", "cafe", true, "SYP", null);
     }
 
 
@@ -325,7 +326,7 @@ class TrialRegistrationServiceTest {
 
     @Test
     void aNullHasTablesMeansNoTablesAndIsStoredAsFalse() {
-        service.register(new TrialRegisterRequest("M1", "d", "Shop", null, null, "cafe", null, "USD"), "M1", "d");
+        service.register(new TrialRegisterRequest("M1", "d", "Shop", null, null, "cafe", null, "USD", null), "M1", "d");
 
         ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
         verify(clients).save(c.capture());
@@ -335,7 +336,7 @@ class TrialRegistrationServiceTest {
     @Test
     void overlongFieldsAreTruncated() {
         String big = "x".repeat(5000);
-        service.register(new TrialRegisterRequest("M1", big, big, big, big, "general", false, "USD"), "M1", big);
+        service.register(new TrialRegisterRequest("M1", big, big, big, big, "general", false, "USD", null), "M1", big);
 
         ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
         verify(clients).save(c.capture());
@@ -349,12 +350,12 @@ class TrialRegistrationServiceTest {
 
     static Stream<TrialRegisterRequest> invalidRequests() {
         return Stream.of(
-                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", "cafe", true, "EUR"),
-                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", "cafe", true, null),
-                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", "taxidermist", true, "USD"),
-                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", null, true, "USD"),
-                new TrialRegisterRequest("M1", "d", "   ", "1", "a", "cafe", true, "USD"),
-                new TrialRegisterRequest("M1", "d", null, "1", "a", "cafe", true, "USD"));
+                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", "cafe", true, "EUR", null),
+                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", "cafe", true, null, null),
+                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", "taxidermist", true, "USD", null),
+                new TrialRegisterRequest("M1", "d", "Shop", "1", "a", null, true, "USD", null),
+                new TrialRegisterRequest("M1", "d", "   ", "1", "a", "cafe", true, "USD", null),
+                new TrialRegisterRequest("M1", "d", null, "1", "a", "cafe", true, "USD", null));
     }
 
     @ParameterizedTest
@@ -385,7 +386,7 @@ class TrialRegistrationServiceTest {
 
     @Test
     void currencyAndStoreTypeAreNormalised() {
-        service.register(new TrialRegisterRequest("M1", "d", "Shop", null, null, " Cafe ", true, " syp "), "M1", "d");
+        service.register(new TrialRegisterRequest("M1", "d", "Shop", null, null, " Cafe ", true, " syp ", null), "M1", "d");
 
         ArgumentCaptor<ClientConfig> c = ArgumentCaptor.forClass(ClientConfig.class);
         verify(clients).save(c.capture());
@@ -532,5 +533,75 @@ class TrialRegistrationServiceTest {
         assertThat(service.register(req(), "M1", "d").licenseKey()).isEqualTo("KEY-NEWEST");
         assertNothingCreated();
         verifyNoInteractions(keys);
+    }
+
+    // ── restoreOnly ────────────────────────────────────────────────────────────
+    // The desktop asks "does this machine already have a trial?" so it can skip a form
+    // whose values would be discarded. A restore must NEVER mint and must never validate.
+
+    private static TrialRegisterRequest restoreReq() {
+        // Everything an ordinary registration requires is absent or invalid on purpose: a
+        // restore carries no form data, so validation must not be reached at all.
+        return new TrialRegisterRequest("M1", "Win11/HP", null, null, null, null, null, null, true);
+    }
+
+    @Test
+    void restoreOnlyReturnsTheExistingKeyWithoutAnyFormData() {
+        TrialRegistration reg = registration("c-4", "M1", LocalDateTime.now().plusDays(3));
+        when(trials.findByMachineId("M1")).thenReturn(Optional.of(reg));
+        License lic = new License();
+        lic.setLicenseKey("OLD-KEY");
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-4", "ACTIVE"))
+                .thenReturn(List.of(lic));
+
+        assertThat(service.register(restoreReq(), "M1", "Win11/HP").licenseKey()).isEqualTo("OLD-KEY");
+        assertNothingCreated();
+        verify(keys, never()).generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(),
+                any(), anyString(), anyString(), anyString(), anyString(), any(), anyBoolean());
+    }
+
+    @Test
+    void restoreOnlyForAnUnknownMachineRefusesAndMintsNothing() {
+        when(trials.findByMachineId("M1")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.register(restoreReq(), "M1", "Win11/HP"))
+                .isInstanceOf(NoTrialForMachineException.class);
+        assertNothingCreated();
+        verify(keys, never()).generateLicense(anyString(), anyString(), anyString(), anyString(), anyString(),
+                any(), anyString(), anyString(), anyString(), anyString(), any(), anyBoolean());
+    }
+
+    @Test
+    void restoreOnlyOnAnUnknownMachineIsNotReportedAsAValidationFailure() {
+        // The body is deliberately unusable. Without the restoreOnly branch this would surface as
+        // IllegalArgumentException ("shopName required") -> invalid_request, which would tell the
+        // user to fix fields they never filled in. It must be the dedicated refusal instead.
+        when(trials.findByMachineId("M1")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.register(restoreReq(), "M1", "Win11/HP"))
+                .isNotInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void restoreOnlyStillRefusesAnExpiredTrial() {
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("c-4", "M1", LocalDate.now().minusDays(1).atStartOfDay())));
+
+        assertThatThrownBy(() -> service.register(restoreReq(), "M1", "Win11/HP"))
+                .isInstanceOf(TrialAlreadyUsedException.class);
+        assertNothingCreated();
+    }
+
+    @Test
+    void anOrdinaryRegistrationIsUnaffectedByTheRestoreBranch() {
+        // restoreOnly null and false must both mint exactly as before.
+        for (Boolean flag : new Boolean[]{null, Boolean.FALSE}) {
+            setUp();
+            TrialRegisterResponse res = service.register(
+                    new TrialRegisterRequest("M1", "d", "Corner Cafe", "0999", "Main St", "cafe", true, "SYP", flag),
+                    "M1", "d");
+            assertThat(res.licenseKey()).isEqualTo("KEY-1");
+            verify(trials).save(any());
+        }
     }
 }

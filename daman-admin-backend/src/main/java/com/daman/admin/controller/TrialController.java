@@ -2,6 +2,7 @@ package com.daman.admin.controller;
 
 import com.daman.admin.config.TrialRateLimiter;
 import com.daman.admin.dto.TrialRegisterRequest;
+import com.daman.admin.service.NoTrialForMachineException;
 import com.daman.admin.service.TrialAlreadyUsedException;
 import com.daman.admin.service.TrialRegistrationService;
 import com.daman.admin.service.TrialsDisabledException;
@@ -58,7 +59,14 @@ public class TrialController {
         if (body == null) {
             return error(HttpStatus.BAD_REQUEST, "invalid_request");
         }
-        if (!limiter.allow(clientIp(http), body.machineId())) {
+        // A restoreOnly probe writes nothing and mints nothing, so it gets its own, more
+        // generous bucket - sharing the registration one would let a few button clicks lock
+        // the user out of registering. See TrialRateLimiter.allowRestore.
+        boolean restoreOnly = Boolean.TRUE.equals(body.restoreOnly());
+        boolean allowed = restoreOnly
+                ? limiter.allowRestore(clientIp(http), body.machineId())
+                : limiter.allow(clientIp(http), body.machineId());
+        if (!allowed) {
             return error(HttpStatus.TOO_MANY_REQUESTS, "rate_limited");
         }
         try {
@@ -67,6 +75,8 @@ public class TrialController {
             return error(HttpStatus.FORBIDDEN, "trials_disabled");
         } catch (TrialAlreadyUsedException e) {
             return error(HttpStatus.CONFLICT, "trial_already_used");
+        } catch (NoTrialForMachineException e) {
+            return error(HttpStatus.NOT_FOUND, "no_trial_for_machine");
         } catch (IllegalArgumentException e) {
             return error(HttpStatus.BAD_REQUEST, "invalid_request");
         }
