@@ -18,6 +18,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LicenseController {
 
+    /** Mirrors TrialRegistrationService.LABEL, which is package-private to that service. */
+    private static final String TRIAL_LABEL = "TRIAL";
+
     private final LicenseKeyService licenseKeyService;
     private final LicenseRepository licenseRepository;
     private final ClientConfigRepository clientConfigRepository;
@@ -108,10 +111,22 @@ public class LicenseController {
      * rejected as the signal: it is a hand-edited label the owner may flip late or never.)
      * Same safety as generate(): only null-convertedAt rows, non-trial clients no-op, never throws.
      */
-    private void markTrialConvertedOnRenew(String clientCode, LocalDate newExpiry) {
+    /**
+     * @return true when this client is a converted trial — either this renew converted it, or
+     *         an earlier one already did. Callers use it to drop the now-untrue TRIAL label.
+     *         False for a non-trial client, and false if anything here throws: a cosmetic label
+     *         must never be the reason a renewal fails.
+     */
+    private boolean markTrialConvertedOnRenew(String clientCode, LocalDate newExpiry) {
+        boolean converted = false;
         try {
             for (var trial : trialRegistrationRepository.findAllByClientCode(clientCode)) {
-                if (trial.getConvertedAt() != null) continue;
+                if (trial.getConvertedAt() != null) {
+                    // Converted by an earlier renew. Still "converted" for the label's purposes,
+                    // otherwise a second renewal would leave TRIAL on a long-paying customer.
+                    converted = true;
+                    continue;
+                }
                 boolean decisive = newExpiry == null;
                 if (!decisive) {
                     long trialDays = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(
@@ -121,12 +136,15 @@ public class LicenseController {
                 if (decisive) {
                     trial.setConvertedAt(LocalDateTime.now());
                     trialRegistrationRepository.save(trial);
+                    converted = true;
                 }
             }
         } catch (RuntimeException e) {
             org.slf4j.LoggerFactory.getLogger(LicenseController.class)
                     .warn("Could not stamp trial conversion on renew for {}: {}", clientCode, e.toString());
+            return false;
         }
+        return converted;
     }
 
     // ── Activate ─────────────────────────────────────────────────────────────
@@ -251,8 +269,17 @@ public class LicenseController {
         license.setExpiresAt(newExpiresAt != null ? LocalDate.parse(newExpiresAt) : null);
         license.setRevokedAt(null);
         license.setRenewedAt(LocalDateTime.now());
+
+        boolean converted = markTrialConvertedOnRenew(license.getClientCode(), license.getExpiresAt());
+        // The licence was labelled TRIAL when it was first minted, and renewing never cleared
+        // it - so a customer who paid months ago still read "TRIAL" as a badge on the client
+        // form and in the billing licence picker, forever. Once they have converted the label
+        // is simply untrue, so it goes. Only the trial label is touched: a hand-set one like
+        // "Main Store" or "Branch 2" is the owner's own text and must survive a renewal.
+        if (converted && TRIAL_LABEL.equals(license.getLabel())) {
+            license.setLabel(null);
+        }
         licenseRepository.save(license);
-        markTrialConvertedOnRenew(license.getClientCode(), license.getExpiresAt());
 
         return ResponseEntity.ok(Map.of(
             "message",    "License renewed",

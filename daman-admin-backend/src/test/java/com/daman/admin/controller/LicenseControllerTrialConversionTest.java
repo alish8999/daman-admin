@@ -191,4 +191,72 @@ class LicenseControllerTrialConversionTest {
                 cap.capture());
         assertThat(cap.getAllValues()).containsExactly(profile, profile);
     }
+
+    // ── The TRIAL label must not outlive the trial ─────────────────────────────
+    // Renewing updated only the key and expiry, so a customer who paid months ago still
+    // read "TRIAL" as a badge on the client form and in the billing licence picker.
+
+    /** Same as renew(), but hands back the licence so the label can be inspected. */
+    private com.daman.admin.entity.License renewLabelled(TrialRegistration t, String label, String expiresAt) {
+        com.daman.admin.entity.License l = new com.daman.admin.entity.License();
+        l.setClientCode("c-1");
+        l.setMachineId("M1");
+        l.setClientName("Shop");
+        l.setStatus("ACTIVE");
+        l.setLabel(label);
+        when(licenses.findById(1L)).thenReturn(Optional.of(l));
+        when(trials.findAllByClientCode("c-1")).thenReturn(List.of(t));
+        var resp = controller.renewById(1L, expiresAt == null ? new java.util.HashMap<>() : Map.of("expiresAt", expiresAt));
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        return l;
+    }
+
+    @Test
+    void convertingDropsTheTrialLabel() {
+        assertThat(renewLabelled(sevenDayTrial(), "TRIAL", "2027-10-17").getLabel()).isNull();
+    }
+
+    @Test
+    void aPerpetualConversionAlsoDropsIt() {
+        assertThat(renewLabelled(sevenDayTrial(), "TRIAL", null).getLabel()).isNull();
+    }
+
+    /** A few goodwill days is not a conversion, so the licence is still a trial. */
+    @Test
+    void aMidTrialExtensionKeepsTheTrialLabel() {
+        assertThat(renewLabelled(sevenDayTrial(), "TRIAL", "2026-10-22").getLabel()).isEqualTo("TRIAL");
+    }
+
+    /** A second renewal of an already-converted client must not resurrect the label. */
+    @Test
+    void anAlreadyConvertedClientKeepsItsLabelCleared() {
+        TrialRegistration t = sevenDayTrial();
+        t.setConvertedAt(LocalDateTime.of(2026, 10, 20, 9, 0));
+        assertThat(renewLabelled(t, "TRIAL", "2028-01-01").getLabel()).isNull();
+    }
+
+    /**
+     * THE one that matters for not breaking the owner's own data: "Main Store", "Branch 2"
+     * and the like are hand-typed text, and a renewal must leave them exactly alone.
+     */
+    @Test
+    void aHandSetLabelSurvivesAConversion() {
+        assertThat(renewLabelled(sevenDayTrial(), "Main Store", "2027-10-17").getLabel())
+                .isEqualTo("Main Store");
+    }
+
+    @Test
+    void aNonTrialClientWithATrialLabelIsLeftAlone() {
+        com.daman.admin.entity.License l = new com.daman.admin.entity.License();
+        l.setClientCode("c-1");
+        l.setMachineId("M1");
+        l.setClientName("Shop");
+        l.setStatus("ACTIVE");
+        l.setLabel("TRIAL");
+        when(licenses.findById(1L)).thenReturn(Optional.of(l));
+        when(trials.findAllByClientCode("c-1")).thenReturn(List.of()); // never a trial
+        controller.renewById(1L, Map.of("expiresAt", "2027-10-17"));
+
+        assertThat(l.getLabel()).isEqualTo("TRIAL");
+    }
 }
