@@ -174,10 +174,11 @@ export class ClientFormComponent implements OnInit {
       // 2026-10-19 and is toggled by the store owner in the POS app's Settings,
       // so it was dropped from FEATURE_CATALOG and renders no checkbox. The
       // control below stays only so the submitted payload shape is unchanged
-      // and no stored value is lost. It defaults to true to agree with the
-      // desktop's own default (QuickSaleSettingsService.DEFAULT_ENABLED), so a
-      // stored payload never reads "off" for a screen that is in fact on —
-      // though the desktop overlays its own setting over this either way.
+      // and no stored value is lost. It defaults to FALSE to agree with the
+      // desktop own default (QuickSaleSettingsService.DEFAULT_ENABLED, reversed
+      // on 2026-10-21): the classic Add Sale screen is the default and the card
+      // layout is the opt-in. The desktop overlays its own stored setting over
+      // this either way, so this only decides the shape of a fresh payload.
       features: this.fb.group({
         multiLanguage:        [true],
         barcode:              [true],
@@ -207,7 +208,7 @@ export class ClientFormComponent implements OnInit {
         posTerminals:         [false],
         simulatePosMode:      [false],
         tableOrders:          [false],
-        quickPickCards:       [true],
+        quickPickCards:       [false],
         cafeMode:             [false],
         consignment:          [false],
         shareholders:         [false],
@@ -259,9 +260,9 @@ export class ClientFormComponent implements OnInit {
             posTerminals:         client.features?.posTerminals         ?? false,
             simulatePosMode:      client.features?.simulatePosMode      ?? false,
             tableOrders:          client.features?.tableOrders          ?? false,
-            // ?? true to match the new-client default and the desktop's own;
-            // an explicit stored false is still honoured.
-            quickPickCards:       client.features?.quickPickCards       ?? true,
+            // ?? false to match the new-client default and the desktop own; an
+            // explicit stored true is still honoured.
+            quickPickCards:       client.features?.quickPickCards       ?? false,
             cafeMode:             client.features?.cafeMode             ?? false,
             consignment:          client.features?.consignment          ?? false,
             shareholders:         client.features?.shareholders         ?? false,
