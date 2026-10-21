@@ -211,15 +211,30 @@ public class TrialRegistrationService {
     private TrialRegisterResponse existingKey(TrialRegistration reg) {
         String machine = reg.getMachineId();
         String code = reg.getClientCode();
+
+        // THE CURRENT LICENCE DECIDES, NOT THE ORIGINAL TRIAL WINDOW.
+        //
+        // This used to gate on reg.getExpiresAt() - the 7 days the trial was first minted for -
+        // and throw before it ever looked at the licences. So a shop that CONVERTED to a paid
+        // licence, or whose trial the owner extended, could never get its own licence back once
+        // those first 7 days had passed: the lookup below was unreachable for exactly the people
+        // most entitled to it. Reported from the field, 2026-10-21: "it should bring his info,
+        // but it asks me to fill them again - happens when the licence is expired".
+        //
+        // Newest first; a second ACTIVE row (admin re-minted without revoking) must not 500 this
+        // public endpoint. A row whose own expiry has passed is skipped rather than returned -
+        // handing back a key the desktop will reject as EXPIRED is not a restore, it is a loop.
+        List<License> active = licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc(machine, code, "ACTIVE");
+        Optional<License> usable = active.stream()
+                .filter(l -> l.getExpiresAt() == null || !LocalDate.now().isAfter(l.getExpiresAt()))
+                .findFirst();
+        if (usable.isPresent()) {
+            return new TrialRegisterResponse(usable.get().getLicenseKey());
+        }
         if (LocalDate.now().isAfter(reg.getExpiresAt().toLocalDate())) {
-            log.warn("Trial refused: EXPIRED trial (expired {}) for machineId={} clientCode={}",
+            log.warn("Trial refused: EXPIRED trial (expired {}) and no usable licence for machineId={} clientCode={}",
                     reg.getExpiresAt(), machine, code);
             throw new TrialAlreadyUsedException();
-        }
-        // Newest first; a second ACTIVE row (admin re-minted without revoking) must not 500 this public endpoint.
-        List<License> active = licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc(machine, code, "ACTIVE");
-        if (!active.isEmpty()) {
-            return new TrialRegisterResponse(active.get(0).getLicenseKey());
         }
         boolean revoked = licenses.findByClientCodeOrderByActivatedAtDesc(code).stream()
                 .anyMatch(l -> "REVOKED".equals(l.getStatus()) && machine.equals(l.getMachineId()));

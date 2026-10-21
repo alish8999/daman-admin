@@ -238,7 +238,12 @@ class TrialRegistrationServiceTest {
 
         assertNothingCreated();
         verifyNoInteractions(keys);
-        verify(licenses, never()).findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc(anyString(), anyString(), anyString());
+        // CHANGED 2026-10-21: this used to assert the licence lookup was never reached, which
+        // pinned the very bug behind "it asks me to fill the form again" - gating on the trial's
+        // original window meant a client with a perfectly good licence was refused without ever
+        // being looked up. The lookup now runs first; with no licence stubbed it finds nothing
+        // usable and the refusal still stands, which is what this test is really about.
+        verify(licenses).findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-1", "ACTIVE");
     }
 
     @Test
@@ -603,5 +608,68 @@ class TrialRegistrationServiceTest {
             assertThat(res.licenseKey()).isEqualTo("KEY-1");
             verify(trials).save(any());
         }
+    }
+
+    // ── The current licence decides, not the original trial window ─────────────
+    // Field report 2026-10-21: a shop that already has a licence was asked to fill the
+    // trial form in again. The expiry gate ran on the TRIAL's original 7-day window and
+    // threw before the licence lookup, so a converted or extended client could never get
+    // its own key back.
+
+    private static License licence(String key, LocalDate expires) {
+        License l = new License();
+        l.setLicenseKey(key);
+        l.setExpiresAt(expires);
+        l.setStatus("ACTIVE");
+        return l;
+    }
+
+    @Test
+    void aConvertedClientGetsItsPaidKeyBackLongAfterTheTrialWindowPassed() {
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("c-4", "M1", LocalDate.now().minusMonths(6).atStartOfDay())));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-4", "ACTIVE"))
+                .thenReturn(List.of(licence("PAID-KEY", LocalDate.now().plusYears(1))));
+
+        assertThat(service.register(restoreReq(), "M1", "d").licenseKey()).isEqualTo("PAID-KEY");
+        assertNothingCreated();
+    }
+
+    /** A perpetual licence has no expiry at all and must not be filtered out as unusable. */
+    @Test
+    void aPerpetualLicenceCountsAsUsable() {
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("c-4", "M1", LocalDate.now().minusMonths(6).atStartOfDay())));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-4", "ACTIVE"))
+                .thenReturn(List.of(licence("PERPETUAL", null)));
+
+        assertThat(service.register(restoreReq(), "M1", "d").licenseKey()).isEqualTo("PERPETUAL");
+    }
+
+    /**
+     * Handing back a key the desktop will reject as EXPIRED is not a restore, it is a loop -
+     * so an ACTIVE row whose own expiry has passed is skipped, and a newer usable one wins.
+     */
+    @Test
+    void anExpiredLicenceRowIsSkippedInFavourOfAUsableOne() {
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("c-4", "M1", LocalDate.now().minusMonths(6).atStartOfDay())));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-4", "ACTIVE"))
+                .thenReturn(List.of(licence("STALE", LocalDate.now().minusDays(2)),
+                                    licence("GOOD", LocalDate.now().plusDays(30))));
+
+        assertThat(service.register(restoreReq(), "M1", "d").licenseKey()).isEqualTo("GOOD");
+    }
+
+    @Test
+    void anExpiredTrialWithNothingUsableIsStillRefused() {
+        when(trials.findByMachineId("M1")).thenReturn(
+                Optional.of(registration("c-4", "M1", LocalDate.now().minusMonths(6).atStartOfDay())));
+        when(licenses.findAllByMachineIdAndClientCodeAndStatusOrderByIdDesc("M1", "c-4", "ACTIVE"))
+                .thenReturn(List.of(licence("STALE", LocalDate.now().minusDays(2))));
+
+        assertThatThrownBy(() -> service.register(restoreReq(), "M1", "d"))
+                .isInstanceOf(TrialAlreadyUsedException.class);
+        assertNothingCreated();
     }
 }
