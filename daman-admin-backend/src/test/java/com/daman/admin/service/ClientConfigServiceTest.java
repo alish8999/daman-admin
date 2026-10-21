@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,10 +26,22 @@ class ClientConfigServiceTest {
 
     private final JsonMapper objectMapper = JsonMapper.builder().build();
 
+    /**
+     * The delete cascade needs the four repositories that carry a clientCode column. Tests
+     * that do not exercise delete get harmless mocks; the delete tests stub them.
+     */
+    private ClientConfigService newService(ClientConfigRepository repository) {
+        return new ClientConfigService(repository, objectMapper,
+                mock(com.daman.admin.repository.LicenseRepository.class),
+                mock(com.daman.admin.repository.BillingRepository.class),
+                mock(com.daman.admin.repository.BuildLogRepository.class),
+                mock(com.daman.admin.repository.TrialRegistrationRepository.class));
+    }
+
     @Test
     void export_roundTripsSimulatePosModeFromPersistedFeaturesJson() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
 
         ClientConfig entity = new ClientConfig();
         entity.setClientCode("acme");
@@ -46,7 +59,7 @@ class ClientConfigServiceTest {
     @Test
     void export_roundTripsFixedAssetsFromPersistedFeaturesJson() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
 
         ClientConfig entity = new ClientConfig();
         entity.setClientCode("acme");
@@ -62,7 +75,7 @@ class ClientConfigServiceTest {
     @Test
     void create_persistsFixedAssetsFromFeaturesRequestPatch() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
 
         when(repository.existsByClientCode("acme")).thenReturn(false);
         when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -84,7 +97,7 @@ class ClientConfigServiceTest {
     @Test
     void create_persistsSimulatePosModeFromFeaturesRequestPatch() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
 
         when(repository.existsByClientCode("acme")).thenReturn(false);
         when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -106,7 +119,7 @@ class ClientConfigServiceTest {
     @Test
     void create_blankClientCode_autoGeneratesSlugFromAppName_andSetsTaglineToAppName() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
         when(repository.existsByClientCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
         when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -124,7 +137,7 @@ class ClientConfigServiceTest {
     @Test
     void create_arabicOnlyAppName_fallsBackToClientHexCode() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
         when(repository.existsByClientCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
         when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -141,7 +154,7 @@ class ClientConfigServiceTest {
     @Test
     void create_mirrorsSingleLogoToLightSlot_andForcesDefaultFavicon() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
         when(repository.existsByClientCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
         when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -162,7 +175,7 @@ class ClientConfigServiceTest {
     @Test
     void create_slugCollision_appendsCounter() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
         when(repository.existsByClientCode("acme-pos")).thenReturn(true);
         when(repository.existsByClientCode("acme-pos-2")).thenReturn(false);
         when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -180,7 +193,7 @@ class ClientConfigServiceTest {
     @Test
     void licenseEntitlementsFor_returnsBaseCurrencyAndFeatureMapFromStoredConfig() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
 
         // Arrange: a stored ClientConfig with baseCurrency=SYP and a couple of non-default flags on.
         ClientConfig cfg = new ClientConfig();
@@ -210,7 +223,7 @@ class ClientConfigServiceTest {
     @Test
     void prepareDevConfig_writesThreeCheckoutFilesWithExportedJson_andRuntimeProperties(@TempDir Path workspace) throws Exception {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
         ReflectionTestUtils.setField(service, "workspaceRoot", workspace.toString());
 
         ClientConfig entity = new ClientConfig();
@@ -251,7 +264,7 @@ class ClientConfigServiceTest {
     @Test
     void licenseEntitlementsFor_unknownClient_throws() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
 
         when(repository.findByClientCode("nope")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.licenseEntitlementsFor("nope"))
@@ -262,7 +275,7 @@ class ClientConfigServiceTest {
     @Test
     void licenseEntitlementsFor_buildsProfileFromStoredConfig() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
         ClientConfig cfg = new ClientConfig();
         cfg.setClientCode("acme");
         cfg.setAppName("Acme");
@@ -280,7 +293,7 @@ class ClientConfigServiceTest {
     @Test
     void licenseEntitlementsFor_legacyRowWithNullProfileFields_doesNotThrow() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
-        ClientConfigService service = new ClientConfigService(repository, objectMapper);
+        ClientConfigService service = newService(repository);
         ClientConfig cfg = new ClientConfig();
         cfg.setClientCode("old");
         cfg.setAppName("Old Shop");
@@ -290,5 +303,107 @@ class ClientConfigServiceTest {
 
         assertThat(p.phone()).isNull();
         assertThat(p.hasTables()).isNull();
+    }
+
+    // ── delete: cascade, except when real money came in ────────────────────────
+    // Deleting used to remove the client row alone, orphaning four tables - which left the
+    // client's app running, let the renewal endpoint keep serving an orphaned licence, held
+    // that machine's trial index forever, and let the next trial inherit a recycled code.
+
+    private record DeleteFixture(ClientConfigService service,
+                                 ClientConfigRepository clients,
+                                 com.daman.admin.repository.LicenseRepository licenses,
+                                 com.daman.admin.repository.BillingRepository billings,
+                                 com.daman.admin.repository.BuildLogRepository builds,
+                                 com.daman.admin.repository.TrialRegistrationRepository trials) {}
+
+    private DeleteFixture deleteFixture(String... billingStatuses) {
+        ClientConfigRepository clients = mock(ClientConfigRepository.class);
+        var licenses = mock(com.daman.admin.repository.LicenseRepository.class);
+        var billings = mock(com.daman.admin.repository.BillingRepository.class);
+        var builds = mock(com.daman.admin.repository.BuildLogRepository.class);
+        var trials = mock(com.daman.admin.repository.TrialRegistrationRepository.class);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("c-7");
+        when(clients.findByClientCode("c-7")).thenReturn(Optional.of(entity));
+
+        java.util.List<com.daman.admin.entity.Billing> rows = new java.util.ArrayList<>();
+        for (String s : billingStatuses) {
+            com.daman.admin.entity.Billing b = new com.daman.admin.entity.Billing();
+            b.setClientCode("c-7");
+            b.setPaymentStatus(s);
+            rows.add(b);
+        }
+        when(billings.findByClientCodeOrderByCreatedAtDesc("c-7")).thenReturn(rows);
+        when(licenses.findByClientCodeOrderByActivatedAtDesc("c-7")).thenReturn(java.util.List.of());
+        when(builds.findByClientCodeOrderByStartedAtDesc("c-7")).thenReturn(java.util.List.of());
+        when(trials.findAllByClientCode("c-7")).thenReturn(java.util.List.of());
+
+        return new DeleteFixture(
+                new ClientConfigService(clients, objectMapper, licenses, billings, builds, trials),
+                clients, licenses, billings, builds, trials);
+    }
+
+    @Test
+    void deletingATrialClientClearsEveryTableKeyedToItsCode() {
+        DeleteFixture f = deleteFixture();
+
+        f.service().delete("c-7");
+
+        verify(f.licenses()).deleteAll(any());
+        verify(f.trials()).deleteAll(any());
+        verify(f.builds()).deleteAll(any());
+        verify(f.billings()).deleteAll(any());
+        verify(f.clients()).delete(any());
+    }
+
+    /** An invoice nobody has paid must not block clearing out a dead trial. */
+    @Test
+    void aPendingInvoiceDoesNotBlockTheDelete() {
+        DeleteFixture f = deleteFixture("PENDING");
+
+        f.service().delete("c-7");
+
+        verify(f.clients()).delete(any());
+    }
+
+    @Test
+    void aPaidClientIsRefusedAndNothingIsTouched() {
+        DeleteFixture f = deleteFixture("PAID");
+
+        assertThatThrownBy(() -> f.service().delete("c-7"))
+                .isInstanceOf(ClientHasPaymentsException.class);
+
+        verify(f.clients(), never()).delete(any());
+        verify(f.licenses(), never()).deleteAll(any());
+        verify(f.trials(), never()).deleteAll(any());
+        verify(f.billings(), never()).deleteAll(any());
+    }
+
+    /** PARTIAL means some money arrived, so it protects the record just as PAID does. */
+    @Test
+    void aPartiallyPaidClientIsAlsoRefused() {
+        DeleteFixture f = deleteFixture("PENDING", "PARTIAL");
+
+        assertThatThrownBy(() -> f.service().delete("c-7"))
+                .isInstanceOf(ClientHasPaymentsException.class);
+        verify(f.clients(), never()).delete(any());
+    }
+
+    @Test
+    void theStatusCheckIsCaseAndWhitespaceTolerant() {
+        DeleteFixture f = deleteFixture("  paid ");
+
+        assertThatThrownBy(() -> f.service().delete("c-7"))
+                .isInstanceOf(ClientHasPaymentsException.class);
+    }
+
+    @Test
+    void deletingAnUnknownClientStillFails() {
+        DeleteFixture f = deleteFixture();
+        when(f.clients().findByClientCode("nope")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> f.service().delete("nope")).isInstanceOf(RuntimeException.class);
     }
 }

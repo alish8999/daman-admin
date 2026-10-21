@@ -128,7 +128,11 @@ class TrialRegistrationServiceTest {
 
         ClientConfigRepository repo = mock(ClientConfigRepository.class);
         when(repo.findByClientCode("c-1")).thenReturn(Optional.of(c.getValue()));
-        Map<String, Boolean> later = new ClientConfigService(repo, new ObjectMapper())
+        Map<String, Boolean> later = new ClientConfigService(repo, new ObjectMapper(),
+                mock(com.daman.admin.repository.LicenseRepository.class),
+                mock(com.daman.admin.repository.BillingRepository.class),
+                mock(com.daman.admin.repository.BuildLogRepository.class),
+                mock(com.daman.admin.repository.TrialRegistrationRepository.class))
                 .licenseEntitlementsFor("c-1").features();
 
         assertThat(later).containsEntry("cafeMode", true).containsEntry("tableOrders", true);

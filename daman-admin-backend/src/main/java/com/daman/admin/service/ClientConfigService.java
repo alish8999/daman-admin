@@ -25,6 +25,12 @@ public class ClientConfigService {
 
     private final ClientConfigRepository repository;
     private final ObjectMapper objectMapper;
+    // Injected for the delete cascade below - clientCode is a plain string column on each of
+    // these, with no foreign key to do it for us.
+    private final com.daman.admin.repository.LicenseRepository licenseRepository;
+    private final com.daman.admin.repository.BillingRepository billingRepository;
+    private final com.daman.admin.repository.BuildLogRepository buildLogRepository;
+    private final com.daman.admin.repository.TrialRegistrationRepository trialRegistrationRepository;
 
     @Value("${daman.workspace:D:/Daman/src}")
     private String workspaceRoot;
@@ -92,9 +98,49 @@ public class ClientConfigService {
         return toDto(repository.save(entity));
     }
 
+    /** Money actually received. PENDING is an invoice nobody has paid, so it blocks nothing. */
+    private static final java.util.Set<String> PAID_STATUSES = java.util.Set.of("PAID", "PARTIAL");
+
+    /**
+     * Deletes a client AND everything keyed to its client code.
+     *
+     * <p>This used to delete the {@code client_configs} row alone. Nothing else went, because
+     * {@code clientCode} is a plain string column on the other tables with no foreign key and
+     * no JPA relationship - so every delete orphaned rows in four tables. The consequences
+     * were not theoretical: the client's app kept running (a signed licence never asks the
+     * admin whether its client still exists), the orphaned ACTIVE licence could still be
+     * pulled by the renewal endpoint while {@code doRenew} refused to touch it, the orphaned
+     * trial row held that machine's unique index so it could never trial again, and - worst -
+     * {@code nextClientCode()} counts only client rows, so deleting the highest-numbered
+     * client let the NEXT trial be issued the same code and silently inherit the dead
+     * client's licences and billing.
+     *
+     * <p><b>A client with real payments is refused, not cascaded.</b> Clearing out dead trials
+     * is the point of this; destroying the record of a commercial relationship is not. A
+     * paying client gets its licence revoked instead.
+     *
+     * <p>Transactional so a half-done cascade cannot leave exactly the orphans this exists to
+     * prevent.
+     */
+    @org.springframework.transaction.annotation.Transactional
     public void delete(String clientCode) {
         ClientConfig entity = repository.findByClientCode(clientCode)
                 .orElseThrow(() -> new RuntimeException("Client not found: " + clientCode));
+
+        List<com.daman.admin.entity.Billing> billings =
+                billingRepository.findByClientCodeOrderByCreatedAtDesc(clientCode);
+        long paid = billings.stream()
+                .filter(b -> b.getPaymentStatus() != null
+                        && PAID_STATUSES.contains(b.getPaymentStatus().trim().toUpperCase(java.util.Locale.ROOT)))
+                .count();
+        if (paid > 0) {
+            throw new ClientHasPaymentsException(clientCode, paid);
+        }
+
+        licenseRepository.deleteAll(licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode));
+        trialRegistrationRepository.deleteAll(trialRegistrationRepository.findAllByClientCode(clientCode));
+        buildLogRepository.deleteAll(buildLogRepository.findByClientCodeOrderByStartedAtDesc(clientCode));
+        billingRepository.deleteAll(billings);
         repository.delete(entity);
     }
 

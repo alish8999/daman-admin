@@ -224,7 +224,11 @@ class LicenseReissueServiceTest {
         // Real ClientConfigService over a mocked repo: proves the profile reaches the
         // re-issued key through licenseEntitlementsFor(), not through anything this test passes.
         ClientConfigService realConfigService = new ClientConfigService(
-                clientConfigRepository, tools.jackson.databind.json.JsonMapper.builder().build());
+                clientConfigRepository, tools.jackson.databind.json.JsonMapper.builder().build(),
+                mock(com.daman.admin.repository.LicenseRepository.class),
+                mock(com.daman.admin.repository.BillingRepository.class),
+                mock(com.daman.admin.repository.BuildLogRepository.class),
+                mock(com.daman.admin.repository.TrialRegistrationRepository.class));
         LicenseReissueService reissue = new LicenseReissueService(
                 licenseRepository, clientConfigRepository, realConfigService, licenseKeyService);
 

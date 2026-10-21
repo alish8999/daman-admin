@@ -52,10 +52,20 @@ public class ClientController {
         return service.update(clientCode, request);
     }
 
+    /**
+     * Deletes the client and everything keyed to its code - licences, trials, builds and
+     * billing. Refuses with 409 when real money has been received; see
+     * {@link com.daman.admin.service.ClientConfigService#delete(String)}.
+     */
     @DeleteMapping("/{clientCode}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable String clientCode) {
-        service.delete(clientCode);
+    public ResponseEntity<?> delete(@PathVariable String clientCode) {
+        try {
+            service.delete(clientCode);
+            return ResponseEntity.noContent().build();
+        } catch (com.daman.admin.service.ClientHasPaymentsException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(java.util.Map.of("error", "client_has_payments", "message", e.getMessage()));
+        }
     }
 
     @GetMapping("/{clientCode}/export")
