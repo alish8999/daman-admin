@@ -41,11 +41,20 @@ public class AuthFilter implements Filter {
      * anonymously, and is safe only because the caller supplies no client code, the
      * licence is bound to the caller's own machine id with a server-set expiry, and the
      * response is the licence key alone. See TrialRegistrationService.
+     *
+     * {@code /api/license/renewal} (added 2026-10-21) mints nothing and writes nothing. The
+     * caller must PRESENT a validly signed licence, and machineId/clientCode are read from
+     * that signed payload rather than from the body, so the only thing obtainable is the
+     * current key for the machine the presented licence already names — no new disclosure to
+     * anyone able to call it at all. Note the path is SINGULAR: /api/licenses/** (plural) is
+     * the admin-token-gated licence API and must never be opened. See
+     * LicenseRenewalController.
      */
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/login",
             "/api/licenses/public-key",
-            "/api/trial/register"
+            "/api/trial/register",
+            "/api/license/renewal"
     );
 
     // Mirrors CorsConfig's allowedOrigins. This filter runs before Spring MVC's

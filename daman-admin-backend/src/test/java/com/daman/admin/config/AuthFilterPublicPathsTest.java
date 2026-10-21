@@ -33,11 +33,21 @@ import static org.mockito.Mockito.when;
  */
 class AuthFilterPublicPathsTest {
 
-    /** The only three paths that may be reached without a session token. */
+    /**
+     * The only four paths that may be reached without a session token.
+     *
+     * <p>{@code /api/license/renewal} was added 2026-10-21. Justification, as this test's
+     * class note demands: it mints nothing and writes nothing, the caller must present a
+     * validly signed licence, and the machine and client are taken from that signed payload
+     * rather than the request body — so the only obtainable value is the current key for a
+     * machine the caller already holds a licence for. Note it is SINGULAR; the plural
+     * {@code /api/licenses/**} family below must stay authenticated.
+     */
     private static final List<String> ANONYMOUS = List.of(
             "/api/auth/login",
             "/api/licenses/public-key",
-            "/api/trial/register"
+            "/api/trial/register",
+            "/api/license/renewal"
     );
 
     /**

@@ -181,6 +181,35 @@ public class LicenseKeyService {
     }
 
     /**
+     * Verifies a licence key's RSA signature and returns its payload, or {@code null} if the
+     * signature does not check out, the key is malformed, or the payload is not JSON.
+     *
+     * <p>This is a PROOF OF POSSESSION primitive, not an authorisation decision: it says only
+     * "this key was minted by us and has not been edited". Expiry, revocation and status are
+     * deliberately NOT considered — the renewal endpoint has to accept an expired key, since
+     * renewing one is the entire point. Never throws.
+     */
+    public JsonNode verifiedPayload(String licenseKey) {
+        try {
+            if (licenseKey == null || licenseKey.isBlank() || publicKey == null) return null;
+            String[] parts = licenseKey.trim().split("\\.");
+            if (parts.length != 2) return null;
+            byte[] payloadBytes = Base64.getDecoder().decode(parts[0]);
+            byte[] signatureBytes = Base64.getDecoder().decode(parts[1]);
+
+            Signature sig = Signature.getInstance("SHA256withRSA");
+            sig.initVerify(publicKey);
+            sig.update(payloadBytes);
+            if (!sig.verify(signatureBytes)) return null;
+
+            return mapper.readTree(payloadBytes);
+        } catch (Exception e) {
+            // A bad base64 chunk, a truncated key, a non-JSON payload: all just "not ours".
+            return null;
+        }
+    }
+
+    /**
      * The {@code "v"} field of a licence key's base64 payload half, or {@code 1}
      * for a v1 key (which has no {@code "v"}) or anything unparseable. Drives the
      * v1/v2 badge in the admin licence list and labels already-migrated rows in the
