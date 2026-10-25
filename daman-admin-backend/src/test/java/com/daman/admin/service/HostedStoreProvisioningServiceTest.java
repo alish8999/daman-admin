@@ -14,10 +14,13 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -91,7 +94,9 @@ class HostedStoreProvisioningServiceTest {
         ClientConfigRepository clientConfigRepo = mock(ClientConfigRepository.class);
         when(clientConfigRepo.findByClientCode(anyString())).thenAnswer(i -> {
             String code = i.getArgument(0);
-            if (!List.of("acme", "beta").contains(code)) return Optional.empty();
+            // "viora" is a real ClientConfig row in production — the reserved-code case is not
+            // hypothetical, it is one form submission away.
+            if (!List.of("acme", "beta", "viora").contains(code)) return Optional.empty();
             ClientConfig c = new ClientConfig();
             c.setClientCode(code);
             c.setAppName(code.toUpperCase() + " Store");
@@ -166,8 +171,10 @@ class HostedStoreProvisioningServiceTest {
         assertThat(ops.ingress).contains("- hostname: viora-api.damansoft.com");
         assertThat(calls).contains("reloadCloudflared");
 
-        // Licence minted for the store's own machine id and activated on the store itself.
+        // Licence minted for the store's own machine id, activated on the store itself, and the
+        // store asked afterwards whether it actually took.
         assertThat(ops.activatedKeys).containsExactly(MINTED_KEY);
+        assertThat(calls).contains("licenceStatus:8091");
         assertThat(licences).hasSize(1);
         assertThat(licences.get(0).getMachineId()).isEqualTo(MACHINE_ID);
         assertThat(licences.get(0).getClientCode()).isEqualTo("acme");
@@ -371,6 +378,107 @@ class HostedStoreProvisioningServiceTest {
                 any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void refusesAReservedClientCodeEvenWithoutARegistryRow() {
+        // No registry row at all, so the "already provisioned" early return cannot help: UNIT
+        // would overwrite /etc/systemd/system/daman-store-viora.service and the live viora store
+        // would come up empty on its next Restart=always cycle.
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("viora", "vioracafe", null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("daman-store-viora.service");
+
+        assertThat(instances).isEmpty();
+        assertThat(calls).isEmpty();
+    }
+
+    @Test
+    void skipsAPortSomethingElseIsAlreadyListeningOn() {
+        // Free in the registry, but held by a process the registry knows nothing about. Handing it
+        // out would fail to bind and surface a minute later as a confusing START failure.
+        ops.portsInUse.add(8091);
+
+        HostedInstance i = service.provision(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(i.getStatus()).isEqualTo("ACTIVE");
+        assertThat(i.getPort()).isEqualTo(8092);
+        assertThat(ops.units.get("daman-store-acme")).contains("Environment=DAMAN_PORT=8092");
+        assertThat(ops.ingress).contains("service: http://localhost:8092");
+    }
+
+    @Test
+    void verifyFailsWhenTheStoreDidNotKeepItsLicence() {
+        // Activation answered 200, but the store does not consider itself licensed.
+        ops.licenceStatus = port -> Optional.of(new ServerOps.LicenceStatus(false, "acme", MACHINE_ID));
+
+        HostedInstance i = service.provision(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(i.getStatus()).isEqualTo("FAILED");
+        assertThat(i.getFailedStage()).isEqualTo(ProvisionStage.VERIFY.name());
+
+        // Same refusal for a store that is licensed, but as somebody else.
+        ops.licenceStatus = port -> Optional.of(new ServerOps.LicenceStatus(true, "beta", MACHINE_ID));
+        HostedInstance resumed = service.provision(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(resumed.getStatus()).isEqualTo("FAILED");
+        assertThat(resumed.getFailedStage()).isEqualTo(ProvisionStage.VERIFY.name());
+    }
+
+    @Test
+    void resumeDoesNotRerunTheCapacityGuard() {
+        // The half-provisioned store's own JVM is already running, so its heap is already out of
+        // availableMemoryMb(). Re-checking would double-count it and refuse the resume for ever.
+        HostedInstance seeded = row("acme", "acme", 8091, "FAILED", ProvisionStage.PAGES_ATTACH.name());
+        seeded.setJwtSecret("SEEDED-SECRET");
+        instances.add(seeded);
+        cloudflare.dns.put("acme-api." + DOMAIN, "rec-api");
+        cloudflare.dns.put("acme." + DOMAIN, "rec-front");
+        ops.availableMb = 900; // would refuse a fresh provision outright
+
+        HostedInstance i = service.provision(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(i.getStatus()).isEqualTo("ACTIVE");
+        assertThat(calls).doesNotContain("availableMemoryMb");
+    }
+
+    @Test
+    void refusesToRenameAHalfProvisionedStore() {
+        // The unit, the ingress rule, the DNS records and the Pages domain were all built from the
+        // original subdomain, so a resume never renames the store half-way.
+        HostedInstance seeded = row("acme", "acme", 8091, "FAILED", ProvisionStage.INGRESS.name());
+        seeded.setJwtSecret("SEEDED-SECRET");
+        instances.add(seeded);
+
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("acme", "acme2", null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("refusing to change");
+
+        assertThat(seeded.getSubdomain()).isEqualTo("acme");
+        assertThat(seeded.getStatus()).isEqualTo("FAILED");
+        assertThat(calls).isEmpty();
+    }
+
+    @Test
+    void resumeAtIngressLeavesTheExistingRuleUntouched() {
+        // Resuming AT the ingress stage, not past it: the rule this store needs is already in the
+        // shared file, so the stage must recognise it rather than rewrite the file or re-signal
+        // cloudflared. (The other resume test seeds past INGRESS, which only proves skipping.)
+        HostedInstance seeded = row("acme", "acme", 8091, "FAILED", ProvisionStage.INGRESS.name());
+        seeded.setJwtSecret("SEEDED-SECRET");
+        instances.add(seeded);
+        String alreadyEdited = IngressEditor.addRule(LIVE_INGRESS, "acme-api." + DOMAIN, 8091);
+        ops.ingress = alreadyEdited;
+
+        HostedInstance i = service.provision(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(i.getStatus()).isEqualTo("ACTIVE");
+        assertThat(calls).contains("readIngress");
+        assertThat(calls).doesNotContain("writeIngress", "reloadCloudflared");
+        assertThat(ops.ingress).isEqualTo(alreadyEdited);
+        // Stages before INGRESS stayed skipped, and the ones after it created each record once.
+        assertThat(calls).noneMatch(c -> c.startsWith("writeUnit") || c.startsWith("mkdir"));
+        assertThat(cloudflare.dns).containsOnlyKeys("acme-api." + DOMAIN, "acme." + DOMAIN);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private HostedInstance row(String clientCode, String subdomain, int port, String status, String failedStage) {
@@ -392,6 +500,16 @@ class HostedStoreProvisioningServiceTest {
         long availableMb = 2214;
         boolean healthy = true;
         Optional<String> machineId = Optional.of(MACHINE_ID);
+        /**
+         * What the store on that port says about itself. The default is a store that took its
+         * licence correctly: licensed, reporting the client code of the registry row running on
+         * that port — which is what the real backend reports after a successful activation.
+         */
+        Function<Integer, Optional<LicenceStatus>> licenceStatus = port -> instances.stream()
+                .filter(row -> row.getPort() == port)
+                .findFirst()
+                .map(row -> new LicenceStatus(true, row.getClientCode(), MACHINE_ID));
+        final Set<Integer> portsInUse = new HashSet<>();
         String ingress = LIVE_INGRESS;
         RuntimeException failWriteIngress;
         final Map<String, String> units = new LinkedHashMap<>();
@@ -434,9 +552,19 @@ class HostedStoreProvisioningServiceTest {
             return machineId;
         }
 
+        @Override public Optional<LicenceStatus> licenceStatus(int port) {
+            calls.add("licenceStatus:" + port);
+            return licenceStatus.apply(port);
+        }
+
         @Override public boolean health(int port) {
             calls.add("health:" + port);
             return healthy;
+        }
+
+        @Override public boolean portInUse(int port) {
+            calls.add("portInUse:" + port);
+            return portsInUse.contains(port);
         }
 
         @Override public void activateLicence(int port, String licenseKey) {

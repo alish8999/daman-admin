@@ -6,8 +6,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
+import tools.jackson.databind.JsonNode;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -43,6 +48,7 @@ public class SystemdServerOps implements ServerOps {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration PORT_PROBE_TIMEOUT = Duration.ofMillis(500);
     private static final long COMMAND_TIMEOUT_SECONDS = 60;
 
     private final ObjectMapper mapper;
@@ -113,13 +119,21 @@ public class SystemdServerOps implements ServerOps {
 
     @Override
     public Optional<String> probeMachineId(int port) {
+        return licenceStatus(port).map(LicenceStatus::machineId).filter(id -> !id.isBlank());
+    }
+
+    @Override
+    public Optional<LicenceStatus> licenceStatus(int port) {
         Optional<String> body = get(port, "/api/license/status");
         if (body.isEmpty()) {
             return Optional.empty();
         }
         try {
-            String machineId = mapper.readTree(body.get()).path("machineId").asString("");
-            return machineId.isBlank() ? Optional.empty() : Optional.of(machineId);
+            JsonNode status = mapper.readTree(body.get());
+            return Optional.of(new LicenceStatus(
+                    status.path("licensed").asBoolean(false),
+                    status.path("clientCode").asString(""),
+                    status.path("machineId").asString("")));
         } catch (RuntimeException e) {
             log.warn("store on port {} returned an unreadable /api/license/status body", port);
             return Optional.empty();
@@ -129,6 +143,21 @@ public class SystemdServerOps implements ServerOps {
     @Override
     public boolean health(int port) {
         return get(port, "/api/health").isPresent();
+    }
+
+    @Override
+    public boolean portInUse(int port) {
+        if (port < 1 || port > 65535) {
+            throw new IllegalArgumentException("Invalid port: " + port);
+        }
+        // A plain TCP connect: anything accepting on the loopback counts, Daman store or not.
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), port),
+                    (int) PORT_PROBE_TIMEOUT.toMillis());
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     @Override
@@ -215,20 +244,31 @@ public class SystemdServerOps implements ServerOps {
         }
     }
 
-    /** Runs a command with no shell, failing loudly on a non-zero exit or a timeout. */
+    /**
+     * Runs a command with no shell, failing loudly on a non-zero exit <b>or</b> a timeout.
+     *
+     * <p>Output is redirected to a temp file rather than read from a pipe, so the timeout can
+     * actually fire: reading the pipe to EOF blocks until the child closes stdout — which normally
+     * means until it exits — so a {@code waitFor} placed after such a read is only ever reached by
+     * a process that has already finished. Draining into a file also removes the other half of the
+     * problem, a chatty child deadlocking on a full pipe buffer while nobody is reading it.
+     */
     private static void run(String... command) {
         String printable = String.join(" ", command);
+        Path captured = null;
         try {
-            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-            String output;
-            try (var in = process.getInputStream()) {
-                output = new String(in.readAllBytes(), StandardCharsets.UTF_8).trim();
-            }
+            captured = Files.createTempFile("daman-cmd-", ".log");
+            Process process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(captured.toFile())
+                    .start();
             if (!process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new IllegalStateException("timed out after " + COMMAND_TIMEOUT_SECONDS + "s: " + printable);
+                throw new IllegalStateException("timed out after " + COMMAND_TIMEOUT_SECONDS
+                        + "s, killed: " + printable);
             }
             if (process.exitValue() != 0) {
+                String output = readCaptured(captured);
                 throw new IllegalStateException(printable + " exited " + process.exitValue()
                         + (output.isEmpty() ? "" : ": " + output));
             }
@@ -238,6 +278,23 @@ public class SystemdServerOps implements ServerOps {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("interrupted running " + printable, e);
+        } finally {
+            if (captured != null) {
+                try {
+                    Files.deleteIfExists(captured);
+                } catch (IOException e) {
+                    log.warn("could not remove temp file {} — {}", captured, e.getMessage());
+                }
+            }
+        }
+    }
+
+    /** Best-effort: the command already failed, so an unreadable log must not mask why. */
+    private static String readCaptured(Path captured) {
+        try {
+            return Files.readString(captured, StandardCharsets.UTF_8).trim();
+        } catch (IOException e) {
+            return "";
         }
     }
 

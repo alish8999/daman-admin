@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -72,6 +73,9 @@ public class HostedStoreProvisioningService {
     private static final int RAM_MARGIN_MB = 300;
 
     private static final String SERVICE_PREFIX = "daman-store-";
+
+    /** How many already-listening ports to step over before giving up (see {@link #allocatePort}). */
+    private static final int MAX_PORT_PROBES = 50;
 
     private static final String STATUS_PROVISIONING = "PROVISIONING";
     private static final String STATUS_ACTIVE = "ACTIVE";
@@ -158,6 +162,9 @@ public class HostedStoreProvisioningService {
             return existing;
         }
 
+        if (existing == null) {
+            requireUnreservedClientCode(clientCode);
+        }
         String subdomain = resolveSubdomain(request.subdomain(), existing);
         requireCloudflareConfigured();
 
@@ -235,14 +242,34 @@ public class HostedStoreProvisioningService {
      */
     private void allocate(HostedInstance i) {
         if (i.getPort() <= 0) {
-            Set<Integer> taken = new HashSet<>();
-            hostedInstanceRepository.findAll().forEach(row -> taken.add(row.getPort()));
-            i.setPort(HostedCapacity.nextFreePort(taken));
+            i.setPort(allocatePort());
             log.info("Allocated port {} to hosted store '{}'", i.getPort(), i.getClientCode());
         }
         if (i.getJwtSecret() == null || i.getJwtSecret().isBlank()) {
             i.setJwtSecret(StoreUnitRenderer.newJwtSecret());
         }
+    }
+
+    /**
+     * The lowest port in the band that is free in the registry <b>and</b> not already listening
+     * (spec §6's cross-check). The registry alone is not enough: anything else on the box holding
+     * a port would otherwise be handed out, the store would fail to bind, and it would surface a
+     * minute later as a confusing {@link ProvisionStage#START} failure.
+     */
+    private int allocatePort() {
+        Set<Integer> taken = new HashSet<>();
+        hostedInstanceRepository.findAll().forEach(row -> taken.add(row.getPort()));
+        for (int probe = 0; probe <= MAX_PORT_PROBES; probe++) {
+            int port = HostedCapacity.nextFreePort(taken);
+            if (!ops.portInUse(port)) {
+                return port;
+            }
+            log.warn("Port {} is free in the registry but something is already listening on it", port);
+            taken.add(port);
+        }
+        throw new IllegalStateException("No free port found in " + MAX_PORT_PROBES
+                + " attempts from " + HostedCapacity.PORT_BAND_START
+                + " — every candidate is already listening");
     }
 
     /** Starts the unit, then waits (bounded) for the store to answer, so a dead unit fails here. */
@@ -379,10 +406,29 @@ public class HostedStoreProvisioningService {
         ops.activateLicence(i.getPort(), licenseKey);
     }
 
+    /**
+     * Health, then proof that the licence actually stuck. The store itself is the only authority:
+     * a <i>refused</i> activation already fails loudly at {@link ProvisionStage#LICENCE}, because
+     * {@code activateLicence} throws on any non-2xx and the store answers 400 when it refuses a
+     * key. What this closes is the other case — activation returned 200 but the store does not
+     * consider itself licensed, or considers itself licensed as a different client.
+     */
     private void verify(HostedInstance i) {
         if (!ops.health(i.getPort())) {
             throw new IllegalStateException(i.getServiceName() + " is not answering /api/health on port "
                     + i.getPort() + " after its licence was activated");
+        }
+        ServerOps.LicenceStatus status = ops.licenceStatus(i.getPort())
+                .orElseThrow(() -> new IllegalStateException(i.getServiceName()
+                        + " did not report its licence status on port " + i.getPort()));
+        if (!status.licensed()) {
+            throw new IllegalStateException(i.getServiceName() + " still reports itself unlicensed:"
+                    + " the activation was accepted but did not take");
+        }
+        if (!i.getClientCode().equals(status.clientCode())) {
+            throw new IllegalStateException(i.getServiceName() + " reports client code '"
+                    + status.clientCode() + "' but this store is '" + i.getClientCode()
+                    + "' — it is running on the wrong licence");
         }
     }
 
@@ -419,6 +465,24 @@ public class HostedStoreProvisioningService {
                     + "' is already taken by another hosted store");
         }
         return subdomain;
+    }
+
+    /**
+     * {@link SubdomainRules#isReserved} guards the subdomain axis; this guards the other one. The
+     * service name — and so the unit file path — comes from the client code, so provisioning a
+     * client code of {@code viora} would overwrite {@code daman-store-viora.service} with the
+     * wrong {@code -Duser.home}, a new JWT secret and another store's port, and the live viora
+     * would come up empty on its next {@code Restart=always} cycle. The backfilled {@code ACTIVE}
+     * registry row already prevents that by making {@link #provision} return early, but "viora is
+     * never touched" is the one outcome the spec marks as unacceptable, so it does not rest on a
+     * single row's status.
+     */
+    private static void requireUnreservedClientCode(String clientCode) {
+        if (SubdomainRules.RESERVED.contains(clientCode.toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("The client code '" + clientCode + "' is reserved for "
+                    + "Daman's own infrastructure: provisioning it would overwrite "
+                    + SERVICE_PREFIX + clientCode + ".service");
+        }
     }
 
     private void requireCapacity() {

@@ -14,6 +14,13 @@ import java.util.Optional;
  */
 public interface ServerOps {
 
+    /**
+     * What a store's own {@code /api/license/status} reports about itself — the only authority on
+     * whether an activation actually stuck, since the licence is written and verified inside the
+     * store's process, not here.
+     */
+    record LicenceStatus(boolean licensed, String clientCode, String machineId) {}
+
     /** Creates the directory and every missing parent. No-op when it already exists. */
     void mkdir(String path);
 
@@ -44,8 +51,18 @@ public interface ServerOps {
      */
     Optional<String> probeMachineId(int port);
 
+    /** The store's own view of its licence. Empty when it is not answering. Never throws. */
+    Optional<LicenceStatus> licenceStatus(int port);
+
     /** True when the store answers {@code /api/health} with 200. Never throws. */
     boolean health(int port);
+
+    /**
+     * True when <b>anything</b> is already listening on {@code port}. Deliberately not
+     * {@link #health}: that only recognises a Daman store, so it would hand out a port held by
+     * some unrelated process and the new store would fail to bind a minute later.
+     */
+    boolean portInUse(int port);
 
     /** Posts the licence key to the store's own {@code /api/license/activate}. Throws if it is refused. */
     void activateLicence(int port, String licenseKey);
