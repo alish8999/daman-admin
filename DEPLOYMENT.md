@@ -409,16 +409,42 @@ In the deploy dashboard, the **Create online client** card:
 5. Click **Create**.
 
 Notes:
-- It takes **up to about two minutes**. The Pages custom domain takes ~105 s to go from `pending` to
-  `active`; this is normal, not a hang.
+- **The card answers immediately and then watches.** The POST comes back in under a second with a
+  `PROVISIONING` row; the card says `Provisioning... (stage X)` and polls the registry every 5 s
+  until that row reads `ACTIVE` or `FAILED`. Expect **about two minutes** of that — the Pages custom
+  domain alone takes ~105 s to go from `pending` to `active`. The Create button stays disabled
+  while it polls.
+  - Why it is not one blocking request: the whole sequence takes 125-150 s, and
+    `admin-api.damansoft.com` is reached through the Cloudflare tunnel, so the request crosses
+    Cloudflare's edge — which **returns 524 after 100 s of origin silence**. Blocking reported a red
+    "HTTP 524" card for every provision that in fact succeeded, and a second click then answered
+    409, which looked like another failure.
+  - If the card says it **stopped polling after 6 minutes**, the server has *not* stopped. Read the
+    row (§10.5) before doing anything else.
+  - Clicking Create again while a provision for that client is still running answers **409** and
+    starts nothing — one run per client at a time, deliberately (two concurrent runs would mint two
+    `ACTIVE` licence rows for the same store and wedge every later licence operation on it).
 - The subdomain suggestion is legitimately **empty** when the client code has no usable ASCII letter
   or digit (e.g. an Arabic-only shop name). Nothing invents a hostname: type one (lowercase ASCII
   letters, digits, hyphens; one level deep only, see §4.1).
-- Under the hood this is `POST /api/hosted-stores` with `{clientCode, subdomain, expiresAt}`:
-  admin-token gated; 201 with the row on success *or* on a mid-sequence failure (check `status`);
-  400 for a refusal (nothing persisted); 409 with the existing row if the client is already `ACTIVE`.
+- Under the hood this is `POST /api/hosted-stores` with `{clientCode, subdomain, expiresAt}`,
+  admin-token gated:
+  - **202** with the `PROVISIONING` row — accepted; watch `GET /api/hosted-stores` for the outcome.
+    A mid-sequence failure shows up there as a `FAILED` row with its `failedStage`, never as an
+    error from this POST.
+  - **400** — a refusal: the input is wrong and nothing was persisted.
+  - **503** — this server cannot provision right now: no RAM headroom (§7 of the spec: the box holds
+    about three stores) or `CLOUDFLARE_*` not configured. The request was fine; fix the server and
+    resubmit unchanged.
+  - **409** — the client already has an `ACTIVE` store (body is that row), or a provision for it is
+    already running (body is an `error`).
 - Stages, in order: `ALLOCATE`, `DATA_DIR`, `UNIT`, `START`, `INGRESS`, `API_DNS`, `FRONTEND_DNS`,
   `PAGES_ATTACH`, `PAGES_ACTIVE` (the ~105 s wait), `LICENCE`, `VERIFY`.
+- `VERIFY` ends by fetching **`https://<sub>-api.damansoft.com/api/health`** — the store's own public
+  URL, through Cloudflare, the way a customer reaches it. Everything before it probes `127.0.0.1`, so
+  this is what makes `ACTIVE` mean "reachable" rather than "the JVM is up". A `FAILED` row at
+  `VERIFY` whose message mentions the public URL means the store is running but its ingress rule or
+  its DNS record is wrong — see §10.5.
 
 ### 10.3 Credentials the admin backend needs
 
@@ -445,7 +471,17 @@ the new one into place, then calls `POST /api/hosted-stores/restart-all` on the 
 
 The walk restarts `ACTIVE` stores one at a time in **id order** (the oldest paying customer is the
 canary), polling `/api/health` after each (up to ~2 minutes per store), and **halts at the first
-store that does not come back healthy**. Read the guarantee honestly:
+store that does not come back healthy**.
+
+The route answers `{walked, skipped}`, and the script prints both: each restarted store, then each
+row it passed over with the reason (`not ACTIVE (FAILED at stage ...)`, or viora running its own
+jar). **Read the skipped list.** If `walked` is empty the script prints a loud warning instead of
+"Release complete": the new jar is already in place but nothing was restarted, so every store is
+still running the old jar from memory and will pick the new one up on its next unsupervised
+restart. A store stuck at `FAILED` while its unit runs perfectly well looks exactly like this — fix
+its row (§10.5), then re-run the release.
+
+Read the guarantee honestly:
 
 - It is **delayed and sequenced exposure, not containment.** The new jar is already on disk when the
   walk starts and every unit has `Restart=always`, so a store the walk never reached picks the new
@@ -475,13 +511,52 @@ a `FAILED` row's `failedStage` is exactly where it stopped. Nothing is torn down
    and `failedStage`.
 2. Fix the cause. Typical: `CLOUDFLARE_*` missing or the token lacking a permission (`API_DNS`,
    `FRONTEND_DNS`, `PAGES_*`); a service that will not start (`START`:
-   `journalctl -u daman-store-<clientCode>`); a slow Pages domain (`PAGES_ACTIVE`: just re-run). A re-run that hits a *refusal* (no capacity,
-   Cloudflare not configured, unknown client) returns **400** and leaves the `FAILED` row exactly as
-   it was: if `failedStage` has not moved and you got a 400, nothing advanced.
+   `journalctl -u daman-store-<clientCode>`); a slow Pages domain (`PAGES_ACTIVE`: just re-run); the
+   store running but unreachable at its own public URL (`VERIFY` — cloudflared did not pick up the
+   new ingress rule, or the `<sub>-api` DNS record points somewhere else; the row's failure message
+   names the checks). A re-run that hits a *refusal* (unknown client, bad subdomain) returns **400**,
+   and one that hits **503** (no capacity, Cloudflare not configured) leaves the `FAILED` row exactly
+   as it was: if `failedStage` has not moved and you got a 400 or a 503, nothing advanced.
 3. **Re-run Create for the same client** (same card, or `POST /api/hosted-stores`). It resumes from
-   `failedStage` rather than starting over.
+   `failedStage` rather than starting over, and answers **202** again.
+   - A `PROVISIONING` row is *also* resumable the same way — that is what a run interrupted by an
+     admin-backend restart leaves behind. The only thing that refuses a re-run is a provision for
+     that client still running **right now** (409).
 4. Re-running for a client that is already `ACTIVE` does nothing: it answers **409** with the
    existing row.
 
 A 400 with an `error` message is a refusal before anything was created (e.g. missing subdomain):
 nothing to clean up, fix the input and resubmit.
+
+#### Abandoning a half-created store (a mistyped client, for instance)
+
+`DELETE /api/hosted-stores/<clientCode>` (admin Bearer token) **forgets the registry row**:
+
+```bash
+ssh root@162.55.51.189 "curl -s -X DELETE -H 'Authorization: Bearer <admin-token>' \
+  http://localhost:8083/api/hosted-stores/<clientCode>"
+```
+
+- It **refuses an `ACTIVE` row** (409). Spec §5.4's "no suspend, stop or delete" decision is about
+  live stores and still stands; this route exists only for a store that never finished. It also
+  refuses while that client's provision is actually running (409).
+- Why it exists: pick `acem` instead of `acme`, let it half-complete, and there was previously no
+  way out — the resume refuses to rename a row, `existsBySubdomain` then blocks reusing `acme` on
+  the correctly-named client, and the H2 console is disabled, so the only escape was an H2 shell
+  over SSH.
+- **It is registry-only. Nothing is torn down** (the same stance as a failed provision). Still
+  present after the delete, and yours to remove by hand if the store is really being abandoned:
+  - the systemd unit `/etc/systemd/system/daman-store-<clientCode>.service` — and it has
+    `Restart=always`, so **stop and disable it** or it keeps running and holding its port:
+    `systemctl disable --now daman-store-<clientCode>` then `rm` the unit and `systemctl daemon-reload`;
+  - the data directory `/root/stores/<clientCode>` (its SQLite database and backups);
+  - the cloudflared ingress rule for `<sub>-api.damansoft.com` in `/etc/cloudflared/config.yml`
+    (edit by hand, keep every other rule and the trailing `http_status:404` catch-all, then
+    `systemctl kill -s HUP cloudflared`);
+  - both DNS records (`<sub>` and `<sub>-api`) in Cloudflare;
+  - the `<sub>.damansoft.com` custom domain on the `daman-store` Pages project;
+  - the minted licence row in the admin database (harmless: it is bound to a client code nothing
+    serves any more).
+- What the delete *does* free immediately: that client code, its subdomain and its port, so the
+  correctly-named client can be provisioned. Note the port is only free in the **registry** — if the
+  old unit is still running, the allocator's listening-port cross-check steps over it anyway.
