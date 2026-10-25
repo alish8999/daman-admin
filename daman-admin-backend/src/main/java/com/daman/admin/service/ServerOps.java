@@ -42,7 +42,11 @@ public interface ServerOps {
     /** Replaces the shared cloudflared {@code config.yml}. LF bytes only, same as {@link #writeUnit}. */
     void writeIngress(String yaml);
 
-    /** Makes cloudflared pick up an edited ingress list without dropping the tunnel. */
+    /**
+     * Makes cloudflared pick up an edited ingress list by restarting it, and throws unless it is
+     * active again afterwards. The restart briefly interrupts every hostname on the tunnel. Never
+     * SIGHUP: that terminates cloudflared (see the real implementation).
+     */
     void reloadCloudflared();
 
     /**

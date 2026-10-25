@@ -54,6 +54,9 @@ public class SystemdServerOps implements ServerOps {
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration PORT_PROBE_TIMEOUT = Duration.ofMillis(500);
     private static final long COMMAND_TIMEOUT_SECONDS = 60;
+    /** 10 checks, 3 s apart: ~30 s for cloudflared to report active after a restart. */
+    private static final int TUNNEL_ATTEMPTS = 10;
+    private static final Duration TUNNEL_POLL_DELAY = Duration.ofSeconds(3);
 
     private final ObjectMapper mapper;
 
@@ -117,12 +120,53 @@ public class SystemdServerOps implements ServerOps {
         log.info("Rewrote cloudflared ingress {}", ingressFile);
     }
 
+    /**
+     * Restarts cloudflared and then proves it came back; throws if it did not.
+     *
+     * <p><b>Never send SIGHUP to cloudflared.</b> On 2026-10-25 this method ran
+     * {@code systemctl kill -s HUP cloudflared}, expecting a config reload. cloudflared does not
+     * reload on SIGHUP, it exits: the journal read "Sent signal SIGHUP ... Deactivated
+     * successfully", and because that exit is clean, {@code Restart=on-failure} never revived it.
+     * The admin API and a live customer's store (viora) were offline for ~4.5 minutes (Cloudflare
+     * 530 / error 1033) until the tunnel was started by hand. Do not reintroduce it as an
+     * "optimisation".
+     *
+     * <p>The original objection to {@code systemctl restart} (it would drop the tunnel carrying
+     * the very provisioning request being served) is obsolete: provisioning is asynchronous now
+     * (the endpoint answers 202 at once and the stages run on a background executor), so no
+     * request is in flight through the tunnel while this runs.
+     *
+     * <p>Trade-off, deliberate: the restart interrupts every hostname on the tunnel, viora
+     * included, for a few seconds. That is accepted against a 4.5-minute outage. Defence in depth
+     * still wanted on the server: {@code cloudflared.service} should carry {@code Restart=always}
+     * (not yet applied, blocked on a separate permission).
+     *
+     * <p>A throw here leaves the provision on a resumable FAILED row at the INGRESS stage, which
+     * is the right outcome: a tunnel that fails to return takes the admin API and every hosted
+     * store with it, so this must be loud.
+     */
     @Override
     public void reloadCloudflared() {
-        // SIGHUP, not "systemctl restart": cloudflared re-reads its ingress list on SIGHUP while
-        // keeping the tunnel up. A restart would briefly take admin-api and viora offline — and
-        // the provisioning request being served right now arrives through that same tunnel.
-        run("systemctl", "kill", "-s", "HUP", "cloudflared");
+        run("systemctl", "restart", "cloudflared");
+        for (int attempt = 1; attempt <= TUNNEL_ATTEMPTS; attempt++) {
+            if (isActive("cloudflared")) {
+                log.info("cloudflared is active again (check {} of {})", attempt, TUNNEL_ATTEMPTS);
+                return;
+            }
+            if (attempt < TUNNEL_ATTEMPTS) {
+                try {
+                    Thread.sleep(TUNNEL_POLL_DELAY.toMillis());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("interrupted waiting for cloudflared to come back", e);
+                }
+            }
+        }
+        throw new IllegalStateException("cloudflared did not report active within ~"
+                + (TUNNEL_ATTEMPTS * TUNNEL_POLL_DELAY.toSeconds()) + "s of 'systemctl restart cloudflared'."
+                + " The tunnel is DOWN: the admin API and every hosted store are unreachable until it is"
+                + " started (systemctl start cloudflared; journalctl -u cloudflared). Then re-run Create"
+                + " to resume from INGRESS.");
     }
 
     @Override
@@ -370,6 +414,27 @@ public class SystemdServerOps implements ServerOps {
                     log.warn("could not remove temp file {} — {}", captured, e.getMessage());
                 }
             }
+        }
+    }
+
+    /** True when {@code systemctl is-active --quiet <unit>} exits 0. Any failure to ask counts as "not active". */
+    private static boolean isActive(String unit) {
+        requireSafeUnitName(unit);
+        try {
+            Process p = new ProcessBuilder("systemctl", "is-active", "--quiet", unit)
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            if (!p.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                return false;
+            }
+            return p.exitValue() == 0;
+        } catch (IOException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 

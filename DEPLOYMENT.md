@@ -552,7 +552,7 @@ ssh root@162.55.51.189 "curl -s -X DELETE -H 'Authorization: Bearer <admin-token
   - the data directory `/root/stores/<clientCode>` (its SQLite database and backups);
   - the cloudflared ingress rule for `<sub>-api.damansoft.com` in `/etc/cloudflared/config.yml`
     (edit by hand, keep every other rule and the trailing `http_status:404` catch-all, then
-    `systemctl kill -s HUP cloudflared`);
+    `systemctl restart cloudflared` - never SIGHUP, see 10.6);
   - both DNS records (`<sub>` and `<sub>-api`) in Cloudflare;
   - the `<sub>.damansoft.com` custom domain on the `daman-store` Pages project;
   - the minted licence row in the admin database (harmless: it is bound to a client code nothing
@@ -560,3 +560,47 @@ ssh root@162.55.51.189 "curl -s -X DELETE -H 'Authorization: Bearer <admin-token
 - What the delete *does* free immediately: that client code, its subdomain and its port, so the
   correctly-named client can be provisioned. Note the port is only free in the **registry** — if the
   old unit is still running, the allocator's listening-port cross-check steps over it anyway.
+
+### 10.6 Never SIGHUP cloudflared (incident, 2026-10-25)
+
+Provisioning edits the shared `/etc/cloudflared/config.yml` and then has to make `cloudflared`
+pick up the new rule. It used to do that with `systemctl kill -s HUP cloudflared`. **That does not
+reload cloudflared — it stops it.** The journal from the first live provision:
+
+```
+cloudflared.service: Sent signal SIGHUP to main process 172707 (cloudflared) on client request.
+cloudflared.service: Deactivated successfully.
+```
+
+Because that exit is *clean*, `Restart=on-failure` treated the unit as finished and never revived
+it. The admin API and viora — a live paying store — were unreachable for about 4½ minutes
+(Cloudflare `530`, `error code: 1033`) until the tunnel was started by hand. The same trap as
+`daman-store-viora.service`, which was moved off `on-failure` for the same reason: a clean exit
+systemd reads as success.
+
+What to know:
+
+- **Provisioning now runs `systemctl restart cloudflared`** and then polls `systemctl is-active`
+  for ~30 s, failing the `INGRESS` stage loudly if the tunnel does not come back. A failed
+  provision is resumable; a silently dead tunnel is not.
+- **The restart briefly interrupts every hostname on the tunnel**, viora included, for a few
+  seconds on each provision. That is a deliberate trade against a multi-minute outage. Provision
+  outside trading hours if a few seconds matters.
+- The earlier objection to restarting — that it would drop the tunnel carrying the provisioning
+  request itself — no longer applies: Create answers `202` immediately and the stages run in the
+  background, so nothing is in flight through the tunnel.
+- **`cloudflared.service` should carry `Restart=always`**, so a mis-signal or a crash self-heals:
+
+  ```
+  ssh root@162.55.51.189 'mkdir -p /etc/systemd/system/cloudflared.service.d && \
+    printf "[Service]\nRestart=always\nRestartSec=5\n" \
+      > /etc/systemd/system/cloudflared.service.d/10-restart-always.conf && \
+    systemctl daemon-reload && systemctl show -p Restart --value cloudflared'
+  ```
+
+  `daemon-reload` re-reads the unit without restarting the service, so this is safe to apply while
+  stores are serving. **Not yet applied.**
+
+If the tunnel is ever down: `systemctl start cloudflared`, confirm with `systemctl is-active
+cloudflared` and `journalctl -u cloudflared -n 20` (look for `Registered tunnel connection`), then
+re-run Create to resume the provision from `INGRESS`.
