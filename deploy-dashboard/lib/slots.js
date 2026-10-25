@@ -9,7 +9,7 @@ const ADMIN_ROOT = path.join(__dirname, '..', '..');
 const HOSTED_STORE = {
   clientCode: 'viora',
   port: 8090,
-  pagesProject: 'daman-store-viora',
+  pagesProject: 'daman-store',
   apiHost: 'viora-api.damansoft.com',
   siteUrl: 'https://viora.damansoft.com/',
 };
@@ -37,7 +37,7 @@ const SLOTS = {
   'store-frontend': {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-frontend.ps1'),
     label: `Hosted Store Frontend (${HOSTED_STORE.clientCode})`,
-    args: ['-PagesProject', HOSTED_STORE.pagesProject, '-ExpectedApiHost', HOSTED_STORE.apiHost],
+    args: ['-PagesProject', HOSTED_STORE.pagesProject],
   },
 };
 

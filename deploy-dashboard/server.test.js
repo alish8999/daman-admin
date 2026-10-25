@@ -36,7 +36,7 @@ const storeBackendEchoScript = writeTempScript(
   'param([string]$ClientCode, [int]$Port)\nWrite-Host "ARGS:${ClientCode}:${Port}"\nexit 0\n'
 );
 const storeFrontendEchoScript = writeTempScript(
-  'param([string]$PagesProject, [string]$ExpectedApiHost)\nWrite-Host "ARGS:${PagesProject}:${ExpectedApiHost}"\nexit 0\n'
+  'param([string]$PagesProject)\nWrite-Host "ARGS:${PagesProject}"\nexit 0\n'
 );
 SLOTS['store-backend'].scriptPath = storeBackendEchoScript;
 SLOTS['store-frontend'].scriptPath = storeFrontendEchoScript;
@@ -188,11 +188,11 @@ test('store-backend slot passes the fixed viora -ClientCode/-Port arguments to i
   assert.ok(res.body.includes('"code":0'));
 });
 
-test('store-frontend slot passes the fixed -PagesProject/-ExpectedApiHost arguments to its script', async () => {
+test('store-frontend slot passes the fixed -PagesProject argument to its script', async () => {
   const res = await get('/api/deploy/store-frontend/stream');
   assert.strictEqual(res.statusCode, 200);
   assert.ok(
-    res.body.includes('ARGS:daman-store-viora:viora-api.damansoft.com'),
+    res.body.includes('ARGS:daman-store'),
     `script did not receive the fixed args: ${res.body}`
   );
   assert.ok(res.body.includes('"code":0'));
