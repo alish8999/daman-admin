@@ -53,13 +53,23 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 # Windows PowerShell 5.1 terminates a piped string with CRLF, and a stray CR would end up inside
 # curl's URL (same trap the old unit-writing code avoided for systemd).
 function Invoke-ServerCurl([string]$Method, [string]$UrlPath) {
+    # $AdminToken is interpolated into a SINGLE-QUOTED shell string, so a token containing a
+    # straight quote would break out of it and mangle the command. Admin tokens are UUIDs
+    # (SessionService) so this cannot happen today - but if the token format ever changes, quote it
+    # properly here rather than discovering it as a baffling curl error.
     $cmd = "curl -s -w '\n%{http_code}' -X $Method -H 'Authorization: Bearer $AdminToken' --max-time 3600 http://localhost:8083$UrlPath`n"
     $local = Join-Path $env:TEMP "deploy-store-curl.sh"
     [System.IO.File]::WriteAllText($local, $cmd, $utf8NoBom)
     try {
+        # The script holds an admin Bearer token that can provision infrastructure, so it is never
+        # world-readable on the server: pre-created root-only under umask 077 so scp writes INTO a
+        # 600 file rather than creating a 644 one, and chmodded again before it is read in case a
+        # future scp/sftp sets the mode itself. On a root-only box this is defence in depth.
+        ssh $Server "umask 077; : > /tmp/deploy-store-curl.sh; chmod 600 /tmp/deploy-store-curl.sh"
+        if ($LASTEXITCODE -ne 0) { throw "could not pre-create the remote curl script root-only." }
         scp $local "${Server}:/tmp/deploy-store-curl.sh"
         if ($LASTEXITCODE -ne 0) { throw "scp of the curl script failed." }
-        $out = ssh $Server "bash /tmp/deploy-store-curl.sh; RC=`$?; rm -f /tmp/deploy-store-curl.sh; exit `$RC"
+        $out = ssh $Server "chmod 600 /tmp/deploy-store-curl.sh; bash /tmp/deploy-store-curl.sh; RC=`$?; rm -f /tmp/deploy-store-curl.sh; exit `$RC"
         if ($LASTEXITCODE -ne 0) { throw "ssh/curl to the server's admin-backend failed." }
         return @($out)
     } finally { Remove-Item $local -ErrorAction SilentlyContinue }
@@ -108,18 +118,42 @@ Write-Host "    Stores are walked in id order: the oldest store is the canary." 
 $lines = Invoke-ServerCurl "POST" "/api/hosted-stores/restart-all"
 $httpCode = $lines[-1]
 $body = if ($lines.Count -gt 1) { ($lines[0..($lines.Count - 2)] -join "`n") } else { "" }
-$results = $null
-try { $results = $body | ConvertFrom-Json } catch { }
-if ($results) {
-    foreach ($r in @($results)) {
-        $ok = $r.restarted -and $r.healthy
-        $color = if ($ok) { "Green" } else { "Red" }
-        Write-Host ("    {0,-24} restarted={1,-5} healthy={2} {3}" -f $r.clientCode, $r.restarted, $r.healthy, $r.error) -ForegroundColor $color
-    }
+$report = $null
+try { $report = $body | ConvertFrom-Json } catch { }
+# The route answers {walked:[...], skipped:[...]}. Both halves matter: an EMPTY walked list means
+# the release restarted nothing at all, which this script used to report as a complete success.
+$walked = @()
+$skipped = @()
+if ($report) {
+    if ($null -ne $report.walked) { $walked = @($report.walked) }
+    if ($null -ne $report.skipped) { $skipped = @($report.skipped) }
+}
+foreach ($r in $walked) {
+    $ok = $r.restarted -and $r.healthy
+    $color = if ($ok) { "Green" } else { "Red" }
+    Write-Host ("    {0,-24} restarted={1,-5} healthy={2} {3}" -f $r.clientCode, $r.restarted, $r.healthy, $r.error) -ForegroundColor $color
+}
+foreach ($s in $skipped) {
+    Write-Host ("    {0,-24} SKIPPED: {1}" -f $s.clientCode, $s.reason) -ForegroundColor DarkGray
 }
 if ($httpCode -eq "200") {
     Write-Host ""
-    Write-Host "==> Release complete. Every hosted store restarted healthy on $RemoteJar." -ForegroundColor Green
+    if ($walked.Count -eq 0) {
+        # Not a success. Every store keeps running the OLD jar in memory while the NEW jar sits at
+        # $RemoteJar, and Restart=always will load it at some unpredictable later moment.
+        Write-Host "!!! WARNING: the new jar is in place at $RemoteJar but NOT ONE STORE WAS RESTARTED." -ForegroundColor Yellow
+        if ($skipped.Count -eq 0) {
+            Write-Host "    The registry is EMPTY - the server has no hosted_instances rows at all." -ForegroundColor Yellow
+        } else {
+            Write-Host "    Every registry row was skipped (reasons above). A store stuck at FAILED while its" -ForegroundColor Yellow
+            Write-Host "    unit runs fine looks exactly like this: fix its row, then re-run the release." -ForegroundColor Yellow
+        }
+        Write-Host "    Every store is still running the OLD jar from memory and will pick the new one up on" -ForegroundColor Yellow
+        Write-Host "    its next restart, unsupervised. Restart them by hand or fix the registry and re-run." -ForegroundColor Yellow
+    } else {
+        Write-Host ("==> Release complete. {0} hosted store(s) restarted healthy on {1}{2}." -f `
+            $walked.Count, $RemoteJar, $(if ($skipped.Count -gt 0) { " ($($skipped.Count) skipped, see above)" } else { "" })) -ForegroundColor Green
+    }
 } else {
     Write-Host $body
     throw "Release HALTED (HTTP $httpCode): a store did not come back healthy. Stores after it were NOT restarted, but the new jar is already in place at $RemoteJar and Restart=always will load it on any restart. Manual rollback: ssh $Server 'mv -f $RemoteJar.prev $RemoteJar', then systemctl restart the halted store (see its journalctl -u <service>)."

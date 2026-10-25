@@ -57,8 +57,15 @@ const REMOTE_ADMIN_BACKEND = {
   unreachableMessage:
     'Remote admin API (admin-api.damansoft.com) is not reachable or timed out. Nothing fell back to the local backend. If you were creating a store, check the registry before retrying.',
 };
-// Provisioning writes a unit, DNS, a tunnel rule and a licence on the server - far slower than a read.
-const PROVISION_TIMEOUT_MS = 180000;
+// POST /api/hosted-stores now answers 202 as soon as the registry row exists and runs its twelve
+// stages afterwards, server-side, so this request is a short write and not a 2-minute wait.
+//
+// It used to be 180000, and that was the wrong shape twice over: the server's own worst case
+// (200 s of Pages polling + 60 s of health waiting + command timeouts) already exceeded it, so the
+// dashboard could time out a provision that was going fine; and the request crosses Cloudflare's
+// edge, which answers 524 after 100 s of origin silence regardless of what we set here. The long
+// wait lives in the page's registry poll instead (public/main.js, pollUntilTerminal).
+const PROVISION_TIMEOUT_MS = 30000;
 const MAX_JSON_BODY_BYTES = 16 * 1024;
 const BUILD_PLATFORMS = new Set(['win', 'winx86']);
 
@@ -479,4 +486,4 @@ if (require.main === module) {
 }
 
 module.exports = { server, runLock, runningPids, killTrackedChildren, isSameOrigin,
-  REMOTE_ADMIN_BACKEND, LOCAL_TARGET };
+  REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS };

@@ -842,20 +842,109 @@
         .catch(() => {});
     });
 
-    function describe(status, row) {
-      if (status === 201 && row && row.status === 'ACTIVE') {
-        return { text: `Created${row.frontendHostname ? ': https://' + row.frontendHostname : ''}`, kind: 'success' };
+    // POST /api/hosted-stores answers 202 as soon as the registry row exists and runs the twelve
+    // stages afterwards, server-side: the whole sequence takes 125-150 s and the remote admin API
+    // is reached through a Cloudflare tunnel whose edge answers 524 after 100 s of origin silence.
+    // So the terminal state is read from the registry instead of from that response.
+    const POLL_INTERVAL_MS = 5000;
+    // Generous ceiling for a ~2-minute job. Giving up here only stops THIS PAGE polling - the
+    // server is unaffected and the row keeps the truth, which is what the message says.
+    const POLL_CEILING_MS = 6 * 60 * 1000;
+
+    // Describes a registry row. Never returns null for a row that exists: the previous version
+    // answered null for any status that was neither ACTIVE nor FAILED, so the caller fell through
+    // to its error branch and rendered a success as "Request failed (HTTP 201)". With a 202 and a
+    // PROVISIONING row that branch is no longer unreachable.
+    function describeRow(row) {
+      if (!row || !row.status) return null;
+      if (row.status === 'ACTIVE') {
+        return {
+          text: `Created${row.frontendHostname ? ': https://' + row.frontendHostname : ''}`,
+          kind: 'success',
+          done: true,
+        };
       }
-      if (status === 201 && row && row.status === 'FAILED') {
+      if (row.status === 'FAILED') {
         return {
           text: `Failed at stage ${row.failedStage || 'unknown'} - click Create again to resume`,
           kind: 'failure',
+          done: true,
         };
       }
+      return { text: `Provisioning... (stage ${row.failedStage || 'ALLOCATE'})`, kind: null, done: false };
+    }
+
+    function describe(status, body) {
+      // 202 is the current answer; 201 is accepted too so an older server still reports correctly.
+      if (status === 202 || status === 201) {
+        return describeRow(body) || { text: 'Accepted; waiting for the registry row...', kind: null, done: false };
+      }
       if (status === 409) {
-        return { text: `Already ACTIVE${row && row.frontendHostname ? ': https://' + row.frontendHostname : ''}`, kind: 'failure' };
+        // Two different 409s: the client is already ACTIVE (carries the row), or a provision for it
+        // is already running (carries an {error}).
+        if (body && body.status) {
+          return {
+            text: `Already ${body.status}${body.frontendHostname ? ': https://' + body.frontendHostname : ''}`,
+            kind: 'failure',
+            done: true,
+          };
+        }
+        return {
+          text: (body && body.error) || 'A provision for this client is already running',
+          kind: 'failure',
+          done: true,
+        };
       }
       return null;
+    }
+
+    // Watches the registry until this client's row is ACTIVE or FAILED. A read that fails is NOT
+    // reported as a failed provision - the server is still working - so it keeps polling.
+    function pollUntilTerminal(clientCode) {
+      const startedAt = Date.now();
+
+      const schedule = () => {
+        if (Date.now() - startedAt > POLL_CEILING_MS) {
+          setStatus('Still PROVISIONING after 6 minutes - read the row before retrying', 'failure');
+          appendLine(log, 'Stopped polling after 6 minutes. The server has NOT stopped: read the row'
+            + ' with GET /api/hosted-stores and follow DEPLOYMENT.md 10.5.');
+          btn.disabled = false;
+          return;
+        }
+        setTimeout(tick, POLL_INTERVAL_MS);
+      };
+
+      const tick = () => {
+        fetch('/api/remote/hosted-stores', { headers: authHeaders() })
+          .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
+          .then(({ r, body }) => {
+            if (!r.ok || !Array.isArray(body)) {
+              appendLine(log, `Could not read the registry (${readError(r, body)}); still polling...`);
+              schedule();
+              return;
+            }
+            const row = body.find((candidate) => candidate.clientCode === clientCode);
+            if (!row) {
+              appendLine(log, 'The registry has no row for this client yet; still polling...');
+              schedule();
+              return;
+            }
+            const outcome = describeRow(row);
+            setStatus(outcome.text, outcome.kind);
+            if (!outcome.done) {
+              schedule();
+              return;
+            }
+            appendLine(log, JSON.stringify(row, null, 2));
+            btn.disabled = false;
+          })
+          .catch(() => {
+            appendLine(log, 'Could not reach the dashboard server; still polling...');
+            schedule();
+          });
+      };
+
+      tick();
     }
 
     btn.addEventListener('click', () => {
@@ -869,7 +958,7 @@
       log.textContent = '';
       logPanel.open = true;
       setStatus('Running...');
-      appendLine(log, `Creating hosted store for ${clientCode} at ${subdomain}... (this can take a minute)`);
+      appendLine(log, `Creating hosted store for ${clientCode} at ${subdomain}...`);
 
       fetch('/api/remote/hosted-stores', {
         method: 'POST',
@@ -879,20 +968,31 @@
         .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
         .then(({ r, body }) => {
           const outcome = describe(r.status, body);
-          if (outcome) {
-            appendLine(log, JSON.stringify(body, null, 2));
-            setStatus(outcome.text, outcome.kind);
-          } else {
+          if (!outcome) {
             const message = readError(r, body);
             appendLine(log, message);
             setStatus(message, 'failure');
+            btn.disabled = false;
+            return;
           }
+          appendLine(log, JSON.stringify(body, null, 2));
+          setStatus(outcome.text, outcome.kind);
+          if (outcome.done) {
+            btn.disabled = false;
+            return;
+          }
+          // Accepted: the stages are running server-side. The button stays disabled until the row
+          // reaches a terminal state, so a second click cannot start a duplicate run (the server
+          // refuses one with 409 anyway).
+          appendLine(log, 'Accepted. The server is provisioning this store - about two minutes, most'
+            + ' of it the Pages custom domain going active. Watching the registry...');
+          pollUntilTerminal(clientCode);
         })
         .catch((err) => {
           appendLine(log, `Request failed: ${err.message}`);
           setStatus('Could not reach the dashboard server', 'failure');
-        })
-        .finally(() => { btn.disabled = false; });
+          btn.disabled = false;
+        });
     });
   })();
 

@@ -61,7 +61,7 @@ scriptRunner.runScript = function (scriptPath, args) {
 };
 SLOTS.spawnfail = { scriptPath: SPAWN_FAIL_SENTINEL, label: 'Spawn Fail Test' };
 
-const { server, REMOTE_ADMIN_BACKEND } = require('./server');
+const { server, REMOTE_ADMIN_BACKEND, LOCAL_TARGET } = require('./server');
 const PRODUCTION_REMOTE = { ...REMOTE_ADMIN_BACKEND };
 
 // Assigned in test.before - the server binds an ephemeral port so `npm test`
@@ -228,15 +228,15 @@ test('/api/health reports the shared store frontend alongside the admin ones, wi
 
 // A local fake standing in for https://admin-api.damansoft.com. It records every request so the
 // tests can prove exactly what was relayed. NOTHING here ever contacts the real portal.
-function startFakeRemote() {
+function startFakeRemote(statusCode = 201, responseBody) {
   const seen = [];
   const fake = http.createServer((req, res) => {
     let body = '';
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
       seen.push({ method: req.method, url: req.url, headers: req.headers, body });
-      res.writeHead(201, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ via: 'fake-remote', url: req.url }));
+      res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(responseBody || { via: 'fake-remote', url: req.url }));
     });
   });
   return new Promise((resolve) => {
@@ -351,15 +351,11 @@ test('POST /api/remote/hosted-stores rejects a malformed body with 400 before re
   }
 });
 
-test('remote routes do not fall back to localhost:8083 when the remote is unreachable', async () => {
-  // A fake standing in for the local :8083 backend, if the port is free on this machine.
-  let localHits = 0;
-  const localFake = http.createServer((req, res) => { localHits++; res.end('{}'); });
-  const localBound = await new Promise((resolve) => {
-    localFake.once('error', () => resolve(false));
-    localFake.listen(8083, '127.0.0.1', () => resolve(true));
-  });
-  // Point the remote at a port nothing listens on.
+test('remote routes do not fall back to the local backend when the remote is unreachable', async () => {
+  // Deliberately binds NOTHING on 8083: that is the owner's own local admin-backend port, and a
+  // test that grabs it (or silently skips when it is in use) is worse than useless. The two
+  // targets are separate exported objects with their own unreachable messages, and the test
+  // immediately below pins LOCAL_TARGET, so "no fallback" is provable from the message alone.
   const closed = http.createServer();
   await new Promise((r) => closed.listen(0, '127.0.0.1', r));
   const deadPort = closed.address().port;
@@ -373,21 +369,53 @@ test('remote routes do not fall back to localhost:8083 when the remote is unreac
     assert.ok(!msg.includes('localhost:8083'), msg);
     const created = await post('/api/remote/hosted-stores', { clientCode: 'a', subdomain: 'a', expiresAt: 'x' });
     assert.strictEqual(created.statusCode, 503);
-    if (localBound) assert.strictEqual(localHits, 0, 'the local backend must never answer a remote route');
+    assert.ok(JSON.parse(created.body).error.includes('admin-api.damansoft.com'));
   } finally {
     restoreRemote();
-    if (localBound) localFake.close();
   }
 });
 
-test('the local proxy routes still target localhost:8083 and report its own unreachable message', async () => {
-  // Only meaningful when nothing real is listening on 8083; otherwise just require a real answer.
-  const res = await get('/api/versions', { Authorization: 'Bearer t' });
-  if (res.statusCode === 503) {
-    assert.ok(JSON.parse(res.body).error.includes('localhost:8083'));
-  } else {
-    assert.ok(res.statusCode >= 200 && res.statusCode < 600);
+test('the local proxy target is localhost:8083 over plain http, with its own unreachable message', () => {
+  // Was a test that could not fail: it asserted the 503 message only when nothing happened to be
+  // listening on 8083, and its else branch accepted any status from 200 to 599. Deterministic now,
+  // exactly like the remote-target test above.
+  assert.strictEqual(LOCAL_TARGET.host, 'localhost');
+  assert.strictEqual(LOCAL_TARGET.port, 8083);
+  assert.strictEqual(LOCAL_TARGET.secure, false);
+  assert.ok(LOCAL_TARGET.unreachableMessage.includes('localhost:8083'));
+  // The two targets cannot be confused for one another, in either direction.
+  assert.notStrictEqual(LOCAL_TARGET.host, PRODUCTION_REMOTE.host);
+  assert.ok(!LOCAL_TARGET.unreachableMessage.includes('admin-api.damansoft.com'));
+  assert.ok(!PRODUCTION_REMOTE.unreachableMessage.includes('localhost:8083'));
+});
+
+test("the remote's 202 and its PROVISIONING row reach the page unchanged", async () => {
+  // The whole point of the Critical fix: the remote accepts the provision and answers 202 with a
+  // PROVISIONING row in well under Cloudflare's 100 s, and the page then polls the registry. If
+  // this proxy rewrote the status (it used to send a 180 s timeout at a 2-minute blocking call,
+  // which the edge turned into a 524 the page could only read as failure), the card would be back
+  // to reporting failure for a provision that succeeded.
+  const row = { clientCode: 'acme', status: 'PROVISIONING', failedStage: 'ALLOCATE' };
+  const { fake, seen, port: fakePort } = await startFakeRemote(202, row);
+  aimRemoteAt(fakePort);
+  try {
+    const res = await post('/api/remote/hosted-stores', { clientCode: 'acme', subdomain: 'acme' });
+    assert.strictEqual(res.statusCode, 202);
+    assert.deepStrictEqual(JSON.parse(res.body), row);
+    assert.strictEqual(seen.length, 1);
+  } finally {
+    restoreRemote();
+    fake.close();
   }
+});
+
+test('a provision POST is no longer given a multi-minute timeout', async () => {
+  // The server's own worst case already exceeded the old 180 s, and the edge gives up at 100 s
+  // regardless; the long wait belongs in the page's registry poll, not in this request.
+  const { PROVISION_TIMEOUT_MS } = require('./server');
+  assert.ok(PROVISION_TIMEOUT_MS <= 60000,
+    `a provision POST should now be a short write, got ${PROVISION_TIMEOUT_MS}ms`);
+  assert.ok(PROVISION_TIMEOUT_MS >= 5000, 'but not so short that a slow link fails the hand-off');
 });
 
 test('a blank expiry is forwarded as an empty string (licence without an expiry)', async () => {
