@@ -1,0 +1,60 @@
+package com.daman.admin.service;
+
+import com.daman.admin.entity.HostedInstance;
+
+import java.security.SecureRandom;
+import java.util.Base64;
+
+/**
+ * Renders the systemd unit for one hosted store. Modelled on the unit written by
+ * deploy-store-backend.ps1 (the frozen viora store). Pure text, no I/O.
+ */
+public final class StoreUnitRenderer {
+
+    static final String SHARED_JAR = "/root/daman-store.jar";
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private StoreUnitRenderer() {}
+
+    /** 48 random bytes, base64url without padding = 64 chars. */
+    public static String newJwtSecret() {
+        byte[] bytes = new byte[48];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public static String render(HostedInstance i) {
+        if (i.getJwtSecret() == null || i.getJwtSecret().isBlank()) {
+            // Without a per-store secret the backend falls back to the public default: forgeable tokens.
+            throw new IllegalStateException("HostedInstance has no jwtSecret; refusing to render a unit");
+        }
+        String home = "/root/stores/" + i.getClientCode();
+        String unit = """
+                [Unit]
+                Description=Daman Store Backend (%1$s)
+                After=network.target
+
+                [Service]
+                Type=simple
+                User=root
+                WorkingDirectory=/root
+                Environment=DAMAN_PORT=%2$d
+                Environment=DAMAN_CLIENT_CODE=%1$s
+                Environment=SPRING_PROFILES_ACTIVE=desktop
+                Environment=DAMAN_JWT_SECRET=%3$s
+                Environment=DAMAN_BACKUP_DIR=%4$s/backups
+                ExecStart=/usr/bin/java -Xmx768m -Duser.home=%4$s -jar %5$s
+                # "always", not "on-failure": Settings -> Restore DB (and other in-app restarts) make the backend exit
+                # with status 0 on purpose, expecting Electron's shell to relaunch it. on-failure treats a clean exit
+                # as "done" and leaves the service dead. A manual 'systemctl stop' is still respected.
+                Restart=always
+                RestartSec=5
+                StandardOutput=append:/var/log/%6$s.log
+                StandardError=append:/var/log/%6$s.log
+
+                [Install]
+                WantedBy=multi-user.target
+                """.formatted(i.getClientCode(), i.getPort(), i.getJwtSecret(), home, SHARED_JAR, i.getServiceName());
+        return unit.replace("\r\n", "\n");
+    }
+}
