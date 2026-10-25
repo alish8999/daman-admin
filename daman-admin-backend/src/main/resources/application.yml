@@ -32,3 +32,7 @@ daman:
     # directly (bcrypt) instead.
     seed-username: ${DAMAN_ADMIN_USERNAME:admin}
     seed-password: ${DAMAN_ADMIN_PASSWORD:ChangeMe123!}
+  # Cloudflare (online-store provisioning). Token comes ONLY from the CLOUDFLARE_API_TOKEN env var.
+  cloudflare:
+    account-id: ${CLOUDFLARE_ACCOUNT_ID:}
+    zone-id: ${CLOUDFLARE_ZONE_ID:}
