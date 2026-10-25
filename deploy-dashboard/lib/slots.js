@@ -3,15 +3,12 @@ const path = require('path');
 // lib/slots.js -> deploy-dashboard/ -> daman-admin/
 const ADMIN_ROOT = path.join(__dirname, '..', '..');
 
-// The hosted viora store (see Docs/superpowers/specs/2026-09-15-hosted-store-instance-design.md).
-// Everything the two store scripts need is fixed here, server-side: a deploy is triggered by a
-// plain GET, so none of these values may ever come from the request.
+// The hosted-store deployment (see Docs/superpowers/specs/2026-10-24-online-store-provisioning-design.md).
+// Per-store values (client code, port, hostnames) are NOT here: provisioning owns them in the
+// registry. Only what is a property of the shared deployment lives here, fixed server-side, because
+// a deploy is triggered by a plain GET and none of these may ever come from the request.
 const HOSTED_STORE = {
-  clientCode: 'viora',
-  port: 8090,
   pagesProject: 'daman-store',
-  apiHost: 'viora-api.damansoft.com',
-  siteUrl: 'https://viora.damansoft.com/',
   // The one Pages project every hosted store is served from - the only frontend URL that is
   // a property of the shared deployment rather than of a single tenant.
   sharedSiteUrl: 'https://daman-store.pages.dev/',

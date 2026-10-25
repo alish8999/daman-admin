@@ -240,11 +240,19 @@ npm start
 
 Then open `http://127.0.0.1:5500/` in a browser. Each card runs the matching script and streams
 its output live: Admin Backend, Admin Frontend, Generic Release (its version field is pre-filled
-from the highest version already built in `clients-build/generic/`), and a **Hosted Store** group
-with Backend and Frontend cards for the hosted stores (`deploy-store-backend.ps1` ships the shared `daman-store.jar` and restarts every store one at a time, needs `DAMAN_ADMIN_TOKEN` set; /
-`deploy-store-frontend.ps1`). The hosted-store arguments (client code, port, Pages project, API
-host) are fixed in `deploy-dashboard/lib/slots.js` and never come from the request. The
-dashboard has to be restarted (`Ctrl+C`, `npm start`) to pick up slot changes.
+from the highest version already built in `clients-build/generic/`), and a **Hosted Store** group:
+
+- **Create online client** - provisions one hosted store (see §10.2).
+- **Hosted Store Backend (all stores)** - `deploy-store-backend.ps1`: builds `daman-backend`, ships
+  the one shared `/root/daman-store.jar`, and restarts every store one at a time. It takes **no
+  arguments** (no client code, no port: the provisioning endpoint owns the per-store units) and
+  needs `DAMAN_ADMIN_TOKEN` set in the dashboard's environment (see §10.3).
+- **Hosted Store Frontend (shared)** - `deploy-store-frontend.ps1`: deploys the one shared
+  `daman-store` Pages project.
+
+The only hosted-store argument is the Pages project name, fixed in `deploy-dashboard/lib/slots.js`
+and never taken from the request. The dashboard has to be restarted (`Ctrl+C`, `npm start`) to
+pick up slot changes.
 
 This is a thin wrapper: it spawns the same scripts documented above, unmodified, and adds no
 new deploy logic of its own. It depends on the SSH key auth from §2 — a spawned script has no
@@ -350,3 +358,120 @@ in CI instead, fully decoupling this from any admin-backend instance or local ma
   key auth is set up (§2), so a CI workflow would only need that private key as a repo secret.
 - **Release-tag → R2 pipeline + public `/get/<token>` download page** — the longer-term pieces
   from the original deploy spec's §6–7, not started.
+
+## 10. Hosted ("online") stores - runbook
+
+Hosted stores are the online edition of the POS, sold alongside the desktop installer. Design
+rationale: `Docs/superpowers/specs/2026-10-24-online-store-provisioning-design.md`. This section is
+what to run and what to do when it breaks. `daman-backend` was **not** changed for this feature:
+everything it needs per store is an existing property or JVM flag, so the POS-backend reference docs
+(`Docs/ARCHITECTURE.md` etc.) are unaffected. The endpoints below belong to the *admin* backend.
+
+### 10.1 How it fits together
+
+- **One shared frontend.** A single Cloudflare Pages project, `daman-store`, serves every hosted
+  customer. It is deployed once (Hosted Store Frontend card), not per customer. The frontend works
+  out its API host at runtime, so one build serves all of them.
+- **One shared jar.** `/root/daman-store.jar` runs every store.
+- **Per store:** its own systemd unit `daman-store-<clientCode>`, its own port (from 8091 upward),
+  and `-Duser.home=/root/stores/<clientCode>`. That flag is what isolates the store's `license.dat`,
+  `machine-id.cache`, `clock.dat`, `active-client.json`, SQLite database and log. **Never remove
+  it:** without it a second store's licence activation overwrites the first store's licence file,
+  and the first store boots on the wrong licence after its next restart, with no error.
+- **Per-store JWT secret** (`DAMAN_JWT_SECRET` in the unit). The backend's default secret ships
+  inside every installer, which is a public download, and its JWT filter trusts role/permissions
+  straight from the token claims with no database lookup. Without a per-store secret, anyone with
+  the installer could mint an admin token accepted by every hosted store. The secret is kept in the
+  registry row but the API deliberately cannot return it.
+- **Backups:** the app's own existing daily scheduler, pointed at `/root/stores/<clientCode>/backups`
+  (`daman.backup.dir`). No separate backup code.
+- **Registry:** each store is a `HostedInstance` row in the admin database (`GET /api/hosted-stores`):
+  client code, subdomain, port, service name, hostnames, `status` (`PROVISIONING` | `ACTIVE` |
+  `FAILED`) and `failedStage`.
+- **viora is a deliberate exception:** its own jar (`/root/daman-store-viora.jar`), its own Pages
+  project, and its legacy data directory `/root/.daman/viora`. It is excluded from the shared-jar
+  release by service name (`daman-store-viora`). Its registry row exists only so port 8090 is never
+  reallocated to someone else.
+
+### 10.2 Creating an online client
+
+In the deploy dashboard, the **Create online client** card:
+
+1. Paste the remote admin token (the Bearer token from an admin-portal login) to load the client list.
+2. Pick the client (it must already exist in the admin panel).
+3. Confirm or edit the suggested subdomain.
+4. Set the licence expiry. **Blank = a perpetual licence.**
+5. Click **Create**.
+
+Notes:
+- It takes **up to about two minutes**. The Pages custom domain takes ~105 s to go from `pending` to
+  `active`; this is normal, not a hang.
+- The subdomain suggestion is legitimately **empty** when the client code has no usable ASCII letter
+  or digit (e.g. an Arabic-only shop name). Nothing invents a hostname: type one (lowercase ASCII
+  letters, digits, hyphens; one level deep only, see §4.1).
+- Under the hood this is `POST /api/hosted-stores` with `{clientCode, subdomain, expiresAt}`:
+  admin-token gated; 201 with the row on success *or* on a mid-sequence failure (check `status`);
+  400 for a refusal (nothing persisted); 409 with the existing row if the client is already `ACTIVE`.
+- Stages, in order: `ALLOCATE`, `DATA_DIR`, `UNIT`, `START`, `INGRESS`, `API_DNS`, `FRONTEND_DNS`,
+  `PAGES_ATTACH`, `PAGES_ACTIVE` (the ~105 s wait), `LICENCE`, `VERIFY`.
+
+### 10.3 Credentials the admin backend needs
+
+- **Cloudflare API token** (`CLOUDFLARE_API_TOKEN`). Needs **Pages:Edit** on the account **and
+  DNS:Edit** on `damansoft.com`. `cloudflared`'s `cert.pem` is not a substitute: it can create
+  tunnel CNAMEs but not Pages ones. The backend also reads `CLOUDFLARE_ACCOUNT_ID`,
+  `CLOUDFLARE_ZONE_ID` and `CLOUDFLARE_TUNNEL_ID` (see `application.yml`).
+- **Where it lives:** in production, a root-only `EnvironmentFile=` referenced by the admin
+  backend's systemd unit. It must never be in a git-tracked file, nor inline in a unit file (unit
+  files are world-readable). The dev-machine copy is `C:\Users\ASUS\.cloudflare\daman-provisioning.token`.
+- **Rotate it** once provisioning is in real use: it passed through a chat transcript during design.
+- **`DAMAN_ADMIN_TOKEN`** must be set in the *dashboard's* environment (before `npm start`) for the
+  all-stores release, or `deploy-store-backend.ps1` stops immediately: the restart route is
+  token-gated and the script has no other way to get a token.
+
+### 10.4 Releasing a new backend to every store
+
+Run the **Hosted Store Backend (all stores)** card (or `deploy-store-backend.ps1`). It refuses to
+ship anything but a generic build, checks the token against the server before changing anything,
+builds, uploads `daman-store.jar.new`, copies the old jar to `/root/daman-store.jar.prev`, renames
+the new one into place, then calls `POST /api/hosted-stores/restart-all` on the server.
+
+The walk restarts `ACTIVE` stores one at a time in **id order** (the oldest paying customer is the
+canary), polling `/api/health` after each (up to ~2 minutes per store), and **halts at the first
+store that does not come back healthy**. Read the guarantee honestly:
+
+- It is **delayed and sequenced exposure, not containment.** The new jar is already on disk when the
+  walk starts and every unit has `Restart=always`, so a store the walk never reached picks the new
+  jar up by itself on its next restart.
+- The health check only catches "does not boot". A jar that boots but misbehaves passes, and the
+  walk carries on to every store.
+- **There is no auto-rollback.** On a halt the script prints a one-line manual rollback. In essence:
+  ```bash
+  ssh root@162.55.51.189 'mv -f /root/daman-store.jar.prev /root/daman-store.jar'
+  systemctl restart daman-store-<clientCode>      # the halted store
+  journalctl -u daman-store-<clientCode> -n 100   # why it failed
+  ```
+  Stores after the halted one were not restarted but will load the new jar on any restart, so roll
+  back before then if the jar is really bad.
+- **Trap:** re-running the deploy after a halt overwrites `.prev` with the already-bad jar, so the
+  rollback above only works until the next deploy. Roll back (or copy `.prev` aside) *before*
+  deploying again.
+- viora is not touched by this release.
+
+### 10.5 A provision failed: reading the row and resuming
+
+Provisioning writes the stage it is *about to* attempt into the registry row before running it, so
+a `FAILED` row's `failedStage` is exactly where it stopped. Nothing is torn down automatically.
+
+1. Look at the row: `GET /api/hosted-stores` (admin Bearer token). Find the client, read `status`
+   and `failedStage`.
+2. Fix the cause. Typical: `CLOUDFLARE_*` missing or the token lacking a permission (`API_DNS`,
+   `FRONTEND_DNS`, `PAGES_*`); a service that will not start (`START`:
+   `journalctl -u daman-store-<clientCode>`); a slow Pages domain (`PAGES_ACTIVE`: just re-run).
+3. **Re-run Create for the same client** (same card, or `POST /api/hosted-stores`). It resumes from
+   `failedStage` rather than starting over.
+4. Re-running for a client that is already `ACTIVE` does nothing: it answers **409** with the
+   existing row.
+
+A 400 with an `error` message is a refusal before anything was created (e.g. missing subdomain):
+nothing to clean up, fix the input and resubmit.
