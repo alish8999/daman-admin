@@ -61,7 +61,18 @@ public final class IngressEditor {
         return join(lines);
     }
 
-    /** Removes the rule (hostname line plus its indented continuation lines). No-op if absent. */
+    /**
+     * Removes the rule (hostname line plus its indented continuation lines). No-op if absent.
+     *
+     * <p><b>No production caller, on purpose.</b> {@code HostedStoreProvisioningService} only ever
+     * adds its own {@code <sub>-api} hostname: removing a rule is one typo away from dropping
+     * {@code admin-api} (the tunnel the provisioning request itself arrives through) or
+     * {@code viora-api} from the shared root-owned config, so teardown stays a manual SSH task.
+     * This method is kept because the shape of the file's editing is tested as a whole, and because
+     * a future deliberate teardown path will need it — but if you are about to wire it up, the
+     * guard "only for a hostname recorded against a registry row we own" belongs at the call site,
+     * not in here.
+     */
     public static String removeRule(String yaml, String hostname) {
         requireValidHostname(hostname);
         List<String> lines = split(yaml);

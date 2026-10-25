@@ -73,7 +73,13 @@ class AuthFilterPublicPathsTest {
             "/api/trials",
             // Hosted-store provisioning: creates DNS records, systemd units and licences.
             "/api/hosted-stores",
-            "/api/hosted-stores/suggest-subdomain"
+            "/api/hosted-stores/suggest-subdomain",
+            // The most destructive route in the hosted-store feature: it bounces EVERY paying
+            // store, one at a time. Gated in fact by this filter's prefix-independent default-deny,
+            // but listed on its own line because of what it does, not because it was in doubt.
+            "/api/hosted-stores/restart-all",
+            // Deletes a registry row (refused for an ACTIVE store, but still a write).
+            "/api/hosted-stores/acme"
     );
 
     SessionService sessionService;

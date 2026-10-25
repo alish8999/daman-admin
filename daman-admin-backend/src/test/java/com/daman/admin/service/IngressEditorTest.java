@@ -111,7 +111,15 @@ class IngressEditorTest {
     void outputHasOnlyLfLineEndings() {
         String crlf = LIVE.replace("\n", "\r\n");
         assertThat(IngressEditor.addRule(crlf, "acme-api.damansoft.com", 8101)).doesNotContain("\r");
-        assertThat(IngressEditor.removeRule(crlf, "viora-api.damansoft.com")).doesNotContain("\r");
+        // Removal is exercised on a rule this test added itself, deliberately NOT on viora's or
+        // admin-api's: no test in this repo should model removing a live store's ingress rule, and
+        // removeRule has no production caller for exactly that reason.
+        String withNeutral = IngressEditor.addRule(LIVE, "neutral-api.example.test", 8102)
+                .replace("\n", "\r\n");
+        assertThat(IngressEditor.removeRule(withNeutral, "neutral-api.example.test"))
+                .doesNotContain("\r")
+                .doesNotContain("neutral-api.example.test")
+                .contains("- hostname: viora-api.damansoft.com");
     }
 
     @Test
