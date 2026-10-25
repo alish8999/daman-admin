@@ -23,12 +23,22 @@ public final class StoreUnitRenderer {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    /**
+     * The one derivation of a store's data directory, shared with the provisioner so the registry
+     * row and the running unit can never disagree. Derived from the client code, never read back
+     * from {@code HostedInstance.dataDir}: viora's legacy row carries {@code /root/.daman/viora},
+     * which is the truth for viora and would be wrong in a newly rendered unit.
+     */
+    public static String dataDir(String clientCode) {
+        return "/root/stores/" + clientCode;
+    }
+
     public static String render(HostedInstance i) {
         if (i.getJwtSecret() == null || i.getJwtSecret().isBlank()) {
             // Without a per-store secret the backend falls back to the public default: forgeable tokens.
             throw new IllegalStateException("HostedInstance has no jwtSecret; refusing to render a unit");
         }
-        String home = "/root/stores/" + i.getClientCode();
+        String home = dataDir(i.getClientCode());
         String unit = """
                 [Unit]
                 Description=Daman Store Backend (%1$s)

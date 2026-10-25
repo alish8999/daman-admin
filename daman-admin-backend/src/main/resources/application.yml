@@ -36,3 +36,12 @@ daman:
   cloudflare:
     account-id: ${CLOUDFLARE_ACCOUNT_ID:}
     zone-id: ${CLOUDFLARE_ZONE_ID:}
+    # The named tunnel each store's <sub>-api hostname is CNAME'd to (<id>.cfargotunnel.com).
+    tunnel-id: ${CLOUDFLARE_TUNNEL_ID:}
+  # Hosted ("online") stores — see HostedStoreProvisioningService. The unit dir and ingress file
+  # are the server's real paths; they are properties only so a test or a dry run can redirect them.
+  hosted:
+    domain: ${DAMAN_HOSTED_DOMAIN:damansoft.com}
+    pages-project: ${DAMAN_HOSTED_PAGES_PROJECT:daman-store}
+    unit-dir: ${DAMAN_HOSTED_UNIT_DIR:/etc/systemd/system}
+    ingress-file: ${DAMAN_HOSTED_INGRESS_FILE:/etc/cloudflared/config.yml}
