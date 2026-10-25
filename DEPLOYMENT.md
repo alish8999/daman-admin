@@ -382,9 +382,14 @@ everything it needs per store is an existing property or JVM flag, so the POS-ba
   inside every installer, which is a public download, and its JWT filter trusts role/permissions
   straight from the token claims with no database lookup. Without a per-store secret, anyone with
   the installer could mint an admin token accepted by every hosted store. The secret is kept in the
-  registry row but the API deliberately cannot return it.
-- **Backups:** the app's own existing daily scheduler, pointed at `/root/stores/<clientCode>/backups`
-  (`daman.backup.dir`). No separate backup code.
+  registry row but the API deliberately cannot return it. It is inlined in the store's own unit,
+  but that is deliberate and safe: the provisioner writes each unit `rw-------` (root-only;
+  systemd reads units as root, so this costs nothing), unlike the systemd default of world-readable.
+- **Backups:** the app's own existing scheduler, pointed at `/root/stores/<clientCode>/backups`
+  (`daman.backup.dir`). No separate backup code. It writes one `daman_db_YYYY-MM-DD.zip` per day
+  (it *checks* every `daman.backup.check-interval-hours`, default 6, but a day's file is only made
+  once) and prunes beyond `daman.backup.retention-days` (default 14), so a store keeps about two
+  weeks of history.
 - **Registry:** each store is a `HostedInstance` row in the admin database (`GET /api/hosted-stores`):
   client code, subdomain, port, service name, hostnames, `status` (`PROVISIONING` | `ACTIVE` |
   `FAILED`) and `failedStage`.
@@ -421,9 +426,11 @@ Notes:
   DNS:Edit** on `damansoft.com`. `cloudflared`'s `cert.pem` is not a substitute: it can create
   tunnel CNAMEs but not Pages ones. The backend also reads `CLOUDFLARE_ACCOUNT_ID`,
   `CLOUDFLARE_ZONE_ID` and `CLOUDFLARE_TUNNEL_ID` (see `application.yml`).
-- **Where it lives:** in production, a root-only `EnvironmentFile=` referenced by the admin
-  backend's systemd unit. It must never be in a git-tracked file, nor inline in a unit file (unit
-  files are world-readable). The dev-machine copy is `C:\Users\ASUS\.cloudflare\daman-provisioning.token`.
+- **Where it lives:** *intended* home in production is a root-only `EnvironmentFile=` referenced by
+  the admin backend's systemd unit. **This is not confirmed as set up:** §3.1 documents that unit
+  and mentions no such file, so check the current unit first, and add it to §3.1 once it exists. The
+  token must never be in a git-tracked file, nor inline in the admin unit file (units are
+  world-readable by default). The dev-machine copy is `C:\Users\ASUS\.cloudflare\daman-provisioning.token`.
 - **Rotate it** once provisioning is in real use: it passed through a chat transcript during design.
 - **`DAMAN_ADMIN_TOKEN`** must be set in the *dashboard's* environment (before `npm start`) for the
   all-stores release, or `deploy-store-backend.ps1` stops immediately: the restart route is
@@ -446,10 +453,11 @@ store that does not come back healthy**. Read the guarantee honestly:
 - The health check only catches "does not boot". A jar that boots but misbehaves passes, and the
   walk carries on to every store.
 - **There is no auto-rollback.** On a halt the script prints a one-line manual rollback. In essence:
+  Run from the Windows dev machine; every line carries its own `ssh`, so each is safe to paste alone:
   ```bash
   ssh root@162.55.51.189 'mv -f /root/daman-store.jar.prev /root/daman-store.jar'
-  systemctl restart daman-store-<clientCode>      # the halted store
-  journalctl -u daman-store-<clientCode> -n 100   # why it failed
+  ssh root@162.55.51.189 'systemctl restart daman-store-<clientCode>'      # the halted store
+  ssh root@162.55.51.189 'journalctl -u daman-store-<clientCode> -n 100'   # why it failed
   ```
   Stores after the halted one were not restarted but will load the new jar on any restart, so roll
   back before then if the jar is really bad.
@@ -467,7 +475,9 @@ a `FAILED` row's `failedStage` is exactly where it stopped. Nothing is torn down
    and `failedStage`.
 2. Fix the cause. Typical: `CLOUDFLARE_*` missing or the token lacking a permission (`API_DNS`,
    `FRONTEND_DNS`, `PAGES_*`); a service that will not start (`START`:
-   `journalctl -u daman-store-<clientCode>`); a slow Pages domain (`PAGES_ACTIVE`: just re-run).
+   `journalctl -u daman-store-<clientCode>`); a slow Pages domain (`PAGES_ACTIVE`: just re-run). A re-run that hits a *refusal* (no capacity,
+   Cloudflare not configured, unknown client) returns **400** and leaves the `FAILED` row exactly as
+   it was: if `failedStage` has not moved and you got a 400, nothing advanced.
 3. **Re-run Create for the same client** (same card, or `POST /api/hosted-stores`). It resumes from
    `failedStage` rather than starting over.
 4. Re-running for a client that is already `ACTIVE` does nothing: it answers **409** with the
