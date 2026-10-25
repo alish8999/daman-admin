@@ -28,6 +28,10 @@ public class CloudflareClient {
 
     private static final String BASE = "https://api.cloudflare.com/client/v4";
 
+    /** What may be concatenated into a request path verbatim: ids, project names, hostnames. */
+    private static final java.util.regex.Pattern SAFE_PATH_SEGMENT =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9._-]+$");
+
     /** The HTTP seam: returns the response body (Cloudflare returns its JSON envelope on 4xx too). */
     @FunctionalInterface
     public interface Http {
@@ -64,16 +68,16 @@ public class CloudflareClient {
     public String createProxiedCname(String subdomain, String target) {
         String body = json(Map.of("type", "CNAME", "name", subdomain, "content", target,
                 "proxied", true, "ttl", 1));
-        JsonNode result = call("POST", "/zones/" + zoneId + "/dns_records", body);
+        JsonNode result = call("POST", "/zones/" + zone() + "/dns_records", body);
         return requireText(result, "id");
     }
 
     public void deleteDnsRecord(String recordId) {
-        call("DELETE", "/zones/" + zoneId + "/dns_records/" + recordId, null);
+        call("DELETE", "/zones/" + zone() + "/dns_records/" + segment("recordId", recordId), null);
     }
 
     public Optional<String> findDnsRecordId(String hostname) {
-        JsonNode result = call("GET", "/zones/" + zoneId + "/dns_records?name="
+        JsonNode result = call("GET", "/zones/" + zone() + "/dns_records?name="
                 + URLEncoder.encode(hostname, StandardCharsets.UTF_8), null);
         if (result == null || !result.isArray() || result.isEmpty()) {
             return Optional.empty();
@@ -88,15 +92,58 @@ public class CloudflareClient {
 
     /** One of initializing / pending / active / deactivated. */
     public String pagesDomainStatus(String project, String hostname) {
-        return requireText(call("GET", pagesDomains(project) + "/" + hostname, null), "status");
+        return requireText(
+                call("GET", pagesDomains(project) + "/" + segment("hostname", hostname), null), "status");
     }
 
     public void detachPagesDomain(String project, String hostname) {
-        call("DELETE", pagesDomains(project) + "/" + hostname, null);
+        call("DELETE", pagesDomains(project) + "/" + segment("hostname", hostname), null);
     }
 
     private String pagesDomains(String project) {
-        return "/accounts/" + accountId + "/pages/projects/" + project + "/domains";
+        return "/accounts/" + account() + "/pages/projects/" + segment("project", project) + "/domains";
+    }
+
+    /**
+     * Fails here, naming the missing setting, rather than sending {@code GET /zones//dns_records}
+     * and reporting whatever Cloudflare makes of that.
+     *
+     * <p><b>Per call, deliberately not in the constructor.</b> A constructor guard would make this
+     * bean impossible to build without credentials, and {@code DamanAdminContextLoadsTest} boots the
+     * whole context with these properties blank precisely to prove the beans construct without a
+     * token. {@code HostedStoreProvisioningService.requireCloudflareConfigured()} already covers the
+     * only production caller with a better message; this is the backstop under it.
+     */
+    private String zone() {
+        return configured("daman.cloudflare.zone-id", zoneId);
+    }
+
+    private String account() {
+        return configured("daman.cloudflare.account-id", accountId);
+    }
+
+    private static String configured(String property, String value) {
+        if (value == null || value.isBlank()) {
+            throw new CloudflareException(property + " is not configured");
+        }
+        return value;
+    }
+
+    /**
+     * A value about to be concatenated into a request path, checked instead of encoded.
+     *
+     * <p>There is <b>no reachable injection today</b> — a record id comes from Cloudflare itself,
+     * the project name from configuration, and a hostname from an already-validated subdomain plus
+     * the configured domain — so this is hardening, not a security fix. Rejecting is better than
+     * percent-encoding here: every legitimate value is already within this charset, so anything
+     * outside it means a caller is confused, and encoding it would quietly send a request that
+     * cannot match anything.
+     */
+    private static String segment(String what, String value) {
+        if (value == null || value.isBlank() || !SAFE_PATH_SEGMENT.matcher(value).matches()) {
+            throw new CloudflareException("Unsafe " + what + " for a Cloudflare request path: " + value);
+        }
+        return value;
     }
 
     private String json(Object o) {
@@ -116,6 +163,13 @@ public class CloudflareClient {
         String raw;
         try {
             raw = http.send(method, path, body);
+        } catch (InterruptedException e) {
+            // Restore the flag the catch below would otherwise swallow: a provisioning run is
+            // cancellable (its thread is interrupted on shutdown), and an interrupt that is caught
+            // and dropped leaves every later blocking call in the run behaving as if nothing
+            // happened.
+            Thread.currentThread().interrupt();
+            throw new CloudflareException("Cloudflare request interrupted: " + method + " " + path);
         } catch (Exception e) {
             // Only the exception type: its message/cause could embed request headers.
             throw new CloudflareException("Cloudflare request failed: " + method + " " + path
