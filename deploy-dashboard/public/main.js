@@ -721,6 +721,181 @@
       });
   })();
 
+  // The Create online client card talks to the REMOTE admin portal (proxied through
+  // /api/remote/*) because the real client records and licences live in the server's database,
+  // not the local one. It needs its own Bearer token: the local session token is not valid there.
+  // The token is relayed exactly as pasted - this page never holds or asks for a password.
+  // Provisioning is always a POST; nothing on this card is triggered by loading or navigating.
+  (function initCreateStoreCard() {
+    const card = document.querySelector('.card[data-slot="create-store"]');
+    if (!card) return;
+
+    const tokenInput = card.querySelector('.create-token-input');
+    const clientSelect = card.querySelector('.create-client-select');
+    const expiryInput = card.querySelector('.create-expiry-input');
+    const subdomainInput = card.querySelector('.create-subdomain-input');
+    const subdomainHint = card.querySelector('.create-subdomain-hint');
+    const btn = card.querySelector('.create-btn');
+    const log = card.querySelector('.log');
+    const logPanel = card.querySelector('.log-panel');
+    const footer = card.querySelector('.footer');
+    const SUGGESTED_HINT = '(suggested from the client; editable)';
+
+    // sessionStorage only, same as the build card: gone when the tab closes.
+    try {
+      const saved = sessionStorage.getItem('remotePortalToken');
+      if (saved) tokenInput.value = saved;
+    } catch (err) {
+      // Blocked storage - the token just won't survive a reload.
+    }
+
+    function authHeaders() {
+      const token = tokenInput.value.trim();
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+
+    function setStatus(text, kind) {
+      footer.textContent = text;
+      footer.className = kind ? `footer ${kind}` : 'footer';
+    }
+
+    function readError(r, body) {
+      if (r.status === 401 || r.status === 403) {
+        return 'Remote token is missing, wrong, or expired - paste a fresh one from admin.damansoft.com.';
+      }
+      return (body && body.error) || `Request failed (HTTP ${r.status})`;
+    }
+
+    function parseBody(text) {
+      try { return JSON.parse(text); } catch (err) { return null; }
+    }
+
+    function loadClients() {
+      if (!tokenInput.value.trim()) return;
+      fetch('/api/remote/clients', { headers: authHeaders() })
+        .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
+        .then(({ r, body }) => {
+          if (!r.ok || !Array.isArray(body)) {
+            setStatus(readError(r, body), 'failure');
+            return;
+          }
+          const previous = clientSelect.value;
+          clientSelect.textContent = '';
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Select a client...';
+          clientSelect.append(placeholder);
+          body
+            .map((c) => ({ code: c.clientCode, name: c.appName }))
+            .filter((c) => c.code)
+            .sort((a, b) => a.code.localeCompare(b.code))
+            .forEach((c) => {
+              const opt = document.createElement('option');
+              opt.value = c.code;
+              opt.textContent = c.name && c.name !== c.code ? `${c.code} - ${c.name}` : c.code;
+              clientSelect.append(opt);
+            });
+          if (previous) clientSelect.value = previous;
+          setStatus('Clients loaded', 'success');
+        })
+        .catch(() => setStatus('Could not reach the dashboard server', 'failure'));
+    }
+
+    let loadTimer = null;
+    tokenInput.addEventListener('input', () => {
+      try {
+        sessionStorage.setItem('remotePortalToken', tokenInput.value);
+      } catch (err) {
+        // Non-fatal.
+      }
+      clearTimeout(loadTimer);
+      loadTimer = setTimeout(loadClients, 400);
+    });
+    loadClients();
+
+    // Only the response for the CURRENTLY selected client may fill the field, so a slow answer
+    // for a previous pick can never overwrite a newer one. Changing the client resets the field.
+    let suggestSeq = 0;
+    clientSelect.addEventListener('change', () => {
+      const code = clientSelect.value;
+      const seq = ++suggestSeq;
+      subdomainInput.value = '';
+      subdomainHint.textContent = SUGGESTED_HINT;
+      if (!code) return;
+      fetch(`/api/remote/hosted-stores/suggest-subdomain?clientCode=${encodeURIComponent(code)}`, {
+        headers: authHeaders(),
+      })
+        .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
+        .then(({ r, body }) => {
+          if (seq !== suggestSeq) return;
+          if (!r.ok || !body) {
+            setStatus(readError(r, body), 'failure');
+            return;
+          }
+          // An empty suggestion is legitimate (e.g. an Arabic-only client code): leave the
+          // field empty and say so rather than inventing a hostname.
+          subdomainInput.value = body.subdomain || '';
+          if (!body.subdomain) {
+            subdomainHint.textContent = '(no automatic suggestion for this client - type one: lowercase letters, digits, hyphens)';
+          }
+        })
+        .catch(() => {});
+    });
+
+    function describe(status, row) {
+      if (status === 201 && row && row.status === 'ACTIVE') {
+        return { text: `Created${row.frontendHostname ? ': https://' + row.frontendHostname : ''}`, kind: 'success' };
+      }
+      if (status === 201 && row && row.status === 'FAILED') {
+        return {
+          text: `Failed at stage ${row.failedStage || 'unknown'} - click Create again to resume`,
+          kind: 'failure',
+        };
+      }
+      if (status === 409) {
+        return { text: `Already ACTIVE${row && row.frontendHostname ? ': https://' + row.frontendHostname : ''}`, kind: 'failure' };
+      }
+      return null;
+    }
+
+    btn.addEventListener('click', () => {
+      const clientCode = clientSelect.value;
+      const subdomain = subdomainInput.value.trim();
+      if (!tokenInput.value.trim()) { setStatus('Paste the remote portal token first.', 'failure'); return; }
+      if (!clientCode) { setStatus('Select a client first.', 'failure'); return; }
+      if (!subdomain) { setStatus('Enter a subdomain first.', 'failure'); return; }
+
+      btn.disabled = true;
+      log.textContent = '';
+      logPanel.open = true;
+      setStatus('Running...');
+      appendLine(log, `Creating hosted store for ${clientCode} at ${subdomain}... (this can take a minute)`);
+
+      fetch('/api/remote/hosted-stores', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+        body: JSON.stringify({ clientCode, subdomain, expiresAt: expiryInput.value }),
+      })
+        .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
+        .then(({ r, body }) => {
+          const outcome = describe(r.status, body);
+          if (outcome) {
+            appendLine(log, JSON.stringify(body, null, 2));
+            setStatus(outcome.text, outcome.kind);
+          } else {
+            const message = readError(r, body);
+            appendLine(log, message);
+            setStatus(message, 'failure');
+          }
+        })
+        .catch((err) => {
+          appendLine(log, `Request failed: ${err.message}`);
+          setStatus('Could not reach the dashboard server', 'failure');
+        })
+        .finally(() => { btn.disabled = false; });
+    });
+  })();
+
   // On load, reflect anything already running server-side (e.g. the page was
   // reloaded mid-deploy). Re-attaching to the live log is out of scope - this
   // only keeps the button state honest.

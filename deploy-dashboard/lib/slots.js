@@ -12,6 +12,9 @@ const HOSTED_STORE = {
   pagesProject: 'daman-store',
   apiHost: 'viora-api.damansoft.com',
   siteUrl: 'https://viora.damansoft.com/',
+  // The one Pages project every hosted store is served from - the only frontend URL that is
+  // a property of the shared deployment rather than of a single tenant.
+  sharedSiteUrl: 'https://daman-store.pages.dev/',
 };
 
 // `args` are fixed command-line arguments passed to the script on every run.
@@ -36,7 +39,7 @@ const SLOTS = {
   },
   'store-frontend': {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-frontend.ps1'),
-    label: `Hosted Store Frontend (${HOSTED_STORE.clientCode})`,
+    label: 'Hosted Store Frontend (shared)',
     args: ['-PagesProject', HOSTED_STORE.pagesProject],
   },
 };

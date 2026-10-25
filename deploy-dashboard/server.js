@@ -19,8 +19,10 @@ const GENERIC_BUILD_DIR = path.join(__dirname, '..', '..', 'clients-build', 'gen
 const HEALTH_TARGETS = {
   backend: 'https://admin-api.damansoft.com/api/licenses/public-key',
   frontend: 'https://admin.damansoft.com/',
-  'store-backend': `https://${HOSTED_STORE.apiHost}/api/health`,
-  'store-frontend': HOSTED_STORE.siteUrl,
+  // One shared Pages project serves every tenant, so this reports the health of the shared
+  // deployment - not of any single store's hostname. There is deliberately no per-store
+  // backend check here: that is a property of each hosted store, not of the dashboard.
+  'store-frontend': HOSTED_STORE.sharedSiteUrl,
 };
 const HEALTH_TIMEOUT_MS = 6000;
 
@@ -35,6 +37,29 @@ const VERSION_QUERY_PATTERN = /^\d+\.\d+\.\d+$/;
 // never depends on daman-admin-backend's own CORS config.
 const LOCAL_ADMIN_BACKEND = { host: 'localhost', port: 8083 };
 const BUILD_PROXY_TIMEOUT_MS = 8000;
+
+// The REAL client records and licences live in the server's H2 on the Hetzner box, not in the
+// local H2 behind :8083, so provisioning has to run on the remote portal. Exported (and
+// deliberately plain mutable objects) so tests can aim them at a local fake - production code
+// never reassigns them. There is NO fallback between the two targets: an unreachable remote is
+// reported as such, never silently answered by the local backend's different data.
+const LOCAL_TARGET = {
+  secure: false,
+  ...LOCAL_ADMIN_BACKEND,
+  timeoutMs: BUILD_PROXY_TIMEOUT_MS,
+  unreachableMessage: 'Local admin-backend is not reachable on localhost:8083 - start it first.',
+};
+const REMOTE_ADMIN_BACKEND = {
+  secure: true,
+  host: 'admin-api.damansoft.com',
+  port: 443,
+  timeoutMs: BUILD_PROXY_TIMEOUT_MS,
+  unreachableMessage:
+    'Remote admin API (admin-api.damansoft.com) is not reachable or timed out. Nothing fell back to the local backend. If you were creating a store, check the registry before retrying.',
+};
+// Provisioning writes a unit, DNS, a tunnel rule and a licence on the server - far slower than a read.
+const PROVISION_TIMEOUT_MS = 180000;
+const MAX_JSON_BODY_BYTES = 16 * 1024;
 const BUILD_PLATFORMS = new Set(['win', 'winx86']);
 
 const runLock = new RunLock(Object.keys(SLOTS));
@@ -125,14 +150,15 @@ async function handleHealth(req, res) {
 // never holds or requests a password, it just relays whatever token the
 // browser already sent (pasted once from a real admin-portal login) straight
 // through, unmodified, exactly like it arrived.
-function proxyToLocalAdminBackend(req, method, targetPath, res, body) {
+//
+// One helper, parameterised by target (local :8083 or the remote portal). The local routes
+// keep calling proxyToLocalAdminBackend with its original signature and behaviour.
+function proxyToAdminBackend(target, req, method, targetPath, res, body, timeoutMs) {
   let settled = false;
   const respondUnreachable = () => {
     if (settled) return;
     settled = true;
-    sendJson(res, 503, {
-      error: 'Local admin-backend is not reachable on localhost:8083 - start it first.',
-    });
+    sendJson(res, 503, { error: target.unreachableMessage });
   };
 
   const headers = {};
@@ -143,8 +169,16 @@ function proxyToLocalAdminBackend(req, method, targetPath, res, body) {
     headers['content-length'] = Buffer.byteLength(payload);
   }
 
-  const upstreamReq = http.request(
-    { ...LOCAL_ADMIN_BACKEND, method, path: targetPath, timeout: BUILD_PROXY_TIMEOUT_MS, headers },
+  const transport = target.secure ? https : http;
+  const upstreamReq = transport.request(
+    {
+      host: target.host,
+      port: target.port,
+      method,
+      path: targetPath,
+      timeout: timeoutMs || target.timeoutMs,
+      headers,
+    },
     (upstreamRes) => {
       let respBody = '';
       upstreamRes.on('data', (chunk) => { respBody += chunk; });
@@ -162,17 +196,67 @@ function proxyToLocalAdminBackend(req, method, targetPath, res, body) {
   upstreamReq.end();
 }
 
+function proxyToLocalAdminBackend(req, method, targetPath, res, body) {
+  proxyToAdminBackend(LOCAL_TARGET, req, method, targetPath, res, body);
+}
+
+function proxyToRemoteAdminBackend(req, method, targetPath, res, body, timeoutMs) {
+  proxyToAdminBackend(REMOTE_ADMIN_BACKEND, req, method, targetPath, res, body, timeoutMs);
+}
+
 // Collects a JSON request body from the browser before relaying it onward -
 // only the two proxied write endpoints below (versions, changelog-library)
 // ever send one; every other route here takes its input from the query
 // string instead.
-function readRequestBody(req) {
+function readRequestBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', (chunk) => { data += chunk; });
+    let tooLarge = false;
+    req.on('data', (chunk) => {
+      if (tooLarge) return; // keep draining so the 413 can still be written on the open socket
+      data += chunk;
+      if (maxBytes && data.length > maxBytes) {
+        tooLarge = true;
+        data = '';
+        reject(new Error('Request body too large'));
+      }
+    });
     req.on('end', () => resolve(data));
     req.on('error', reject);
   });
+}
+
+// Create online client. A provision is a POST (never a GET) behind the same-origin guard in the
+// request handler. The ONLY request-derived values are the three the owner chose on the page;
+// everything else (port, hostnames, paths, unit template) is decided by the remote endpoint.
+// The body is rebuilt from those three fields so nothing else can ride along.
+async function handleRemoteProvision(req, res) {
+  let raw;
+  try {
+    raw = await readRequestBody(req, MAX_JSON_BODY_BYTES);
+  } catch (err) {
+    sendJson(res, 413, { error: 'Request body too large' });
+    return;
+  }
+  let parsedBody;
+  try {
+    parsedBody = JSON.parse(raw);
+  } catch (err) {
+    sendJson(res, 400, { error: 'Body must be JSON {clientCode, subdomain, expiresAt}' });
+    return;
+  }
+  const { clientCode, subdomain } = parsedBody || {};
+  // expiresAt is optional (blank = no expiry on the licence); the remote validates its format.
+  const expiresAt = (parsedBody && parsedBody.expiresAt) == null ? '' : parsedBody.expiresAt;
+  if (typeof clientCode !== 'string' || !clientCode.trim()
+      || typeof subdomain !== 'string' || typeof expiresAt !== 'string') {
+    sendJson(res, 400, { error: 'clientCode and subdomain are required strings; expiresAt must be a string' });
+    return;
+  }
+  proxyToRemoteAdminBackend(
+    req, 'POST', '/api/hosted-stores', res,
+    { clientCode, subdomain, expiresAt }, PROVISION_TIMEOUT_MS
+  );
 }
 
 function handleBuildGenericStart(req, res, query) {
@@ -355,6 +439,28 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Remote portal (hosted-store provisioning). The same-origin guard above covers these.
+  if (req.method === 'GET' && pathname === '/api/remote/clients') {
+    proxyToRemoteAdminBackend(req, 'GET', '/api/clients', res);
+    return;
+  }
+  if (req.method === 'GET' && pathname === '/api/remote/hosted-stores') {
+    proxyToRemoteAdminBackend(req, 'GET', '/api/hosted-stores', res);
+    return;
+  }
+  if (req.method === 'GET' && pathname === '/api/remote/hosted-stores/suggest-subdomain') {
+    const clientCode = typeof parsed.query.clientCode === 'string' ? parsed.query.clientCode : '';
+    proxyToRemoteAdminBackend(
+      req, 'GET',
+      `/api/hosted-stores/suggest-subdomain?clientCode=${encodeURIComponent(clientCode)}`, res
+    );
+    return;
+  }
+  if (req.method === 'POST' && pathname === '/api/remote/hosted-stores') {
+    await handleRemoteProvision(req, res);
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Not found');
 });
@@ -372,4 +478,5 @@ if (require.main === module) {
   });
 }
 
-module.exports = { server, runLock, runningPids, killTrackedChildren, isSameOrigin };
+module.exports = { server, runLock, runningPids, killTrackedChildren, isSameOrigin,
+  REMOTE_ADMIN_BACKEND, LOCAL_TARGET };

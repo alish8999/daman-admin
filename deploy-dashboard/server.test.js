@@ -61,7 +61,8 @@ scriptRunner.runScript = function (scriptPath, args) {
 };
 SLOTS.spawnfail = { scriptPath: SPAWN_FAIL_SENTINEL, label: 'Spawn Fail Test' };
 
-const { server } = require('./server');
+const { server, REMOTE_ADMIN_BACKEND } = require('./server');
+const PRODUCTION_REMOTE = { ...REMOTE_ADMIN_BACKEND };
 
 // Assigned in test.before - the server binds an ephemeral port so `npm test`
 // never collides with a dashboard the developer already has running on 5500.
@@ -192,7 +193,9 @@ test('store-frontend slot passes the fixed -PagesProject argument to its script'
   const res = await get('/api/deploy/store-frontend/stream');
   assert.strictEqual(res.statusCode, 200);
   assert.ok(
-    res.body.includes('ARGS:daman-store'),
+    // The log line is JSON-encoded in the SSE data, so the closing quote pins the exact end of the
+    // name: a prefix match would also pass for the old per-tenant ARGS:daman-store-viora.
+    res.body.includes('ARGS:daman-store"'),
     `script did not receive the fixed args: ${res.body}`
   );
   assert.ok(res.body.includes('"code":0'));
@@ -212,10 +215,190 @@ test('the new store slots appear in /api/status with their own independent locks
   assert.strictEqual(status['store-frontend'], false);
 });
 
-test('/api/health reports the hosted store frontend and API alongside the admin ones', async () => {
+test('/api/health reports the shared store frontend alongside the admin ones, with no per-tenant check', async () => {
   const health = JSON.parse((await get('/api/health')).body);
-  for (const key of ['backend', 'frontend', 'store-backend', 'store-frontend']) {
+  assert.ok(!('store-backend' in health), "a single tenant's API must not be reported as store health");
+  for (const key of ['backend', 'frontend', 'store-frontend']) {
     assert.ok(key in health, `health is missing "${key}": ${JSON.stringify(health)}`);
     assert.strictEqual(typeof health[key], 'boolean');
+  }
+});
+
+// ---- Remote portal proxy (Create online client) ------------------------------------------
+
+// A local fake standing in for https://admin-api.damansoft.com. It records every request so the
+// tests can prove exactly what was relayed. NOTHING here ever contacts the real portal.
+function startFakeRemote() {
+  const seen = [];
+  const fake = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      seen.push({ method: req.method, url: req.url, headers: req.headers, body });
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ via: 'fake-remote', url: req.url }));
+    });
+  });
+  return new Promise((resolve) => {
+    fake.listen(0, '127.0.0.1', () => resolve({ fake, seen, port: fake.address().port }));
+  });
+}
+
+function aimRemoteAt(fakePort) {
+  Object.assign(REMOTE_ADMIN_BACKEND, { secure: false, host: '127.0.0.1', port: fakePort });
+}
+
+function restoreRemote() {
+  Object.assign(REMOTE_ADMIN_BACKEND, PRODUCTION_REMOTE);
+}
+
+function post(pathAndQuery, bodyObj, headers) {
+  const payload = typeof bodyObj === 'string' ? bodyObj : JSON.stringify(bodyObj);
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: '127.0.0.1', port, path: pathAndQuery, method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...headers },
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+      }
+    );
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
+
+test('remote proxy target is the hosted admin API, not localhost', () => {
+  assert.strictEqual(PRODUCTION_REMOTE.host, 'admin-api.damansoft.com');
+  assert.strictEqual(PRODUCTION_REMOTE.secure, true);
+  assert.strictEqual(PRODUCTION_REMOTE.port, 443);
+});
+
+test('POST /api/remote/hosted-stores rejects a cross-origin request and never reaches the remote', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const body = { clientCode: 'acme', subdomain: 'acme', expiresAt: '2027-01-01' };
+    const evil = await post('/api/remote/hosted-stores', body, { Origin: 'http://evil.example' });
+    assert.strictEqual(evil.statusCode, 403);
+    const noCors = await post('/api/remote/hosted-stores', body, { 'Sec-Fetch-Site': 'cross-site' });
+    assert.strictEqual(noCors.statusCode, 403);
+    // The read routes sit behind the same guard.
+    const read = await get('/api/remote/clients', { Origin: 'http://evil.example' });
+    assert.strictEqual(read.statusCode, 403);
+    assert.strictEqual(seen.length, 0, 'a rejected request must not have been relayed');
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('a plain GET can never trigger a provision', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const res = await get('/api/remote/hosted-stores?clientCode=acme&subdomain=acme&expiresAt=2027-01-01');
+    assert.strictEqual(res.statusCode, 201); // the fake answers everything with 201
+    assert.deepStrictEqual(seen.map((s) => [s.method, s.url]), [['GET', '/api/hosted-stores']]);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('remote routes relay the Authorization header unmodified', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const auth = 'Bearer remote-token-xyz';
+    await get('/api/remote/clients', { Authorization: auth });
+    await get('/api/remote/hosted-stores', { Authorization: auth });
+    await get('/api/remote/hosted-stores/suggest-subdomain?clientCode=al%20karam', { Authorization: auth });
+    const created = await post(
+      '/api/remote/hosted-stores',
+      { clientCode: 'acme', subdomain: 'acme', expiresAt: '2027-01-01', jwtSecret: 'smuggled', port: 1 },
+      { Authorization: auth }
+    );
+    assert.strictEqual(created.statusCode, 201);
+    assert.deepStrictEqual(seen.map((s) => `${s.method} ${s.url}`), [
+      'GET /api/clients',
+      'GET /api/hosted-stores',
+      'GET /api/hosted-stores/suggest-subdomain?clientCode=al%20karam',
+      'POST /api/hosted-stores',
+    ]);
+    for (const s of seen) assert.strictEqual(s.headers.authorization, auth);
+    // Only the three owner-chosen fields are forwarded; anything else is dropped.
+    assert.deepStrictEqual(JSON.parse(seen[3].body), { clientCode: 'acme', subdomain: 'acme', expiresAt: '2027-01-01' });
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('POST /api/remote/hosted-stores rejects a malformed body with 400 before relaying', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    assert.strictEqual((await post('/api/remote/hosted-stores', 'not json')).statusCode, 400);
+    assert.strictEqual((await post('/api/remote/hosted-stores', { clientCode: 'acme' })).statusCode, 400);
+    assert.strictEqual(seen.length, 0);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('remote routes do not fall back to localhost:8083 when the remote is unreachable', async () => {
+  // A fake standing in for the local :8083 backend, if the port is free on this machine.
+  let localHits = 0;
+  const localFake = http.createServer((req, res) => { localHits++; res.end('{}'); });
+  const localBound = await new Promise((resolve) => {
+    localFake.once('error', () => resolve(false));
+    localFake.listen(8083, '127.0.0.1', () => resolve(true));
+  });
+  // Point the remote at a port nothing listens on.
+  const closed = http.createServer();
+  await new Promise((r) => closed.listen(0, '127.0.0.1', r));
+  const deadPort = closed.address().port;
+  await new Promise((r) => closed.close(r));
+  aimRemoteAt(deadPort);
+  try {
+    const res = await get('/api/remote/clients', { Authorization: 'Bearer t' });
+    assert.strictEqual(res.statusCode, 503);
+    const msg = JSON.parse(res.body).error;
+    assert.ok(msg.includes('admin-api.damansoft.com'), msg);
+    assert.ok(!msg.includes('localhost:8083'), msg);
+    const created = await post('/api/remote/hosted-stores', { clientCode: 'a', subdomain: 'a', expiresAt: 'x' });
+    assert.strictEqual(created.statusCode, 503);
+    if (localBound) assert.strictEqual(localHits, 0, 'the local backend must never answer a remote route');
+  } finally {
+    restoreRemote();
+    if (localBound) localFake.close();
+  }
+});
+
+test('the local proxy routes still target localhost:8083 and report its own unreachable message', async () => {
+  // Only meaningful when nothing real is listening on 8083; otherwise just require a real answer.
+  const res = await get('/api/versions', { Authorization: 'Bearer t' });
+  if (res.statusCode === 503) {
+    assert.ok(JSON.parse(res.body).error.includes('localhost:8083'));
+  } else {
+    assert.ok(res.statusCode >= 200 && res.statusCode < 600);
+  }
+});
+
+test('a blank expiry is forwarded as an empty string (licence without an expiry)', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const res = await post('/api/remote/hosted-stores', { clientCode: 'acme', subdomain: 'acme' });
+    assert.strictEqual(res.statusCode, 201);
+    assert.deepStrictEqual(JSON.parse(seen[0].body), { clientCode: 'acme', subdomain: 'acme', expiresAt: '' });
+  } finally {
+    restoreRemote();
+    fake.close();
   }
 });
