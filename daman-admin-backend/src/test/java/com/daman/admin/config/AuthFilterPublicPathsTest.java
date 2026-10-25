@@ -70,7 +70,10 @@ class AuthFilterPublicPathsTest {
             "/api/trial/registrations",
             "/api/trial/settings",
             // Trials tab listing: prospects' names and phones. Never anonymous.
-            "/api/trials"
+            "/api/trials",
+            // Hosted-store provisioning: creates DNS records, systemd units and licences.
+            "/api/hosted-stores",
+            "/api/hosted-stores/suggest-subdomain"
     );
 
     SessionService sessionService;
@@ -148,6 +151,15 @@ class AuthFilterPublicPathsTest {
         assertThat(call("GET", "/api/trials", null).getStatus()).isEqualTo(401);
         assertThat(reached("GET", "/api/trials", null)).isFalse();
         assertThat(reached("GET", "/api/trials", "good-token")).isTrue();
+    }
+
+    @Test
+    void hostedStoresIsNotPublic() throws Exception {
+        for (String method : List.of("GET", "POST")) {
+            assertThat(call(method, "/api/hosted-stores", null).getStatus()).isEqualTo(401);
+            assertThat(reached(method, "/api/hosted-stores", null)).isFalse();
+        }
+        assertThat(reached("POST", "/api/hosted-stores", "good-token")).isTrue();
     }
 
     @Test
