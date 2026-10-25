@@ -3,8 +3,10 @@ package com.daman.admin.controller;
 import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
 import com.daman.admin.service.HostedStoreProvisioningService;
+import com.daman.admin.service.ServerOps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -14,6 +16,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,6 +31,7 @@ class HostedStoreControllerTest {
 
     private HostedStoreProvisioningService service;
     private HostedInstanceRepository repository;
+    private ServerOps ops;
     private HostedStoreController controller;
     private final JsonMapper mapper = JsonMapper.builder().build();
 
@@ -34,7 +40,9 @@ class HostedStoreControllerTest {
         service = mock(HostedStoreProvisioningService.class);
         repository = mock(HostedInstanceRepository.class);
         when(repository.findByClientCode(any())).thenReturn(Optional.empty());
-        controller = new HostedStoreController(service, repository);
+        ops = mock(ServerOps.class);
+        // 3 health polls, no sleep: the tests never wait on a real clock.
+        controller = new HostedStoreController(service, repository, ops, 3, 0);
     }
 
     private HostedInstance row(String code, String status) {
@@ -170,5 +178,111 @@ class HostedStoreControllerTest {
         assertThat(HostedStoreController.HostedStoreDto.class.getRecordComponents())
                 .extracting(c -> c.getName().toLowerCase())
                 .noneMatch(n -> n.contains("secret") || n.contains("jwt"));
+    }
+    // ---- POST /restart-all: shared-jar release, one store at a time ----
+
+    private HostedInstance store(String code, int port, String status) {
+        HostedInstance i = row(code, status);
+        i.setPort(port);
+        return i;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<HostedStoreController.RestartResult> results(ResponseEntity<?> res) {
+        return (List<HostedStoreController.RestartResult>) res.getBody();
+    }
+
+    @Test
+    void restartAllWalksEveryActiveInstance() {
+        when(repository.findAll()).thenReturn(List.of(
+                store("a", 9101, "ACTIVE"), store("b", 9102, "ACTIVE"), store("c", 9103, "ACTIVE")));
+        when(ops.health(anyInt())).thenReturn(true);
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode)
+                .containsExactly("a", "b", "c");
+        assertThat(results(res)).allMatch(r -> r.restarted() && r.healthy());
+        // One at a time: each store is restarted and checked before the next is touched.
+        InOrder order = inOrder(ops);
+        order.verify(ops).restart("daman-store-a");
+        order.verify(ops).health(9101);
+        order.verify(ops).restart("daman-store-b");
+        order.verify(ops).health(9102);
+        order.verify(ops).restart("daman-store-c");
+        order.verify(ops).health(9103);
+    }
+
+    @Test
+    void restartAllStopsAtTheFirstUnhealthyStoreAndReportsIt() {
+        when(repository.findAll()).thenReturn(List.of(
+                store("a", 9101, "ACTIVE"), store("b", 9102, "ACTIVE"), store("c", 9103, "ACTIVE")));
+        when(ops.health(9101)).thenReturn(true);
+        when(ops.health(9102)).thenReturn(false);
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(res.getStatusCode().value()).isEqualTo(502);
+        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode)
+                .containsExactly("a", "b");
+        HostedStoreController.RestartResult bad = results(res).get(1);
+        assertThat(bad.restarted()).isTrue();
+        assertThat(bad.healthy()).isFalse();
+        // Later stores are NOT restarted - that is the point of the walk.
+        verify(ops, never()).restart("daman-store-c");
+        verify(ops, never()).health(9103);
+    }
+
+    @Test
+    void restartAllStopsWhenARestartItselfThrows() {
+        when(repository.findAll()).thenReturn(List.of(store("a", 9101, "ACTIVE"), store("b", 9102, "ACTIVE")));
+        doThrow(new IllegalStateException("systemctl failed")).when(ops).restart("daman-store-a");
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(res.getStatusCode().value()).isEqualTo(502);
+        assertThat(results(res)).hasSize(1);
+        assertThat(results(res).get(0).restarted()).isFalse();
+        assertThat(results(res).get(0).healthy()).isFalse();
+        verify(ops, never()).restart("daman-store-b");
+    }
+
+    @Test
+    void restartAllSkipsFailedAndProvisioningRows() {
+        when(repository.findAll()).thenReturn(List.of(
+                store("a", 9101, "FAILED"), store("b", 9102, "PROVISIONING"), store("c", 9103, "ACTIVE")));
+        when(ops.health(anyInt())).thenReturn(true);
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode).containsExactly("c");
+        verify(ops, never()).restart("daman-store-a");
+        verify(ops, never()).restart("daman-store-b");
+    }
+
+    @Test
+    void restartAllExcludesVioraWhichRunsItsOwnJar() {
+        // viora's unit points at /root/daman-store-viora.jar, not the shared jar, and is frozen:
+        // a shared-jar release must not bounce a live paying store that is not running it.
+        when(repository.findAll()).thenReturn(List.of(store("viora", 8090, "ACTIVE"), store("a", 9101, "ACTIVE")));
+        when(ops.health(anyInt())).thenReturn(true);
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode).containsExactly("a");
+        verify(ops, never()).restart("daman-store-viora");
+        verify(ops, never()).health(8090);
+    }
+
+    @Test
+    void aSlowStoreIsGivenSeveralHealthPollsBeforeItIsDeclaredUnhealthy() {
+        when(repository.findAll()).thenReturn(List.of(store("a", 9101, "ACTIVE")));
+        when(ops.health(9101)).thenReturn(false, false, true);
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(results(res).get(0).healthy()).isTrue();
     }
 }

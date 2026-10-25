@@ -34,8 +34,10 @@ const SLOTS = {
   },
   'store-backend': {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-backend.ps1'),
-    label: `Hosted Store Backend (${HOSTED_STORE.clientCode})`,
-    args: ['-ClientCode', HOSTED_STORE.clientCode, '-Port', String(HOSTED_STORE.port)],
+    label: 'Hosted Store Backend (all stores)',
+    // Shared jar for every store, restarted one at a time by the server: no per-store arguments.
+    // The script reads the admin Bearer token from DAMAN_ADMIN_TOKEN (set before `npm start`).
+    args: [],
   },
   'store-frontend': {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-frontend.ps1'),

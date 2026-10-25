@@ -4,8 +4,9 @@ import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreProvisioningService.ProvisionRequest;
+import com.daman.admin.service.ServerOps;
 import com.daman.admin.service.SubdomainRules;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,11 +31,45 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/hosted-stores")
-@RequiredArgsConstructor
 public class HostedStoreController {
+
+    /** A fresh store boots Spring in up to ~a minute; poll this long before calling it unhealthy. */
+    private static final int HEALTH_ATTEMPTS = 40;
+    private static final long HEALTH_INTERVAL_MS = 3000;
+
+    /**
+     * Viora is frozen on its OWN jar (/root/daman-store-viora.jar), not the shared one, so a
+     * shared-jar release must not restart it. Rule chosen: exclude by service name. Deliberate, not
+     * incidental - the unit text is not stored in the registry, so "jar path is not the shared one"
+     * cannot be evaluated here; every other provisioned unit is rendered by StoreUnitRenderer with
+     * the shared jar by construction.
+     */
+    static final String VIORA_SERVICE = "daman-store-viora";
 
     private final HostedStoreProvisioningService provisioningService;
     private final HostedInstanceRepository repository;
+    private final ServerOps ops;
+    private final int healthAttempts;
+    private final long healthIntervalMs;
+
+    @Autowired
+    public HostedStoreController(HostedStoreProvisioningService provisioningService,
+                                 HostedInstanceRepository repository, ServerOps ops) {
+        this(provisioningService, repository, ops, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
+    }
+
+    HostedStoreController(HostedStoreProvisioningService provisioningService,
+                          HostedInstanceRepository repository, ServerOps ops,
+                          int healthAttempts, long healthIntervalMs) {
+        this.provisioningService = provisioningService;
+        this.repository = repository;
+        this.ops = ops;
+        this.healthAttempts = healthAttempts;
+        this.healthIntervalMs = healthIntervalMs;
+    }
+
+    /** One walked store. A store never reached (after a halt) has no entry at all. */
+    public record RestartResult(String clientCode, boolean restarted, boolean healthy) {}
 
     public record ProvisionBody(String clientCode, String subdomain, String expiresAt) {}
 
@@ -82,6 +117,53 @@ public class HostedStoreController {
     @GetMapping
     public List<HostedStoreDto> list() {
         return repository.findAll().stream().map(HostedStoreDto::of).toList();
+    }
+
+    /**
+     * Shared-jar release: restarts every ACTIVE store one at a time, polling its health before moving
+     * to the next, and HALTS at the first store that fails to restart or come up - so a bad jar takes
+     * one till down, not all of them. 200 when every store is healthy, 502 on a halt; the body is the
+     * list of stores actually walked (the unhealthy one last). Stores after the halt are untouched
+     * and absent from the list.
+     */
+    @PostMapping("/restart-all")
+    public ResponseEntity<List<RestartResult>> restartAll() {
+        List<HostedInstance> targets = repository.findAll().stream()
+                .filter(i -> "ACTIVE".equals(i.getStatus()))
+                .filter(i -> !VIORA_SERVICE.equals(i.getServiceName()))
+                .sorted(java.util.Comparator.comparing(HostedInstance::getId, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
+                .toList();
+        List<RestartResult> results = new java.util.ArrayList<>();
+        for (HostedInstance i : targets) {
+            RestartResult r = restartOne(i);
+            results.add(r);
+            if (!r.healthy()) {
+                return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(results);
+            }
+        }
+        return ResponseEntity.ok(results);
+    }
+
+    private RestartResult restartOne(HostedInstance i) {
+        try {
+            ops.restart(i.getServiceName());
+        } catch (RuntimeException e) {
+            return new RestartResult(i.getClientCode(), false, false);
+        }
+        for (int attempt = 1; attempt <= healthAttempts; attempt++) {
+            if (ops.health(i.getPort())) {
+                return new RestartResult(i.getClientCode(), true, true);
+            }
+            if (attempt < healthAttempts && healthIntervalMs > 0) {
+                try {
+                    Thread.sleep(healthIntervalMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        return new RestartResult(i.getClientCode(), true, false);
     }
 
     @GetMapping("/suggest-subdomain")

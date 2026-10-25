@@ -1,29 +1,33 @@
 <#
 .SYNOPSIS
-    Build + deploy a hosted store's daman-backend instance to the Hetzner server.
+    Build daman-backend once and release it to EVERY hosted store.
 
 .DESCRIPTION
-    Builds daman-backend's jar locally (JDK 21 explicitly - IntelliJ's bundled JDK 25 silently
-    breaks Lombok), scp's it to the server as /root/daman-store-<ClientCode>.jar, writes an
-    idempotent per-store systemd unit, restarts it, and verifies /api/health.
+    All hosted stores run the same jar, /root/daman-store.jar, and differ only by the environment
+    variables in their own systemd unit. This script builds daman-backend's jar locally (JDK 21
+    explicitly - IntelliJ's bundled JDK 25 silently breaks Lombok), scp's it to the server as the
+    shared jar, then calls POST /api/hosted-stores/restart-all on the server's own admin-backend.
+
+    The unit files are NOT written here: the provisioning endpoint owns them.
+
+    The restart is sequential with a health check between stores and HALTS at the first store that
+    does not come back healthy, so a bad jar takes one till down rather than all of them. The jar
+    is uploaded to a temp name and renamed into place, so a running JVM never has its jar rewritten
+    underneath it.
+
+    viora is frozen on its own jar (/root/daman-store-viora.jar) and is deliberately NOT restarted
+    by this release; the server excludes it.
 
     The jar is a GENERIC build (client-meta.properties must say client.generic=true - this script
-    refuses to ship anything else). The store's identity comes only from the DAMAN_CLIENT_CODE
-    env var in the unit and from the licence activated against this instance's machine ID.
-    Data lives in /root/.daman/<ClientCode>/ (the desktop profile's default: ~/.daman/<code>/).
+    refuses to ship anything else).
 
-    NOTE: the licence file is ~/.daman/license.dat (one per OS user), so this layout supports ONE
-    hosted store per server user. A second hosted store needs its own OS user / user.home.
-
-.PARAMETER ClientCode
-    Store client code, e.g. "viora".
-.PARAMETER Port
-    Local port for this store's backend (proxied by the Cloudflare Tunnel), e.g. 8090.
+.PARAMETER AdminToken
+    Admin session Bearer token (the one from an admin-portal login). Falls back to the
+    DAMAN_ADMIN_TOKEN environment variable. The restart route is admin-token-gated.
 #>
 
 param(
-    [Parameter(Mandatory = $true)][string]$ClientCode,
-    [Parameter(Mandatory = $true)][int]$Port
+    [string]$AdminToken = $env:DAMAN_ADMIN_TOKEN
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,8 +37,9 @@ $BackendDir  = "D:\Daman\src\daman-backend"
 $PomPath     = Join-Path $BackendDir "pom.xml"
 $MetaPath    = Join-Path $BackendDir "src\main\resources\client-meta.properties"
 $Server      = "root@162.55.51.189"
-$ServiceName = "daman-store-$ClientCode"
-$RemoteJar   = "/root/$ServiceName.jar"
+$RemoteJar   = "/root/daman-store.jar"   # shared by every hosted store (StoreUnitRenderer.SHARED_JAR)
+
+if (-not $AdminToken) { throw "No admin token. Pass -AdminToken or set DAMAN_ADMIN_TOKEN (paste the Bearer token from an admin-portal login) - the restart-all route is token-gated." }
 
 # The Maven wrapper's cached mvn.cmd folder hash has moved between sessions before -
 # discover it instead of hardcoding it.
@@ -42,7 +47,7 @@ $MvnCmd = Get-ChildItem -Path "C:\Users\ASUS\.m2\wrapper\dists" -Recurse -Filter
     Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName   # highest version dir wins (3.9.x > 3.8.x)
 if (-not $MvnCmd) { throw "No mvn.cmd found under C:\Users\ASUS\.m2\wrapper\dists - run a Maven build once in IntelliJ to populate it." }
 
-Write-Host "==> [1/5] Verifying this is a generic build..." -ForegroundColor Cyan
+Write-Host "==> [1/4] Verifying this is a generic build..." -ForegroundColor Cyan
 if ((Get-Content $MetaPath -Raw) -notmatch '(?m)^\s*client\.generic\s*=\s*true\s*$') {
     throw "client-meta.properties is not client.generic=true (a per-client dev-run may have left it). Run 'Reset dev' in the admin panel, then retry."
 }
@@ -50,7 +55,7 @@ if ((Get-Content $MetaPath -Raw) -match '(?m)^\s*client\.code\s*=\s*\S') {
     throw "client-meta.properties has a client.code set - refusing to ship a per-client build as a hosted generic instance."
 }
 
-Write-Host "==> [2/5] Building daman-backend (JDK 21)..." -ForegroundColor Cyan
+Write-Host "==> [2/4] Building daman-backend (JDK 21)..." -ForegroundColor Cyan
 $env:JAVA_HOME = $JavaHome
 & $MvnCmd -q -o clean package "-DskipTests" -f $PomPath
 if ($LASTEXITCODE -ne 0) { throw "Build failed - see Maven output above (a leftover java process holding target\*.jar also causes this)." }
@@ -59,68 +64,40 @@ $JarPath = Get-ChildItem -Path (Join-Path $BackendDir "target") -Filter "daman-b
 if (-not $JarPath) { throw "Built jar not found under $BackendDir\target." }
 Write-Host "    Built: $JarPath" -ForegroundColor DarkGray
 
-Write-Host "==> [3/5] Uploading jar to ${Server}:$RemoteJar ..." -ForegroundColor Cyan
-scp $JarPath "${Server}:${RemoteJar}"
+Write-Host "==> [3/4] Uploading jar to ${Server}:$RemoteJar ..." -ForegroundColor Cyan
+# Upload beside the live jar, then rename: rename is atomic, so no store ever reads a half-written jar
+# and a running JVM keeps its old inode until its own restart.
+scp $JarPath "${Server}:${RemoteJar}.new"
 if ($LASTEXITCODE -ne 0) { throw "scp of the jar failed." }
+ssh $Server "mv -f ${RemoteJar}.new ${RemoteJar}"
+if ($LASTEXITCODE -ne 0) { throw "Could not move the uploaded jar into place at $RemoteJar." }
 
-Write-Host "==> [4/5] Writing systemd unit ($ServiceName)..." -ForegroundColor Cyan
-# Real file + forced LF endings (same reason as deploy-admin-backend.ps1: a stray \r breaks bash/systemd
-# when a multi-line string is passed as an ssh argument).
-$unit = @"
-[Unit]
-Description=Daman Store Backend ($ClientCode)
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root
-Environment=DAMAN_PORT=$Port
-Environment=DAMAN_CLIENT_CODE=$ClientCode
-Environment=SPRING_PROFILES_ACTIVE=desktop
-ExecStart=/usr/bin/java -Xmx768m -jar $RemoteJar
-# "always", not "on-failure": Settings -> Restore DB (and other in-app restarts) make the backend exit
-# with status 0 on purpose, expecting Electron's shell to relaunch it. on-failure treats a clean exit
-# as "done" and leaves the service dead. A manual 'systemctl stop' is still respected.
-Restart=always
-RestartSec=5
-StandardOutput=append:/var/log/$ServiceName.log
-StandardError=append:/var/log/$ServiceName.log
-
-[Install]
-WantedBy=multi-user.target
-"@
-$unit = $unit -replace "`r`n", "`n"
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
-$localUnit = Join-Path $env:TEMP "$ServiceName.service"
-[System.IO.File]::WriteAllText($localUnit, $unit, $utf8NoBom)
-scp $localUnit "${Server}:/etc/systemd/system/$ServiceName.service"
-if ($LASTEXITCODE -ne 0) { throw "scp of the systemd unit failed." }
-Remove-Item $localUnit -ErrorAction SilentlyContinue
-
-Write-Host "==> [5/5] Restarting and verifying /api/health on :$Port ..." -ForegroundColor Cyan
+Write-Host "==> [4/4] Restarting every hosted store, one at a time (halts at the first unhealthy one)..." -ForegroundColor Cyan
+# Called on the server itself (localhost:8083), not through the public hostname: a walk of many
+# stores outlasts Cloudflare's ~100 s proxy timeout. The script (token included) goes over ssh stdin
+# so the token is never on a command line.
 $remote = @'
-systemctl daemon-reload
-systemctl enable __SVC__
-systemctl restart __SVC__
-CODE=000
-for i in $(seq 1 20); do
-  sleep 3
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:__PORT__/api/health)
-  if [ "$CODE" = "200" ]; then break; fi
-done
-echo "HTTP $CODE"
-if [ "$CODE" != "200" ]; then echo "--- last log lines ---"; tail -30 /var/log/__SVC__.log; exit 1; fi
+curl -s -w '\n%{http_code}' -X POST -H "Authorization: Bearer __TOKEN__" --max-time 3600 http://localhost:8083/api/hosted-stores/restart-all
 '@
-$remote = ($remote -replace "`r`n", "`n") -replace "__SVC__", $ServiceName -replace "__PORT__", $Port
-$localVerify = Join-Path $env:TEMP "deploy-store-verify.sh"
-[System.IO.File]::WriteAllText($localVerify, $remote, $utf8NoBom)
-scp $localVerify "${Server}:/tmp/deploy-store-verify.sh"
-if ($LASTEXITCODE -ne 0) { throw "scp of the verify script failed." }
-Remove-Item $localVerify -ErrorAction SilentlyContinue
-
-ssh $Server "bash /tmp/deploy-store-verify.sh; RC=`$?; rm -f /tmp/deploy-store-verify.sh; exit `$RC"
-if ($LASTEXITCODE -ne 0) { throw "Remote restart/verify failed - ssh in and check 'systemctl status $ServiceName' / 'journalctl -u $ServiceName'." }
-
-Write-Host ""
-Write-Host "==> Deploy complete. $ServiceName is up on port $Port." -ForegroundColor Green
+$remote = ($remote -replace "`r`n", "`n") -replace "__TOKEN__", $AdminToken
+$response = $remote | ssh $Server "bash -s"
+if ($LASTEXITCODE -ne 0) { throw "ssh/curl to the server's admin-backend failed." }
+$lines = @($response)
+$httpCode = $lines[-1]
+$body = ($lines[0..($lines.Count - 2)] -join "`n")
+$results = $null
+try { $results = $body | ConvertFrom-Json } catch { }
+if ($results) {
+    foreach ($r in @($results)) {
+        $ok = $r.restarted -and $r.healthy
+        $color = if ($ok) { "Green" } else { "Red" }
+        Write-Host ("    {0,-24} restarted={1,-5} healthy={2}" -f $r.clientCode, $r.restarted, $r.healthy) -ForegroundColor $color
+    }
+}
+if ($httpCode -eq "200") {
+    Write-Host ""
+    Write-Host "==> Release complete. Every hosted store restarted healthy on $RemoteJar." -ForegroundColor Green
+} else {
+    Write-Host $body
+    throw "Release HALTED (HTTP $httpCode): a store did not come back healthy. Stores after it were NOT restarted. ssh in and check 'journalctl -u <service>'; the new jar is already in place at $RemoteJar."
+}

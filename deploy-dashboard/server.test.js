@@ -33,7 +33,7 @@ SLOTS.generic.scriptPath = fastOkScript;
 // throwaway scripts that echo back exactly what they were called with, so the tests can
 // prove those arguments really reach the script under their real parameter names.
 const storeBackendEchoScript = writeTempScript(
-  'param([string]$ClientCode, [int]$Port)\nWrite-Host "ARGS:${ClientCode}:${Port}"\nexit 0\n'
+  'Write-Host "ARGS:[$($args -join \',\')]"\nexit 0\n'
 );
 const storeFrontendEchoScript = writeTempScript(
   'param([string]$PagesProject)\nWrite-Host "ARGS:${PagesProject}"\nexit 0\n'
@@ -182,10 +182,10 @@ test('a spawn failure that fires both error and exit does not crash the process'
   assert.strictEqual(parsed.spawnfail, false);
 });
 
-test('store-backend slot passes the fixed viora -ClientCode/-Port arguments to its script', async () => {
+test('store-backend slot passes NO per-store arguments (one shared jar for every store)', async () => {
   const res = await get('/api/deploy/store-backend/stream');
   assert.strictEqual(res.statusCode, 200);
-  assert.ok(res.body.includes('ARGS:viora:8090'), `script did not receive the fixed args: ${res.body}`);
+  assert.ok(res.body.includes('ARGS:[]'), `script was handed arguments: ${res.body}`);
   assert.ok(res.body.includes('"code":0'));
 });
 
@@ -205,7 +205,7 @@ test('the fixed slot arguments cannot be overridden from the query string', asyn
   // A GET triggers a real production deploy - user input must never reach the script's
   // parameters. Extra query params on a slot without requiresVersion are simply ignored.
   const res = await get('/api/deploy/store-backend/stream?ClientCode=evil&Port=1&version=9.9.9');
-  assert.ok(res.body.includes('ARGS:viora:8090'));
+  assert.ok(res.body.includes('ARGS:[]'));
   assert.ok(!res.body.includes('evil'));
 });
 
