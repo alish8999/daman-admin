@@ -6,6 +6,7 @@ import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreProvisioningService.ProvisionRequest;
 import com.daman.admin.service.ServerOps;
 import com.daman.admin.service.SubdomainRules;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,7 @@ import java.util.Map;
  * {@code ACTIVE} store is 409 with that row, so a resume of a {@code FAILED} one still works.
  */
 @RestController
+@Slf4j
 @RequestMapping("/api/hosted-stores")
 public class HostedStoreController {
 
@@ -69,7 +71,7 @@ public class HostedStoreController {
     }
 
     /** One walked store. A store never reached (after a halt) has no entry at all. */
-    public record RestartResult(String clientCode, boolean restarted, boolean healthy) {}
+    public record RestartResult(String clientCode, boolean restarted, boolean healthy, String error) {}
 
     public record ProvisionBody(String clientCode, String subdomain, String expiresAt) {}
 
@@ -121,8 +123,11 @@ public class HostedStoreController {
 
     /**
      * Shared-jar release: restarts every ACTIVE store one at a time, polling its health before moving
-     * to the next, and HALTS at the first store that fails to restart or come up - so a bad jar takes
-     * one till down, not all of them. 200 when every store is healthy, 502 on a halt; the body is the
+     * to the next, and HALTS at the first store that fails to restart or come up. That delays and
+     * sequences the exposure to a bad jar; it does NOT contain it: the new jar is already on disk and
+     * every unit has {@code Restart=always}, so a store not yet reached loads it on any restart, and
+     * the health check only catches "does not boot". Stores are walked in id order (oldest first, so
+     * the oldest store is the canary). 200 when every store is healthy, 502 on a halt; the body is the
      * list of stores actually walked (the unhealthy one last). Stores after the halt are untouched
      * and absent from the list.
      */
@@ -148,11 +153,13 @@ public class HostedStoreController {
         try {
             ops.restart(i.getServiceName());
         } catch (RuntimeException e) {
-            return new RestartResult(i.getClientCode(), false, false);
+            log.warn("Restart of {} failed", i.getServiceName(), e);
+            return new RestartResult(i.getClientCode(), false, false,
+                    "restart failed: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         for (int attempt = 1; attempt <= healthAttempts; attempt++) {
             if (ops.health(i.getPort())) {
-                return new RestartResult(i.getClientCode(), true, true);
+                return new RestartResult(i.getClientCode(), true, true, null);
             }
             if (attempt < healthAttempts && healthIntervalMs > 0) {
                 try {
@@ -163,7 +170,8 @@ public class HostedStoreController {
                 }
             }
         }
-        return new RestartResult(i.getClientCode(), true, false);
+        return new RestartResult(i.getClientCode(), true, false,
+                "restarted but /api/health never answered 200 within " + healthAttempts + " polls");
     }
 
     @GetMapping("/suggest-subdomain")

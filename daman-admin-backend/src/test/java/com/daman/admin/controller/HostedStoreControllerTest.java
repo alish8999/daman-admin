@@ -228,7 +228,7 @@ class HostedStoreControllerTest {
                 .containsExactly("a", "b");
         HostedStoreController.RestartResult bad = results(res).get(1);
         assertThat(bad.restarted()).isTrue();
-        assertThat(bad.healthy()).isFalse();
+        assertThat(bad.healthy()).isFalse(); assertThat(bad.error()).contains("/api/health");
         // Later stores are NOT restarted - that is the point of the walk.
         verify(ops, never()).restart("daman-store-c");
         verify(ops, never()).health(9103);
@@ -245,6 +245,8 @@ class HostedStoreControllerTest {
         assertThat(results(res)).hasSize(1);
         assertThat(results(res).get(0).restarted()).isFalse();
         assertThat(results(res).get(0).healthy()).isFalse();
+        // The operator sees WHY, not just restarted=false.
+        assertThat(results(res).get(0).error()).contains("systemctl failed");
         verify(ops, never()).restart("daman-store-b");
     }
 
