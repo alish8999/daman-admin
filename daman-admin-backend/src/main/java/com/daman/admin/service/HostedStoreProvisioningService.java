@@ -45,9 +45,17 @@ import java.util.regex.Pattern;
  * {@code <sub>-api} hostname. Removing a rule would be one typo away from dropping
  * {@code admin-api} or {@code viora-api} from the tunnel, so teardown stays a manual SSH task.
  *
- * <p>Not safe against two concurrent provisions of the same client code (the owner clicks one
- * button); the registry's unique constraints on {@code clientCode} and {@code subdomain} are the
- * backstop if that ever happens.
+ * <p><b>Split in two halves on purpose.</b> {@link #prepare} is synchronous and decides every
+ * refusal before anything is created; {@link #runStages} is the long part and runs on
+ * {@link HostedStoreProvisionLauncher}'s per-client thread, because the whole sequence takes
+ * 125-150 s and the admin API is reached through a Cloudflare tunnel that answers 524 after 100 s
+ * of origin silence. {@link #provision} still runs both back to back and is what the tests drive.
+ *
+ * <p>Concurrency: {@link HostedStoreProvisionLauncher} rejects a second <i>in-flight</i> run for
+ * one client code and serialises anything that does get through on a single thread per client,
+ * because two runs reaching {@link #licence} together would both see no {@code ACTIVE} licence row
+ * and insert one each. The registry's unique constraints on {@code clientCode} and
+ * {@code subdomain} are the backstop under that.
  */
 @Slf4j
 @Service
@@ -66,11 +74,28 @@ public class HostedStoreProvisioningService {
     private static final int START_HEALTH_ATTEMPTS = 30;
     private static final long START_HEALTH_DELAY_MS = 2_000L;
 
-    /** Must stay equal to the {@code -Xmx} in {@link StoreUnitRenderer}'s unit template. */
-    private static final int STORE_HEAP_MB = 768;
+    /**
+     * Bounded wait for the store to answer through its OWN public hostname: 6 × 5 s = 30 s. A grace
+     * period for Cloudflare's edge, not a propagation wait — see {@link #requirePubliclyReachable}.
+     */
+    private static final int PUBLIC_HEALTH_ATTEMPTS = 6;
+    private static final long PUBLIC_HEALTH_DELAY_MS = 5_000L;
 
     /** Free RAM that must remain after another store's heap (spec §7's suggestion). */
     private static final int RAM_MARGIN_MB = 300;
+
+    /**
+     * RAM reserved for everything on this box that is <b>not</b> a hosted store: the admin
+     * backend's own JVM, plus the OS, sshd and cloudflared.
+     *
+     * <p>Chosen from spec §7's measurements (total 3814 MB; admin backend 341 MB RSS against an
+     * {@code -Xmx1536m} ceiling it has never approached; ~510 MB for the OS and the rest). 1 GB
+     * covers the measured 851 MB with room for the admin JVM to grow, without reserving its whole
+     * ceiling — reserving 1536 MB would cap this box at two stores, and §7's own conclusion is
+     * "roughly three". With this value the guard allows a 2nd and a 3rd store and refuses a 4th,
+     * which is exactly that conclusion.
+     */
+    private static final int NON_STORE_RESERVE_MB = 1024;
 
     private static final String SERVICE_PREFIX = "daman-store-";
 
@@ -100,6 +125,45 @@ public class HostedStoreProvisioningService {
     interface Sleeper {
         void sleep(long millis) throws InterruptedException;
     }
+
+    /**
+     * A request refused because of its own input: unknown client, illegal/reserved/taken subdomain,
+     * unparseable expiry, unsafe identifier. Nothing is persisted. The controller answers 400.
+     *
+     * <p>It extends {@link IllegalArgumentException} so it still reads as one, but the controller
+     * catches <b>this</b> type: a bare {@code catch (IllegalArgumentException | IllegalStateException)}
+     * is wide enough to swallow an incidental Spring or JPA state exception and echo its internal
+     * message straight back to the caller.
+     */
+    public static class RefusedException extends IllegalArgumentException {
+        public RefusedException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * The server cannot provision another store right now — no RAM headroom, or Cloudflare is not
+     * configured. Nothing is persisted. The controller answers <b>503</b>, not 400: the request is
+     * fine, the server is not, and retrying it unchanged later is the right thing to do.
+     */
+    public static class UnavailableException extends IllegalStateException {
+        public UnavailableException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * What {@link #prepare}'s synchronous half decided, handed to {@link #runStages}' long half.
+     *
+     * @param instance      the persisted registry row — already {@code PROVISIONING}, so the caller
+     *                      can return it and a poller can watch it
+     * @param resumeFrom    the first stage to run (always {@code ALLOCATE} for a fresh store)
+     * @param expiresAt     the licence expiry this run must mint, parsed once
+     * @param alreadyActive true when the client already had an {@code ACTIVE} store: nothing was
+     *                      touched and nothing will be
+     */
+    public record PreparedProvision(HostedInstance instance, ProvisionStage resumeFrom,
+                                    LocalDate expiresAt, boolean alreadyActive) {}
 
     /**
      * One provisioning request. {@code subdomain} is validated, never trusted, and must be the
@@ -135,31 +199,49 @@ public class HostedStoreProvisioningService {
     private Sleeper sleeper = Thread::sleep;
 
     /**
-     * Provisions (or resumes provisioning of) the hosted store for {@code request.clientCode()}.
+     * {@link #prepare} then {@link #runStages}, back to back on the calling thread.
+     *
+     * <p>Production goes through {@link HostedStoreProvisionLauncher} instead, which runs the two
+     * halves on different threads so the HTTP response is not held open for 125-150 s. This method
+     * is the whole sequence in one call, which is what the tests drive.
      *
      * @return the registry row — {@code ACTIVE} when the store is live, {@code FAILED} with
      *         {@code failedStage} set when a stage failed, or the untouched existing row when the
      *         client is already provisioned.
-     * @throws IllegalArgumentException for a refused request (unknown client, illegal/reserved/
-     *         taken subdomain, unparseable expiry) — nothing is persisted.
-     * @throws IllegalStateException when the server cannot host another store, or Cloudflare is
-     *         not configured — again, nothing is persisted.
+     * @throws RefusedException for a refused request (unknown client, illegal/reserved/taken
+     *         subdomain, unparseable expiry) — nothing is persisted.
+     * @throws UnavailableException when the server cannot host another store, or Cloudflare is not
+     *         configured — again, nothing is persisted.
      */
     public HostedInstance provision(ProvisionRequest request) {
+        return runStages(prepare(request));
+    }
+
+    /**
+     * The synchronous half: every refusal, and the registry row the long half will walk.
+     *
+     * <p>Fast by construction — a few queries, one {@code /proc/meminfo} read and one
+     * {@code save} — so it is safe to do inside an HTTP request. It runs no stage, touches no
+     * systemd unit, writes no DNS record and contacts Cloudflare not at all.
+     *
+     * @throws RefusedException     the request's own input is wrong (400)
+     * @throws UnavailableException this server cannot provision right now (503)
+     */
+    public PreparedProvision prepare(ProvisionRequest request) {
         // ── VALIDATE ─────────────────────────────────────────────────────────
         // Never recorded in failedStage: there is no row yet, so a failure here is a refusal.
         String clientCode = request.clientCode() == null ? "" : request.clientCode().trim();
         requireSafeIdentifier("clientCode", clientCode);
         requireSafeIdentifier("serviceName", SERVICE_PREFIX + clientCode);
         clientConfigRepository.findByClientCode(clientCode).orElseThrow(
-                () -> new IllegalArgumentException("Client not found: " + clientCode));
+                () -> new RefusedException("Client not found: " + clientCode));
         LocalDate expiresAt = parseExpiry(request.expiresAt());
 
         HostedInstance existing = hostedInstanceRepository.findByClientCode(clientCode).orElse(null);
         if (existing != null && STATUS_ACTIVE.equals(existing.getStatus())) {
             log.info("Hosted store '{}' already exists on {} (port {}) — reporting it unchanged",
                     clientCode, existing.getFrontendHostname(), existing.getPort());
-            return existing;
+            return new PreparedProvision(existing, ProvisionStage.VERIFY, expiresAt, true);
         }
 
         if (existing == null) {
@@ -171,9 +253,9 @@ public class HostedStoreProvisioningService {
         HostedInstance instance;
         ProvisionStage resumeFrom;
         if (existing == null) {
-            // Only on a fresh provision: a resumed store's JVM is already running, so its heap is
-            // already out of availableMemoryMb() and re-checking would double-count it and refuse
-            // the resume for ever.
+            // Only on a fresh provision: a resumed store already has a registry row, so the
+            // reserve-based guard is already counting its heap and re-checking it would refuse the
+            // resume for ever.
             requireCapacity();
             instance = newRow(clientCode, subdomain);
             resumeFrom = ProvisionStage.ALLOCATE;
@@ -185,16 +267,37 @@ public class HostedStoreProvisioningService {
         // Checks the value actually used, which on a resume is whatever the row has stored.
         requireSafeIdentifier("serviceName", instance.getServiceName());
 
-        // ── ALLOCATE .. VERIFY ───────────────────────────────────────────────
+        // Persisted here, not in the loop: the caller returns this row immediately and the dashboard
+        // polls it, so it has to exist before the long half starts. Recording the stage it is about
+        // to begin also keeps a crash between the two halves resumable from the right place.
+        instance.setStatus(STATUS_PROVISIONING);
+        instance.setFailedStage(resumeFrom.name());
+        return new PreparedProvision(hostedInstanceRepository.save(instance), resumeFrom, expiresAt, false);
+    }
+
+    /**
+     * The long half: {@code ALLOCATE} .. {@code VERIFY}, 125-150 s on the happy path. Runs on
+     * {@link HostedStoreProvisionLauncher}'s thread for this client code in production.
+     *
+     * <p>Never throws for a stage failure — it records the stage on the row and returns it, which
+     * is what makes a re-run resume rather than restart.
+     */
+    public HostedInstance runStages(PreparedProvision prepared) {
+        if (prepared.alreadyActive()) {
+            return prepared.instance();
+        }
+        HostedInstance instance = prepared.instance();
+        String clientCode = instance.getClientCode();
+
         for (ProvisionStage stage : ProvisionStage.values()) {
-            if (stage == ProvisionStage.VALIDATE || stage.ordinal() < resumeFrom.ordinal()) {
+            if (stage == ProvisionStage.VALIDATE || stage.ordinal() < prepared.resumeFrom().ordinal()) {
                 continue;
             }
             try {
                 instance.setStatus(STATUS_PROVISIONING);
                 instance.setFailedStage(stage.name());
                 instance = hostedInstanceRepository.save(instance);
-                run(stage, instance, expiresAt);
+                run(stage, instance, prepared.expiresAt());
                 instance = hostedInstanceRepository.save(instance);
             } catch (RuntimeException e) {
                 log.error("Provisioning hosted store '{}' failed at stage {}: {}",
@@ -430,6 +533,46 @@ public class HostedStoreProvisioningService {
                     + status.clientCode() + "' but this store is '" + i.getClientCode()
                     + "' — it is running on the wrong licence");
         }
+        requirePubliclyReachable(i);
+    }
+
+    /**
+     * The last check, and the only one that proves a <i>customer</i> can reach this store:
+     * {@code https://<sub>-api.<domain>/api/health}, through Cloudflare's edge. Every other probe
+     * in the sequence talks to {@code 127.0.0.1}, so without this an {@code ACTIVE} row means only
+     * "the JVM is up". Three real ways to get a healthy JVM at a dead URL, none of which anything
+     * else in the sequence catches:
+     *
+     * <ul>
+     *   <li>{@code SIGHUP} not actually making cloudflared re-read its ingress list (never verified
+     *       against the real server);</li>
+     *   <li>{@link #ensureDnsRecord} adopting a pre-existing {@code <sub>-api} record that points
+     *       somewhere else — the Pages poll watches the <i>frontend</i> record, not this one;</li>
+     *   <li>a hand-edited ingress line {@code IngressEditor}'s pattern does not recognise, leaving
+     *       a duplicate rule cloudflared resolves to the wrong entry.</li>
+     * </ul>
+     *
+     * <p>Hairpinning out to the edge and back is fine: this box has outbound access — it has just
+     * made several Cloudflare API calls. Bounded and briefly retried, because the record was created
+     * minutes ago ({@code PAGES_ACTIVE} alone takes ~105 s): this is a grace period for the edge,
+     * not a propagation wait.
+     */
+    private void requirePubliclyReachable(HostedInstance i) {
+        for (int attempt = 1; attempt <= PUBLIC_HEALTH_ATTEMPTS; attempt++) {
+            if (ops.publicHealth(i.getApiHostname())) {
+                log.info("{} answers /api/health through its own public hostname", i.getApiHostname());
+                return;
+            }
+            pause(PUBLIC_HEALTH_DELAY_MS, attempt, PUBLIC_HEALTH_ATTEMPTS);
+        }
+        throw new IllegalStateException("https://" + i.getApiHostname() + "/api/health did not answer"
+                + " within " + seconds(PUBLIC_HEALTH_ATTEMPTS, PUBLIC_HEALTH_DELAY_MS)
+                + "s, even though the store is healthy on 127.0.0.1:" + i.getPort()
+                + ". The store is running but customers cannot reach it. Check that cloudflared"
+                + " picked up the new ingress rule (journalctl -u cloudflared; 'systemctl reload"
+                + " cloudflared' if SIGHUP was not enough), that /etc/cloudflared/config.yml has"
+                + " exactly one rule for " + i.getApiHostname() + ", and that its DNS record is the"
+                + " tunnel CNAME rather than an older record pointing elsewhere.");
     }
 
     // ── validation ───────────────────────────────────────────────────────────
@@ -440,28 +583,30 @@ public class HostedStoreProvisioningService {
             // The row owns its subdomain: the unit, the ingress rule, both DNS records and the
             // Pages domain were all built from the original, so a resume never renames a store.
             if (!subdomain.isEmpty() && !subdomain.equals(existing.getSubdomain())) {
-                throw new IllegalArgumentException("Hosted store '" + existing.getClientCode()
+                throw new RefusedException("Hosted store '" + existing.getClientCode()
                         + "' is already half-provisioned as subdomain '" + existing.getSubdomain()
-                        + "'; refusing to change it to '" + subdomain + "'");
+                        + "'; refusing to change it to '" + subdomain + "'. To start over under a"
+                        + " different name, delete the row first (DELETE /api/hosted-stores/"
+                        + existing.getClientCode() + "; see DEPLOYMENT.md §10.5)");
             }
             subdomain = existing.getSubdomain();
         }
         if (subdomain.isEmpty()) {
-            throw new IllegalArgumentException(
+            throw new RefusedException(
                     "A subdomain is required (SubdomainRules.sanitise suggests one from a client code)");
         }
         // sanitise() only ever returns a SUGGESTION — it caps length and yields "" for a code with
         // no usable ASCII — so whatever arrives here is validated from scratch.
         if (!SubdomainRules.isValid(subdomain)) {
-            throw new IllegalArgumentException("Invalid subdomain '" + subdomain + "': lowercase letters, "
+            throw new RefusedException("Invalid subdomain '" + subdomain + "': lowercase letters, "
                     + "digits and inner hyphens only, 1-32 characters (no underscores, no edge hyphens)");
         }
         if (SubdomainRules.isReserved(subdomain)) {
-            throw new IllegalArgumentException("The subdomain '" + subdomain
+            throw new RefusedException("The subdomain '" + subdomain
                     + "' is reserved for Daman's own infrastructure");
         }
         if (existing == null && hostedInstanceRepository.existsBySubdomain(subdomain)) {
-            throw new IllegalArgumentException("The subdomain '" + subdomain
+            throw new RefusedException("The subdomain '" + subdomain
                     + "' is already taken by another hosted store");
         }
         return subdomain;
@@ -473,24 +618,53 @@ public class HostedStoreProvisioningService {
      * client code of {@code viora} would overwrite {@code daman-store-viora.service} with the
      * wrong {@code -Duser.home}, a new JWT secret and another store's port, and the live viora
      * would come up empty on its next {@code Restart=always} cycle. The backfilled {@code ACTIVE}
-     * registry row already prevents that by making {@link #provision} return early, but "viora is
+     * registry row already prevents that by making {@link #prepare} return early, but "viora is
      * never touched" is the one outcome the spec marks as unacceptable, so it does not rest on a
      * single row's status.
+     *
+     * <p>Deliberately checks the explicit {@link SubdomainRules#RESERVED} set only, and <b>not</b>
+     * the {@code -api} suffix rule that {@link SubdomainRules#isReserved} adds on top of it. That
+     * asymmetry is correct, not an oversight: the suffix rule exists because {@code <sub>-api} is
+     * the hostname this feature derives for every store's own API, so a <i>subdomain</i> ending
+     * {@code -api} would collide with another store's API hostname. A <i>client code</i> ending
+     * {@code -api} derives nothing and collides with nothing — it would only ever produce a service
+     * named {@code daman-store-foo-api}, which is as free as any other. Please do not "fix" it.
      */
     private static void requireUnreservedClientCode(String clientCode) {
         if (SubdomainRules.RESERVED.contains(clientCode.toLowerCase(Locale.ROOT))) {
-            throw new IllegalArgumentException("The client code '" + clientCode + "' is reserved for "
+            throw new RefusedException("The client code '" + clientCode + "' is reserved for "
                     + "Daman's own infrastructure: provisioning it would overwrite "
                     + SERVICE_PREFIX + clientCode + ".service");
         }
     }
 
+    /**
+     * Refuses when this box has no room for another store — <b>reserving</b> each existing store's
+     * heap rather than measuring what it happens to be using.
+     *
+     * <p>{@code MemAvailable} was the obvious input and is the wrong one: it reflects each store's
+     * <i>current</i> RSS, and a freshly booted JVM sits far below its {@code -Xmx} ceiling for a
+     * while. Two stores provisioned back to back would both pass that check before either heap
+     * matured — which is precisely how spec §2's anti-goal ("overcommitting so an existing
+     * customer's store is OOM-killed by a new one") happens. So the input is total RAM minus every
+     * registry row's full heap minus {@link #NON_STORE_RESERVE_MB}, which cannot be fooled by
+     * timing.
+     *
+     * <p>Every registry row counts, including viora's and including a {@code FAILED} one. That is
+     * deliberately conservative: a row means this box has committed to that store's heap, and
+     * {@code Restart=always} means its JVM comes back whether or not it is up at this instant.
+     */
     private void requireCapacity() {
-        long availableMb = ops.availableMemoryMb();
-        if (!HostedCapacity.hasRoomFor(availableMb, STORE_HEAP_MB, RAM_MARGIN_MB)) {
-            throw new IllegalStateException("Not enough RAM for another hosted store: " + availableMb
-                    + " MB available, a store needs " + STORE_HEAP_MB + " MB of heap and " + RAM_MARGIN_MB
-                    + " MB must stay free. The fix is a bigger server, not a smaller margin.");
+        long totalMb = ops.totalMemoryMb();
+        long committedStores = hostedInstanceRepository.count();
+        if (!HostedCapacity.hasRoomForAnotherStore(totalMb, committedStores,
+                StoreUnitRenderer.HEAP_MB, NON_STORE_RESERVE_MB, RAM_MARGIN_MB)) {
+            throw new UnavailableException("Not enough RAM for another hosted store: " + totalMb
+                    + " MB total, " + committedStores + " store(s) already committed to "
+                    + StoreUnitRenderer.HEAP_MB + " MB of heap each, " + NON_STORE_RESERVE_MB
+                    + " MB reserved for the admin backend and the OS, and another store needs "
+                    + StoreUnitRenderer.HEAP_MB + " MB plus a " + RAM_MARGIN_MB + " MB margin."
+                    + " The fix is a bigger server, not a smaller margin.");
         }
     }
 
@@ -509,23 +683,23 @@ public class HostedStoreProvisioningService {
 
     private static void requireConfigured(String property, String value) {
         if (value == null || value.isBlank()) {
-            throw new IllegalStateException(property + " is not configured; hosted stores cannot be "
+            throw new UnavailableException(property + " is not configured; hosted stores cannot be "
                     + "provisioned without it");
         }
     }
 
     private static void requireSafeIdentifier(String what, String value) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(what + " is required");
+            throw new RefusedException(what + " is required");
         }
         for (char forbidden : FORBIDDEN_IN_IDENTIFIERS) {
             if (value.indexOf(forbidden) >= 0) {
-                throw new IllegalArgumentException("Unsafe " + what + " '" + value + "': it contains "
+                throw new RefusedException("Unsafe " + what + " '" + value + "': it contains "
                         + describe(forbidden));
             }
         }
         if (!SAFE_IDENTIFIER.matcher(value).matches()) {
-            throw new IllegalArgumentException("Unsafe " + what + " '" + value + "': letters, digits, "
+            throw new RefusedException("Unsafe " + what + " '" + value + "': letters, digits, "
                     + "'_' and '-' only, starting with a letter or digit");
         }
     }
@@ -546,7 +720,7 @@ public class HostedStoreProvisioningService {
         try {
             return LocalDate.parse(expiresAt.trim());
         } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("expiresAt must be an ISO date (yyyy-MM-dd), got '"
+            throw new RefusedException("expiresAt must be an ISO date (yyyy-MM-dd), got '"
                     + expiresAt + "'");
         }
     }

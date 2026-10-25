@@ -46,6 +46,10 @@ public class SystemdServerOps implements ServerOps {
     /** No path separators, no "%" (systemd expands specifiers), no whitespace, no CR/LF. */
     private static final Pattern SAFE_UNIT_NAME = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$");
 
+    /** A DNS hostname and nothing else: no scheme, no port, no path, no userinfo, no CR/LF. */
+    private static final Pattern SAFE_PUBLIC_HOSTNAME =
+            Pattern.compile("^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$");
+
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration PORT_PROBE_TIMEOUT = Duration.ofMillis(500);
@@ -74,11 +78,13 @@ public class SystemdServerOps implements ServerOps {
     public void writeUnit(String serviceName, String unitText) {
         requireSafeUnitName(serviceName);
         Path unit = Path.of(unitDir, serviceName + ".service");
-        writeLf(unit, unitText);
-        // The unit carries this store's JWT signing secret and /etc/systemd/system is
-        // world-readable by default. systemd reads units as root, so 0600 costs nothing.
-        restrictToOwner(unit);
-        log.info("Wrote systemd unit {}", unit);
+        // ownerOnly: the unit carries this store's JWT signing secret and /etc/systemd/system is
+        // world-readable by default. systemd reads units as root, so 0600 costs nothing. The
+        // permission is applied to the temp file BEFORE it is moved into place, so the secret is
+        // never once visible at the unit's real path with the default 0644 — and a chmod that
+        // fails throws, rather than leaving a readable secret behind and carrying on.
+        writeLf(unit, unitText, true);
+        log.info("Wrote systemd unit {} (rw-------)", unit);
     }
 
     @Override
@@ -105,7 +111,9 @@ public class SystemdServerOps implements ServerOps {
 
     @Override
     public void writeIngress(String yaml) {
-        writeLf(Path.of(ingressFile), yaml);
+        // Not ownerOnly: the ingress file is shared, hand-maintained and carries no secret, so its
+        // existing mode is left exactly as the operator set it.
+        writeLf(Path.of(ingressFile), yaml, false);
         log.info("Rewrote cloudflared ingress {}", ingressFile);
     }
 
@@ -146,6 +154,32 @@ public class SystemdServerOps implements ServerOps {
     }
 
     @Override
+    public boolean publicHealth(String apiHostname) {
+        if (apiHostname == null || !SAFE_PUBLIC_HOSTNAME.matcher(apiHostname).matches()) {
+            throw new IllegalArgumentException("Unsafe hostname for a health probe: " + apiHostname);
+        }
+        // Built from a validated hostname and a fixed path, so nothing from a request reaches the
+        // URL. Any failure — DNS, TLS, 502/530 from the edge, timeout — is simply "not reachable":
+        // the caller retries on a budget and then fails the stage loudly.
+        URI uri = URI.create("https://" + apiHostname + "/api/health");
+        try {
+            HttpResponse<Void> response = http.send(
+                    HttpRequest.newBuilder(uri).timeout(REQUEST_TIMEOUT).GET().build(),
+                    HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() != 200) {
+                log.info("{} answered HTTP {} — not reachable yet", uri, response.statusCode());
+            }
+            return response.statusCode() == 200;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception e) {
+            log.info("{} is not reachable yet ({})", uri, e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    @Override
     public boolean portInUse(int port) {
         if (port < 1 || port > 65535) {
             throw new IllegalArgumentException("Invalid port: " + port);
@@ -183,15 +217,17 @@ public class SystemdServerOps implements ServerOps {
     }
 
     @Override
-    public long availableMemoryMb() {
+    public long totalMemoryMb() {
         Path meminfo = Path.of("/proc/meminfo");
         try {
             for (String line : Files.readAllLines(meminfo, StandardCharsets.UTF_8)) {
-                if (line.startsWith("MemAvailable:")) {
+                // MemTotal, not MemAvailable: the guard reserves committed heaps from the total
+                // rather than trusting a momentary free-memory reading. See HostedCapacity.
+                if (line.startsWith("MemTotal:")) {
                     return Long.parseLong(line.replaceAll("\\D", "")) / 1024;
                 }
             }
-            throw new IllegalStateException(meminfo + " has no MemAvailable line");
+            throw new IllegalStateException(meminfo + " has no MemTotal line");
         } catch (IOException e) {
             throw new IllegalStateException("cannot read " + meminfo
                     + " — hosted stores can only be provisioned on the Linux server", e);
@@ -213,12 +249,29 @@ public class SystemdServerOps implements ServerOps {
      * <p>The LF conversion is not belt-and-braces: this code is developed on Windows, where a
      * text-mode writer or {@code System.lineSeparator()} would reintroduce CR, and systemd
      * rejects a unit containing one.
+     *
+     * @param ownerOnly when true the file is {@code rw-------} from the moment it is created, and a
+     *                  failure to make it so aborts the write instead of being logged and ignored.
+     *                  Used for anything carrying a secret — the temp file is created with the
+     *                  restricted mode <i>before</i> any content is written and the mode survives
+     *                  the move, so the secret is never readable at either path for any window.
      */
-    private static void writeLf(Path target, String text) {
+    private static void writeLf(Path target, String text, boolean ownerOnly) {
         byte[] bytes = text.replace("\r\n", "\n").replace('\r', '\n').getBytes(StandardCharsets.UTF_8);
         Path tmp = target.resolveSibling(target.getFileName() + ".daman-tmp");
         try {
-            Files.write(tmp, bytes);
+            // A leftover temp file from a crashed run would keep its old (possibly wide) mode, so
+            // it is removed rather than overwritten.
+            Files.deleteIfExists(tmp);
+            if (ownerOnly) {
+                createOwnerOnly(tmp);
+                Files.write(tmp, bytes);
+                // Belt and braces on top of the creation mode: proves the mode before the content
+                // becomes reachable under the real name, and throws if it cannot be set.
+                requireOwnerOnly(tmp);
+            } else {
+                Files.write(tmp, bytes);
+            }
             try {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING,
                         StandardCopyOption.ATOMIC_MOVE);
@@ -236,11 +289,33 @@ public class SystemdServerOps implements ServerOps {
         }
     }
 
-    private static void restrictToOwner(Path file) {
+    /** Creates an empty {@code rw-------} file. A non-POSIX filesystem leaves it to be created by the write. */
+    private static void createOwnerOnly(Path file) throws IOException {
+        try {
+            Files.createFile(file,
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        } catch (UnsupportedOperationException e) {
+            // Not a POSIX filesystem, so it cannot be the Linux server either; requireOwnerOnly
+            // says the same thing again, once, below.
+            log.warn("{} is not on a POSIX filesystem — creating it without a permission mode", file);
+        }
+    }
+
+    /**
+     * Forces {@code rw-------}, and <b>throws</b> if it cannot: the caller only asks for this on a
+     * file holding a JWT signing secret, and "logged a warning and carried on" leaves that secret
+     * world-readable on a box whose {@code /etc/systemd/system} is 0755.
+     */
+    private static void requireOwnerOnly(Path file) {
         try {
             Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
-        } catch (UnsupportedOperationException | IOException e) {
-            log.warn("could not restrict permissions on {} — {}", file, e.getMessage());
+        } catch (UnsupportedOperationException e) {
+            // Non-POSIX filesystem (a dev machine). Nothing to enforce and nothing it could break:
+            // the real unit directory only exists on the Linux server.
+            log.warn("cannot restrict permissions on {}: not a POSIX filesystem", file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not restrict permissions on " + file
+                    + " — refusing to leave a file carrying a JWT signing secret readable", e);
         }
     }
 

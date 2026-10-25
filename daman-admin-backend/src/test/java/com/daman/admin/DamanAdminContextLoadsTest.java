@@ -29,6 +29,7 @@ class DamanAdminContextLoadsTest {
         for (String type : new String[]{
                 "com.daman.admin.service.CloudflareClient",
                 "com.daman.admin.service.HostedStoreProvisioningService",
+                "com.daman.admin.service.HostedStoreProvisionLauncher",
                 "com.daman.admin.service.ServerOps",
                 "com.daman.admin.controller.HostedStoreController",
                 "com.daman.admin.config.HostedInstanceVioraBackfillRunner"}) {

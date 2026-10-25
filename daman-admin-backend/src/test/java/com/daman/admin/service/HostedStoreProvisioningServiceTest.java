@@ -82,6 +82,8 @@ class HostedStoreProvisioningServiceTest {
         when(hostedRepo.existsBySubdomain(anyString())).thenAnswer(i -> instances.stream()
                 .anyMatch(r -> r.getSubdomain().equals(i.<String>getArgument(0))));
         when(hostedRepo.findAll()).thenAnswer(i -> new ArrayList<>(instances));
+        // What the reserve-based capacity guard reads: one committed heap per registry row.
+        when(hostedRepo.count()).thenAnswer(i -> (long) instances.size());
         when(hostedRepo.save(any(HostedInstance.class))).thenAnswer(i -> {
             HostedInstance row = i.getArgument(0);
             if (!instances.contains(row)) {
@@ -230,15 +232,55 @@ class HostedStoreProvisioningServiceTest {
 
     @Test
     void refusesWhenCapacityGuardFails() {
-        ops.availableMb = 900;
+        ops.totalMb = 1800; // 1800 - 1024 reserved = 776, under one 768 MB heap plus the 300 margin
 
         assertThatThrownBy(() -> service.provision(new ProvisionRequest("acme", "acme", null)))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class)
                 .hasMessageContaining("RAM");
 
         assertThat(instances).isEmpty();
         assertThat(calls).noneMatch(c -> c.startsWith("writeUnit"));
         assertThat(calls).noneMatch(c -> c.startsWith("dns:create"));
+    }
+
+    @Test
+    void theCapacityGuardReservesEachExistingStoresHeapNotItsCurrentUsage() {
+        // 2600 MB total leaves room for exactly ONE store (2600 - 1024 = 1576 >= 768 + 300).
+        // The second request must be refused on the strength of the first ROW existing, not on a
+        // free-memory reading that a freshly booted JVM makes look fine — that is the overcommit
+        // the spec's anti-goal names, and it needs no clock to reproduce here.
+        ops.totalMb = 2600;
+
+        HostedInstance first = service.provision(new ProvisionRequest("acme", "acme", null));
+        assertThat(first.getStatus()).isEqualTo("ACTIVE");
+
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("beta", "beta", null)))
+                .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class)
+                .hasMessageContaining("1 store(s) already committed");
+
+        assertThat(instances).hasSize(1);
+        assertThat(ops.units).containsOnlyKeys("daman-store-acme");
+    }
+
+    @Test
+    void capacityAndCloudflareRefusalsAreUnavailableNotBadInput() {
+        // Both are 503-shaped: the request was fine, this server is not. The controller maps these
+        // two types, so a refusal landing on the wrong one would be reported as the caller's fault.
+        ops.totalMb = 1800;
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("acme", "acme", null)))
+                .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class);
+
+        ops.totalMb = 3814;
+        ReflectionTestUtils.setField(service, "cloudflareZoneId", "");
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("acme", "acme", null)))
+                .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class)
+                .hasMessageContaining("daman.cloudflare.zone-id");
+
+        // ...while bad input is the other type.
+        ReflectionTestUtils.setField(service, "cloudflareZoneId", "zone-id");
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("ghost", "ghost", null)))
+                .isInstanceOf(HostedStoreProvisioningService.RefusedException.class);
+        assertThat(instances).isEmpty();
     }
 
     @Test
@@ -432,12 +474,12 @@ class HostedStoreProvisioningServiceTest {
         instances.add(seeded);
         cloudflare.dns.put("acme-api." + DOMAIN, "rec-api");
         cloudflare.dns.put("acme." + DOMAIN, "rec-front");
-        ops.availableMb = 900; // would refuse a fresh provision outright
+        ops.totalMb = 1800; // would refuse a fresh provision outright
 
         HostedInstance i = service.provision(new ProvisionRequest("acme", "acme", null));
 
         assertThat(i.getStatus()).isEqualTo("ACTIVE");
-        assertThat(calls).doesNotContain("availableMemoryMb");
+        assertThat(calls).doesNotContain("totalMemoryMb");
     }
 
     @Test
@@ -479,6 +521,73 @@ class HostedStoreProvisioningServiceTest {
         assertThat(cloudflare.dns).containsOnlyKeys("acme-api." + DOMAIN, "acme." + DOMAIN);
     }
 
+    @Test
+    void verifyFailsWhenTheStoreIsNotReachableAtItsOwnPublicUrl() {
+        // ACTIVE must mean "a customer can reach this store", not just "the JVM is up". Everything
+        // before VERIFY probes 127.0.0.1, so this is the only check that catches cloudflared not
+        // having reloaded its ingress, an adopted <sub>-api DNS record pointing elsewhere, or a
+        // duplicate hand-edited ingress rule.
+        ops.publiclyReachable = false;
+
+        HostedInstance i = service.provision(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(i.getStatus()).isEqualTo("FAILED");
+        assertThat(i.getFailedStage()).isEqualTo(ProvisionStage.VERIFY.name());
+        // Bounded, not a loop, and against the store's OWN hostname.
+        assertThat(calls).filteredOn(c -> c.equals("publicHealth:acme-api." + DOMAIN)).hasSize(6);
+    }
+
+    @Test
+    void happyPathProbesThePublicUrlLastOfAll() {
+        HostedInstance i = service.provision(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(i.getStatus()).isEqualTo("ACTIVE");
+        assertThat(calls).containsOnlyOnce("publicHealth:acme-api." + DOMAIN);
+        // After the local health check and the licence cross-check: those say WHY it is unreachable.
+        assertThat(calls.indexOf("publicHealth:acme-api." + DOMAIN))
+                .isGreaterThan(calls.lastIndexOf("licenceStatus:8091"))
+                .isEqualTo(calls.size() - 1);
+    }
+
+    @Test
+    void prepareDecidesEveryRefusalAndTouchesNothingElse() {
+        // The synchronous half the controller runs inside the HTTP request: it must persist the row
+        // (so a poller has something to watch) and run no stage at all.
+        HostedStoreProvisioningService.PreparedProvision prepared =
+                service.prepare(new ProvisionRequest("acme", "acme", "2027-01-31"));
+
+        assertThat(prepared.alreadyActive()).isFalse();
+        assertThat(prepared.resumeFrom()).isEqualTo(ProvisionStage.ALLOCATE);
+        assertThat(prepared.expiresAt()).isEqualTo(LocalDate.parse("2027-01-31"));
+        assertThat(prepared.instance().getStatus()).isEqualTo("PROVISIONING");
+        assertThat(prepared.instance().getFailedStage()).isEqualTo("ALLOCATE");
+        assertThat(instances).hasSize(1);
+        // Nothing that writes, starts, signals or calls Cloudflare has happened yet.
+        assertThat(calls).containsExactly("totalMemoryMb");
+
+        // ...and the long half, run separately, finishes the same store.
+        assertThat(service.runStages(prepared).getStatus()).isEqualTo("ACTIVE");
+        assertThat(instances).hasSize(1);
+        assertThat(licences).hasSize(1);
+    }
+
+    @Test
+    void prepareReportsAnAlreadyActiveClientWithoutStartingAnything() {
+        HostedInstance existing = row("acme", "acme", 8091, "ACTIVE", null);
+        existing.setId(3L);
+        instances.add(existing);
+
+        HostedStoreProvisioningService.PreparedProvision prepared =
+                service.prepare(new ProvisionRequest("acme", "acme", null));
+
+        assertThat(prepared.alreadyActive()).isTrue();
+        assertThat(prepared.instance()).isSameAs(existing);
+        // And running the long half on it is a no-op rather than a second provision.
+        assertThat(service.runStages(prepared)).isSameAs(existing);
+        assertThat(calls).isEmpty();
+        verify(hostedRepo, never()).save(any(HostedInstance.class));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private HostedInstance row(String clientCode, String subdomain, int port, String status, String failedStage) {
@@ -497,8 +606,11 @@ class HostedStoreProvisioningServiceTest {
 
     /** Records every OS-touching call instead of performing it. */
     private final class FakeServerOps implements ServerOps {
-        long availableMb = 2214;
+        /** The real box, spec §7: 3814 MB total. The guard reserves heaps out of this. */
+        long totalMb = 3814;
         boolean healthy = true;
+        /** Whether the store answers through its own public hostname (Cloudflare edge + tunnel). */
+        boolean publiclyReachable = true;
         Optional<String> machineId = Optional.of(MACHINE_ID);
         /**
          * What the store on that port says about itself. The default is a store that took its
@@ -562,6 +674,11 @@ class HostedStoreProvisioningServiceTest {
             return healthy;
         }
 
+        @Override public boolean publicHealth(String apiHostname) {
+            calls.add("publicHealth:" + apiHostname);
+            return publiclyReachable;
+        }
+
         @Override public boolean portInUse(int port) {
             calls.add("portInUse:" + port);
             return portsInUse.contains(port);
@@ -572,9 +689,9 @@ class HostedStoreProvisioningServiceTest {
             activatedKeys.add(licenseKey);
         }
 
-        @Override public long availableMemoryMb() {
-            calls.add("availableMemoryMb");
-            return availableMb;
+        @Override public long totalMemoryMb() {
+            calls.add("totalMemoryMb");
+            return totalMb;
         }
     }
 

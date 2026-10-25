@@ -2,6 +2,7 @@ package com.daman.admin.controller;
 
 import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
+import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.ServerOps;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,8 +16,10 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -29,7 +32,7 @@ class HostedStoreControllerTest {
 
     private static final String SECRET = "super-secret-signing-key-do-not-leak";
 
-    private HostedStoreProvisioningService service;
+    private HostedStoreProvisionLauncher launcher;
     private HostedInstanceRepository repository;
     private ServerOps ops;
     private HostedStoreController controller;
@@ -37,12 +40,17 @@ class HostedStoreControllerTest {
 
     @BeforeEach
     void setUp() {
-        service = mock(HostedStoreProvisioningService.class);
+        launcher = mock(HostedStoreProvisionLauncher.class);
         repository = mock(HostedInstanceRepository.class);
         when(repository.findByClientCode(any())).thenReturn(Optional.empty());
         ops = mock(ServerOps.class);
         // 3 health polls, no sleep: the tests never wait on a real clock.
-        controller = new HostedStoreController(service, repository, ops, 3, 0);
+        controller = new HostedStoreController(launcher, repository, ops, 3, 0);
+    }
+
+    /** What the launcher answers for a run it just accepted. */
+    private void launcherAccepts(HostedInstance row) {
+        when(launcher.start(any())).thenReturn(new HostedStoreProvisionLauncher.Started(row, false));
     }
 
     private HostedInstance row(String code, String status) {
@@ -65,32 +73,26 @@ class HostedStoreControllerTest {
     }
 
     @Test
-    void postReturns201WithTheProvisionedInstance() {
-        when(service.provision(any())).thenReturn(row("abu_ammar", "ACTIVE"));
+    void postReturns202WithThePROVISIONINGRowItHandedOff() {
+        // 202, not 201: the stage loop runs after this response. Holding the response for the full
+        // 125-150 s crosses Cloudflare's 100 s origin timeout, which reported a 524 failure for
+        // every provision that in fact succeeded.
+        HostedInstance accepted = row("abu_ammar", "PROVISIONING");
+        accepted.setFailedStage("ALLOCATE");
+        launcherAccepts(accepted);
 
         ResponseEntity<?> res = controller.provision(body("abu_ammar", "abu-ammar"));
 
-        assertThat(res.getStatusCode().value()).isEqualTo(201);
-        assertThat(((HostedStoreController.HostedStoreDto) res.getBody()).clientCode()).isEqualTo("abu_ammar");
-    }
-
-    @Test
-    void aFailedRunStillReturns201WithTheFailedStage() {
-        HostedInstance failed = row("abu_ammar", "FAILED");
-        failed.setFailedStage("DNS_API");
-        when(service.provision(any())).thenReturn(failed);
-
-        ResponseEntity<?> res = controller.provision(body("abu_ammar", "abu-ammar"));
-
-        assertThat(res.getStatusCode().value()).isEqualTo(201);
+        assertThat(res.getStatusCode().value()).isEqualTo(202);
         HostedStoreController.HostedStoreDto dto = (HostedStoreController.HostedStoreDto) res.getBody();
-        assertThat(dto.status()).isEqualTo("FAILED");
-        assertThat(dto.failedStage()).isEqualTo("DNS_API");
+        assertThat(dto.clientCode()).isEqualTo("abu_ammar");
+        assertThat(dto.status()).isEqualTo("PROVISIONING");
     }
 
     @Test
     void postReturns400WithTheRejectionReasonForABadSubdomain() {
-        when(service.provision(any())).thenThrow(new IllegalArgumentException("Subdomain 'admin' is reserved"));
+        when(launcher.start(any())).thenThrow(
+                new HostedStoreProvisioningService.RefusedException("Subdomain 'admin' is reserved"));
 
         ResponseEntity<?> res = controller.provision(body("abu_ammar", "admin"));
 
@@ -99,19 +101,35 @@ class HostedStoreControllerTest {
     }
 
     @Test
-    void aCapacityRefusalIsAlso400() {
-        when(service.provision(any())).thenThrow(new IllegalStateException("Not enough free RAM"));
+    void aCapacityRefusalIs503NotABadRequest() {
+        // Was 400 until this review: the request is fine, the SERVER cannot host another store, and
+        // retrying it unchanged once the box is bigger is exactly the right thing to do.
+        when(launcher.start(any())).thenThrow(
+                new HostedStoreProvisioningService.UnavailableException("Not enough RAM"));
 
         ResponseEntity<?> res = controller.provision(body("abu_ammar", "abu-ammar"));
 
-        assertThat(res.getStatusCode().value()).isEqualTo(400);
-        assertThat(res.getBody()).isEqualTo(Map.of("error", "Not enough free RAM"));
+        assertThat(res.getStatusCode().value()).isEqualTo(503);
+        assertThat(res.getBody()).isEqualTo(Map.of("error", "Not enough RAM"));
+    }
+
+    @Test
+    void anIncidentalIllegalStateExceptionIsNotEchoedToTheCaller() {
+        // The catch used to be `IllegalArgumentException | IllegalStateException`, wide enough to
+        // relay any incidental Spring/JPA state message verbatim as a 400. Now anything that is not
+        // one of the three deliberate refusal types propagates and becomes a plain 500.
+        when(launcher.start(any())).thenThrow(
+                new IllegalStateException("No transactional EntityManager available for jdbc:h2:..."));
+
+        assertThatThrownBy(() -> controller.provision(body("abu_ammar", "abu-ammar")))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void postReturns409WhenTheClientAlreadyHasAnInstance() {
-        when(repository.findByClientCode("abu_ammar")).thenReturn(Optional.of(row("abu_ammar", "ACTIVE")));
-        when(service.provision(any())).thenReturn(row("abu_ammar", "ACTIVE"));
+        HostedInstance active = row("abu_ammar", "ACTIVE");
+        when(launcher.start(any()))
+                .thenReturn(new HostedStoreProvisionLauncher.Started(active, true));
 
         ResponseEntity<?> res = controller.provision(body("abu_ammar", "abu-ammar"));
 
@@ -120,29 +138,108 @@ class HostedStoreControllerTest {
     }
 
     @Test
-    void resumingAFailedStoreIsNot409EvenThoughItNowEndsActive() {
-        when(repository.findByClientCode("abu_ammar")).thenReturn(Optional.of(row("abu_ammar", "FAILED")));
-        when(service.provision(any())).thenReturn(row("abu_ammar", "ACTIVE"));
+    void aSecondCreateWhileOneIsStillRunningIs409NotAnotherRun() {
+        when(launcher.start(any())).thenThrow(new HostedStoreProvisionLauncher.AlreadyRunningException(
+                "A provision for client 'abu_ammar' is already running"));
 
-        assertThat(controller.provision(body("abu_ammar", "abu-ammar")).getStatusCode().value()).isEqualTo(201);
+        ResponseEntity<?> res = controller.provision(body("abu_ammar", "abu-ammar"));
+
+        assertThat(res.getStatusCode().value()).isEqualTo(409);
+        assertThat(res.getBody().toString()).contains("already running");
     }
 
     @Test
-    void aBlankOrMissingSubdomainIsRejectedWithoutCallingTheService() {
+    void resumingAFailedStoreIsNot409EvenThoughItWillEndActive() {
+        when(repository.findByClientCode("abu_ammar")).thenReturn(Optional.of(row("abu_ammar", "FAILED")));
+        launcherAccepts(row("abu_ammar", "PROVISIONING"));
+
+        assertThat(controller.provision(body("abu_ammar", "abu-ammar")).getStatusCode().value()).isEqualTo(202);
+    }
+
+    @Test
+    void aBlankOrMissingSubdomainIsRejectedWithoutStartingAnything() {
         for (String sub : new String[]{null, "", "   "}) {
             ResponseEntity<?> res = controller.provision(body("متجر", sub));
             assertThat(res.getStatusCode().value()).isEqualTo(400);
             assertThat(res.getBody().toString()).contains("subdomain").contains("ASCII");
         }
-        verifyNoInteractions(service);
+        verifyNoInteractions(launcher);
     }
 
     @Test
-    void aMissingClientCodeIsRejectedWithoutCallingTheService() {
+    void aMissingClientCodeIsRejectedWithoutStartingAnything() {
         assertThat(controller.provision(body(" ", "abu-ammar")).getStatusCode().value()).isEqualTo(400);
         assertThat(controller.provision(body(null, "abu-ammar")).getStatusCode().value()).isEqualTo(400);
         assertThat(controller.provision(null).getStatusCode().value()).isEqualTo(400);
-        verify(service, never()).provision(any());
+        verify(launcher, never()).start(any());
+    }
+
+    // ---- DELETE /{clientCode}: abandon a half-created store ----
+
+    @Test
+    void deleteRefusesAnActiveStore() {
+        // Spec §5.4's "no suspend, stop or delete" decision is about LIVE stores and still stands.
+        when(repository.findByClientCode("abu_ammar")).thenReturn(Optional.of(row("abu_ammar", "ACTIVE")));
+
+        ResponseEntity<Map<String, String>> res = controller.forget("abu_ammar");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(409);
+        assertThat(res.getBody().get("error")).contains("ACTIVE").contains("live store");
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void deleteForgetsAFailedRowAndSaysWhatItDidNotRemove() {
+        // The case the spec did not consider: a MISTYPED client code, half-provisioned. Before this
+        // route the only escape was an H2 shell over SSH — the resume refuses to rename the row and
+        // existsBySubdomain then blocks reusing that subdomain on the correctly-named client.
+        HostedInstance failed = row("abu_amar", "FAILED");
+        failed.setFailedStage("PAGES_ACTIVE");
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(failed));
+
+        ResponseEntity<Map<String, String>> res = controller.forget("abu_amar");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(res.getBody().get("deleted")).isEqualTo("abu_amar");
+        // Registry-only, and it says so: nothing is torn down, exactly as a failed provision tears
+        // nothing down.
+        assertThat(res.getBody().get("warning"))
+                .contains("daman-store-abu_amar")
+                .contains("abu-ammar-api.damansoft.com")
+                .contains("still exist");
+        verify(repository).delete(failed);
+    }
+
+    @Test
+    void deleteIsRefusedWhileThatClientsProvisionIsStillRunning() {
+        // Deleting the row underneath a running stage loop would simply have the loop re-create it.
+        when(repository.findByClientCode("abu_ammar")).thenReturn(Optional.of(row("abu_ammar", "PROVISIONING")));
+        when(launcher.isRunning("abu_ammar")).thenReturn(true);
+
+        ResponseEntity<Map<String, String>> res = controller.forget("abu_ammar");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(409);
+        assertThat(res.getBody().get("error")).contains("running right now");
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void deleteOfAnUnknownClientIs404() {
+        ResponseEntity<Map<String, String>> res = controller.forget("nobody");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(404);
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void deleteForgetsAStalePROVISIONINGRowWhenNothingIsRunning() {
+        // A crashed run leaves PROVISIONING behind; that is abandonable like any other non-ACTIVE row.
+        HostedInstance stale = row("abu_amar", "PROVISIONING");
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(stale));
+        when(launcher.isRunning(anyString())).thenReturn(false);
+
+        assertThat(controller.forget("abu_amar").getStatusCode().value()).isEqualTo(200);
+        verify(repository).delete(stale);
     }
 
     @Test
@@ -167,7 +264,7 @@ class HostedStoreControllerTest {
     void responsesNeverIncludeTheStoredJwtSecret() throws Exception {
         HostedInstance ok = row("abu_ammar", "ACTIVE");
         when(repository.findAll()).thenReturn(List.of(ok));
-        when(service.provision(any())).thenReturn(ok);
+        launcherAccepts(ok);
 
         String created = mapper.writeValueAsString(controller.provision(body("abu_ammar", "abu-ammar")).getBody());
         String listed = mapper.writeValueAsString(controller.list());
@@ -187,9 +284,12 @@ class HostedStoreControllerTest {
         return i;
     }
 
-    @SuppressWarnings("unchecked")
     private List<HostedStoreController.RestartResult> results(ResponseEntity<?> res) {
-        return (List<HostedStoreController.RestartResult>) res.getBody();
+        return ((HostedStoreController.RestartReport) res.getBody()).walked();
+    }
+
+    private List<HostedStoreController.SkippedStore> skipped(ResponseEntity<?> res) {
+        return ((HostedStoreController.RestartReport) res.getBody()).skipped();
     }
 
     @Test
@@ -251,7 +351,7 @@ class HostedStoreControllerTest {
     }
 
     @Test
-    void restartAllSkipsFailedAndProvisioningRows() {
+    void restartAllSkipsFailedAndProvisioningRowsAndReportsThem() {
         when(repository.findAll()).thenReturn(List.of(
                 store("a", 9101, "FAILED"), store("b", 9102, "PROVISIONING"), store("c", 9103, "ACTIVE")));
         when(ops.health(anyInt())).thenReturn(true);
@@ -261,10 +361,15 @@ class HostedStoreControllerTest {
         assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode).containsExactly("c");
         verify(ops, never()).restart("daman-store-a");
         verify(ops, never()).restart("daman-store-b");
+        // Reported, not silently dropped: a store stuck at FAILED while its unit runs fine is
+        // exactly how a release becomes a no-op nobody is told about.
+        assertThat(skipped(res)).extracting(HostedStoreController.SkippedStore::clientCode)
+                .containsExactly("a", "b");
+        assertThat(skipped(res).get(0).reason()).contains("not ACTIVE").contains("FAILED");
     }
 
     @Test
-    void restartAllExcludesVioraWhichRunsItsOwnJar() {
+    void restartAllExcludesVioraWhichRunsItsOwnJarAndSaysSo() {
         // viora's unit points at /root/daman-store-viora.jar, not the shared jar, and is frozen:
         // a shared-jar release must not bounce a live paying store that is not running it.
         when(repository.findAll()).thenReturn(List.of(store("viora", 8090, "ACTIVE"), store("a", 9101, "ACTIVE")));
@@ -275,6 +380,37 @@ class HostedStoreControllerTest {
         assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode).containsExactly("a");
         verify(ops, never()).restart("daman-store-viora");
         verify(ops, never()).health(8090);
+        // The exclusion is now auditable at release time, not only in this test.
+        assertThat(skipped(res)).hasSize(1);
+        assertThat(skipped(res).get(0).clientCode()).isEqualTo("viora");
+        assertThat(skipped(res).get(0).reason()).contains("daman-store-viora.jar");
+    }
+
+    @Test
+    void restartAllReportsAnEmptyWalkRatherThanLookingLikeASuccessfulRelease() {
+        // The silent no-op: every row skipped, so the release restarted NOTHING while the jar on
+        // disk changed under every store. 200 with an empty walked list is what the script has to
+        // shout about — it used to print "every hosted store restarted healthy".
+        when(repository.findAll()).thenReturn(List.of(
+                store("viora", 8090, "ACTIVE"), store("a", 9101, "FAILED")));
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(results(res)).isEmpty();
+        assertThat(skipped(res)).hasSize(2);
+        verifyNoInteractions(ops);
+    }
+
+    @Test
+    void anEmptyRegistryIsAlsoAnEmptyWalk() {
+        when(repository.findAll()).thenReturn(List.of());
+
+        ResponseEntity<?> res = controller.restartAll();
+
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(results(res)).isEmpty();
+        assertThat(skipped(res)).isEmpty();
     }
 
     @Test

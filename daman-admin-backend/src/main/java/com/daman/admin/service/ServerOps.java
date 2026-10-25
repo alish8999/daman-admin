@@ -54,8 +54,18 @@ public interface ServerOps {
     /** The store's own view of its licence. Empty when it is not answering. Never throws. */
     Optional<LicenceStatus> licenceStatus(int port);
 
-    /** True when the store answers {@code /api/health} with 200. Never throws. */
+    /** True when the store answers {@code /api/health} with 200 on {@code 127.0.0.1}. Never throws. */
     boolean health(int port);
+
+    /**
+     * True when the store answers {@code https://<apiHostname>/api/health} with 200 — i.e. through
+     * Cloudflare's edge and the tunnel, the way a customer reaches it. Never throws for a network
+     * failure or a non-200 (that is the answer), but may throw for an invalid hostname.
+     *
+     * <p>Deliberately separate from {@link #health}: that one proves the JVM is up, this one proves
+     * the ingress rule and the DNS record actually point at it.
+     */
+    boolean publicHealth(String apiHostname);
 
     /**
      * True when <b>anything</b> is already listening on {@code port}. Deliberately not
@@ -67,6 +77,10 @@ public interface ServerOps {
     /** Posts the licence key to the store's own {@code /api/license/activate}. Throws if it is refused. */
     void activateLicence(int port, String licenseKey);
 
-    /** Free RAM in MB, as the capacity guard's input. */
-    long availableMemoryMb();
+    /**
+     * TOTAL RAM in MB, as the capacity guard's input — not free RAM. The guard reserves each
+     * existing store's full heap from this total instead of trusting a momentary free-memory
+     * reading, which a freshly booted JVM makes look far rosier than it is.
+     */
+    long totalMemoryMb();
 }

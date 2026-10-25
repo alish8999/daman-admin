@@ -12,6 +12,16 @@ import java.util.Base64;
 public final class StoreUnitRenderer {
 
     static final String SHARED_JAR = "/root/daman-store.jar";
+
+    /**
+     * Per-store JVM heap, in MB — the single definition of it. The unit template below formats this
+     * value into its own {@code -Xmx}, and {@code HostedStoreProvisioningService}'s capacity guard
+     * reserves it per existing store, so the number the guard reasons about and the number the JVM
+     * is actually launched with cannot drift apart. It used to be a literal {@code -Xmx768m} here
+     * and a separate {@code 768} constant there, held together by a comment.
+     */
+    public static final int HEAP_MB = 768;
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private StoreUnitRenderer() {}
@@ -53,7 +63,7 @@ public final class StoreUnitRenderer {
                 Environment=SPRING_PROFILES_ACTIVE=desktop
                 Environment=DAMAN_JWT_SECRET=%3$s
                 Environment=DAMAN_BACKUP_DIR=%4$s/backups
-                ExecStart=/usr/bin/java -Xmx768m -Duser.home=%4$s -jar %5$s
+                ExecStart=/usr/bin/java -Xmx%7$dm -Duser.home=%4$s -jar %5$s
                 # "always", not "on-failure": Settings -> Restore DB (and other in-app restarts) make the backend exit
                 # with status 0 on purpose, expecting Electron's shell to relaunch it. on-failure treats a clean exit
                 # as "done" and leaves the service dead. A manual 'systemctl stop' is still respected.
@@ -64,7 +74,8 @@ public final class StoreUnitRenderer {
 
                 [Install]
                 WantedBy=multi-user.target
-                """.formatted(i.getClientCode(), i.getPort(), i.getJwtSecret(), home, SHARED_JAR, i.getServiceName());
+                """.formatted(i.getClientCode(), i.getPort(), i.getJwtSecret(), home, SHARED_JAR,
+                        i.getServiceName(), HEAP_MB);
         return unit.replace("\r\n", "\n");
     }
 }
