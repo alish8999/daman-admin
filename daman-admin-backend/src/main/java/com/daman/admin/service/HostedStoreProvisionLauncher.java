@@ -146,7 +146,16 @@ public class HostedStoreProvisionLauncher {
         }
     }
 
-    /** Trimmed and lower-cased, so "Acme " and "acme" cannot both hold a run. */
+    /**
+     * Trimmed and lower-cased, so {@code "Acme "} and {@code "acme"} cannot both hold a run.
+     *
+     * <p>Deliberately coarser than the thing it protects: licence rows and registry rows are keyed
+     * on the exact client code, so a case-sensitive guard would technically be enough. Erring
+     * coarse means the guard can only ever be too strict, never too loose — and "too strict" here
+     * costs one self-explanatory 409 in a scenario that needs two client codes differing <i>only</i>
+     * in case to be provisioned in the same two minutes. Real codes ({@code abu_ammar},
+     * {@code Bistro-cafe}, {@code Hadid}, {@code 2-brothers}) are nowhere near that.
+     */
     private static String key(String clientCode) {
         return clientCode == null ? "" : clientCode.trim().toLowerCase(Locale.ROOT);
     }
