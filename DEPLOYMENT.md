@@ -393,7 +393,9 @@ everything it needs per store is an existing property or JVM flag, so the POS-ba
   weeks of history.
 - **Registry:** each store is a `HostedInstance` row in the admin database (`GET /api/hosted-stores`):
   client code, subdomain, port, service name, hostnames, `status` (`PROVISIONING` | `ACTIVE` |
-  `FAILED`) and `failedStage`.
+  `FAILED` | `SUSPENDED`) and `failedStage`. The response is `{stores, jarModifiedAt, totalMemoryMb,
+  committedStores, heapMb}`; each store also carries live `liveStatus`, `staleness`
+  (`current`/`stale`/`unknown`), `startedAt`, `backupLabel` and `backupSizeBytes`.
 - **viora is a partial exception:** its own Pages project and its legacy data directory
   `/root/.daman/viora`, but **since 2026-10-26 it runs the shared jar like every other store** and
   is restarted by a normal release. It was excluded before that (by service name), which made it

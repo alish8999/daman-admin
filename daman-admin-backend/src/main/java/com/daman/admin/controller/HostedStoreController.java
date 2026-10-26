@@ -5,6 +5,7 @@ import com.daman.admin.repository.HostedInstanceRepository;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreProvisioningService.ProvisionRequest;
+import com.daman.admin.service.HostedStoreStatusService;
 import com.daman.admin.service.ServerOps;
 import com.daman.admin.service.SubdomainRules;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -57,21 +59,24 @@ public class HostedStoreController {
     private final HostedStoreProvisionLauncher launcher;
     private final HostedInstanceRepository repository;
     private final ServerOps ops;
+    private final HostedStoreStatusService statusService;
     private final int healthAttempts;
     private final long healthIntervalMs;
 
     @Autowired
     public HostedStoreController(HostedStoreProvisionLauncher launcher,
-                                 HostedInstanceRepository repository, ServerOps ops) {
-        this(launcher, repository, ops, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
+                                 HostedInstanceRepository repository, ServerOps ops,
+                                 HostedStoreStatusService statusService) {
+        this(launcher, repository, ops, statusService, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
     }
 
     HostedStoreController(HostedStoreProvisionLauncher launcher,
                           HostedInstanceRepository repository, ServerOps ops,
-                          int healthAttempts, long healthIntervalMs) {
+                          HostedStoreStatusService statusService, int healthAttempts, long healthIntervalMs) {
         this.launcher = launcher;
         this.repository = repository;
         this.ops = ops;
+        this.statusService = statusService;
         this.healthAttempts = healthAttempts;
         this.healthIntervalMs = healthIntervalMs;
     }
@@ -101,14 +106,30 @@ public class HostedStoreController {
     public record HostedStoreDto(
             Long id, String clientCode, String subdomain, int port, String serviceName,
             String apiHostname, String frontendHostname, String status, String failedStage,
-            LocalDateTime createdAt, LocalDateTime updatedAt) {
+            LocalDateTime createdAt, LocalDateTime updatedAt,
+            String liveStatus, String staleness, Instant startedAt,
+            String backupLabel, Long backupSizeBytes) {
 
+        /** Registry facts only (provision/forget answers): the live fields are not probed here. */
         static HostedStoreDto of(HostedInstance i) {
+            return of(i, null);
+        }
+
+        static HostedStoreDto of(HostedInstance i, HostedStoreStatusService.LiveState live) {
             return new HostedStoreDto(i.getId(), i.getClientCode(), i.getSubdomain(), i.getPort(),
                     i.getServiceName(), i.getApiHostname(), i.getFrontendHostname(), i.getStatus(),
-                    i.getFailedStage(), i.getCreatedAt(), i.getUpdatedAt());
+                    i.getFailedStage(), i.getCreatedAt(), i.getUpdatedAt(),
+                    live == null ? null : live.liveStatus(),
+                    live == null ? null : live.staleness(),
+                    live == null ? null : live.startedAt(),
+                    live == null ? null : live.backupLabel(),
+                    live == null ? null : live.backupSizeBytes());
         }
     }
+
+    /** The list response: the stores plus the fleet-level numbers a dashboard header needs. */
+    public record FleetDto(List<HostedStoreDto> stores, Instant jarModifiedAt, long totalMemoryMb,
+                           int committedStores, int heapMb) {}
 
     @PostMapping
     public ResponseEntity<?> provision(@RequestBody(required = false) ProvisionBody body) {
@@ -187,8 +208,15 @@ public class HostedStoreController {
     }
 
     @GetMapping
-    public List<HostedStoreDto> list() {
-        return repository.findAll().stream().map(HostedStoreDto::of).toList();
+    public FleetDto list() {
+        List<HostedInstance> rows = repository.findAll();
+        HostedStoreStatusService.FleetState fleet = statusService.describe(rows);
+        List<HostedStoreDto> stores = new java.util.ArrayList<>();
+        for (int n = 0; n < rows.size(); n++) {
+            stores.add(HostedStoreDto.of(rows.get(n), fleet.states().get(n)));
+        }
+        return new FleetDto(stores, fleet.jarModifiedAt(), fleet.totalMemoryMb(),
+                fleet.committedStores(), fleet.heapMb());
     }
 
     /**

@@ -961,12 +961,14 @@
         fetch('/api/remote/hosted-stores', { headers: authHeaders() })
           .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
           .then(({ r, body }) => {
-            if (!r.ok || !Array.isArray(body)) {
+            // Both backend shapes (bare array / { stores }): see registry-rows.js.
+            const rows = registryRows(body);
+            if (!r.ok || !rows) {
               appendLine(log, `Could not read the registry (${readError(r, body)}); still polling...`);
               schedule();
               return;
             }
-            const row = body.find((candidate) => candidate.clientCode === clientCode);
+            const row = rows.find((candidate) => candidate.clientCode === clientCode);
             if (!row) {
               appendLine(log, 'The registry has no row for this client yet; still polling...');
               schedule();

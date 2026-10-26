@@ -4,6 +4,7 @@ import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
+import com.daman.admin.service.HostedStoreStatusService;
 import com.daman.admin.service.ServerOps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,8 @@ class HostedStoreControllerTest {
         when(repository.findByClientCode(any())).thenReturn(Optional.empty());
         ops = mock(ServerOps.class);
         // 3 health polls, no sleep: the tests never wait on a real clock.
-        controller = new HostedStoreController(launcher, repository, ops, 3, 0);
+        controller = new HostedStoreController(launcher, repository, ops,
+                new HostedStoreStatusService(ops), 3, 0);
     }
 
     /** What the launcher answers for a run it just accepted. */
@@ -246,8 +248,34 @@ class HostedStoreControllerTest {
     void getListsTheRegistry() {
         when(repository.findAll()).thenReturn(List.of(row("abu_ammar", "ACTIVE"), row("viora", "ACTIVE")));
 
-        assertThat(controller.list()).extracting(HostedStoreController.HostedStoreDto::clientCode)
+        assertThat(controller.list().stores()).extracting(HostedStoreController.HostedStoreDto::clientCode)
                 .containsExactly("abu_ammar", "viora");
+    }
+
+    @Test
+    void listCarriesLiveStateAndTheFleetCapacityNumbers() {
+        java.time.Instant jarAt = java.time.Instant.parse("2026-10-26T14:56:31Z");
+        HostedInstance running = row("abu_ammar", "ACTIVE");
+        HostedInstance suspended = row("acme", "SUSPENDED");
+        when(repository.findAll()).thenReturn(List.of(running, suspended));
+        when(ops.fileModifiedAt("/root/daman-store.jar")).thenReturn(Optional.of(jarAt));
+        when(ops.totalMemoryMb()).thenReturn(3814L);
+        when(ops.unitActive("daman-store-abu_ammar")).thenReturn(true);
+        when(ops.health(9101)).thenReturn(true);
+        when(ops.unitStartedAt("daman-store-abu_ammar"))
+                .thenReturn(Optional.of(jarAt.minusSeconds(60)));
+
+        HostedStoreController.FleetDto fleet = controller.list();
+
+        assertThat(fleet.jarModifiedAt()).isEqualTo(jarAt);
+        assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
+        assertThat(fleet.committedStores()).isEqualTo(2);
+        assertThat(fleet.heapMb()).isEqualTo(768);
+        HostedStoreController.HostedStoreDto first = fleet.stores().get(0);
+        assertThat(first.liveStatus()).isEqualTo("running");
+        assertThat(first.staleness()).isEqualTo("stale");
+        assertThat(first.backupLabel()).isEqualTo("unknown");
+        assertThat(fleet.stores().get(1).liveStatus()).isEqualTo("suspended");
     }
 
     @Test
