@@ -44,4 +44,46 @@ class HostedCapacityTest {
         assertTrue(HostedCapacity.hasRoomForAnotherStore(total, 0, 768, 1024, 300));
         assertFalse(HostedCapacity.hasRoomForAnotherStore(total, 1, 768, 1024, 300));
     }
+
+    @Test void maxStoresOnTheRealBoxIsThree() {
+        assertEquals(3, HostedCapacity.maxStores(3814, 768,
+                HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
+    }
+
+    @Test void maxStoresNeverGoesNegative() {
+        assertEquals(0, HostedCapacity.maxStores(500, 768, 1024, 300));
+    }
+
+    @Test void theGuardStillMatchesTheOriginalInequalityEverywhere() {
+        // Independent oracle: the ORIGINAL form of the guard, written out literally and not calling
+        // production code, so this fails if the maxStores refactor ever changes behaviour.
+        // Every integer box size, plus the exact boundaries 1324 + 768k (reserve 1024 + margin 300
+        // + k heaps) and their neighbours, which is the only place the two forms could diverge.
+        java.util.List<Long> totals = new java.util.ArrayList<>();
+        for (long t = 0; t <= 9000; t++) totals.add(t);
+        for (long k = 0; k <= 12; k++) {
+            long boundary = 1324 + 768 * k;
+            totals.add(boundary - 1);
+            totals.add(boundary);
+            totals.add(boundary + 1);
+        }
+        for (long total : totals) {
+            for (long existing = 0; existing <= 14; existing++) {
+                boolean expected = (total - 768L * existing - 1024) >= (768 + 300);
+                assertEquals(expected,
+                        HostedCapacity.hasRoomForAnotherStore(total, existing, 768, 1024, 300),
+                        "total=" + total + " existing=" + existing);
+            }
+        }
+    }
+
+    @Test void theBoundaryIsExactlyWhereTheOriginalInequalityFlips() {
+        for (long k = 0; k <= 6; k++) {
+            long boundary = 1324 + 768 * (k + 1); // the smallest box where k existing stores still leave room
+            assertTrue(HostedCapacity.hasRoomForAnotherStore(boundary, k, 768, 1024, 300), "at " + boundary);
+            assertFalse(HostedCapacity.hasRoomForAnotherStore(boundary - 1, k, 768, 1024, 300), "just under " + boundary);
+            assertEquals((int) (k + 1), HostedCapacity.maxStores(boundary, 768, 1024, 300));
+            assertEquals((int) k, HostedCapacity.maxStores(boundary - 1, 768, 1024, 300));
+        }
+    }
 }

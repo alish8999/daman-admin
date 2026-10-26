@@ -9,6 +9,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -20,14 +21,24 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * The real {@link ServerOps}: the only class in the hosted-store feature that runs a command,
@@ -101,6 +112,124 @@ public class SystemdServerOps implements ServerOps {
     public void restart(String serviceName) {
         requireSafeUnitName(serviceName);
         run("systemctl", "restart", serviceName);
+    }
+
+    @Override
+    public void stopAndDisable(String serviceName) {
+        requireSafeUnitName(serviceName);
+        run("systemctl", "disable", "--now", serviceName);
+    }
+
+    @Override
+    public void enableAndStart(String serviceName) {
+        requireSafeUnitName(serviceName);
+        run("systemctl", "enable", "--now", serviceName);
+    }
+
+    @Override
+    public void deleteUnit(String serviceName) {
+        requireSafeUnitName(serviceName);
+        Path unit = Path.of(unitDir, serviceName + ".service");
+        try {
+            Files.deleteIfExists(unit);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not delete " + unit, e);
+        }
+        log.info("Deleted systemd unit {}", unit);
+        run("systemctl", "daemon-reload");
+    }
+
+    @Override
+    public boolean unitActive(String serviceName) {
+        requireSafeUnitName(serviceName);
+        return isActive(serviceName);
+    }
+
+    @Override
+    public Optional<Instant> unitStartedAt(String serviceName) {
+        requireSafeUnitName(serviceName);
+        String value = runCapture("systemctl", "show", "-p", "ActiveEnterTimestamp", "--value", serviceName);
+        return parseSystemdTimestamp(value);
+    }
+
+    @Override
+    public Optional<Instant> fileModifiedAt(String path) {
+        try {
+            Path file = Path.of(path);
+            return Files.exists(file) ? Optional.of(Files.getLastModifiedTime(file).toInstant()) : Optional.empty();
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<BackupInfo> newestBackup(String dir) {
+        Path directory = Path.of(dir);
+        if (!Files.isDirectory(directory)) {
+            return Optional.empty();
+        }
+        try (Stream<Path> files = Files.list(directory)) {
+            return files.filter(Files::isRegularFile)
+                    .map(f -> {
+                        try {
+                            return new BackupInfo(f.getFileName().toString(), Files.size(f),
+                                    Files.getLastModifiedTime(f).toInstant());
+                        } catch (IOException e) {
+                            return null;
+                        }
+                    })
+                    .filter(b -> b != null)
+                    .max(Comparator.comparing(BackupInfo::modifiedAt));
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not list " + dir, e);
+        }
+    }
+
+    @Override
+    public void zipFileInto(String sourceFile, String targetZip, String entryName) {
+        Path source = Path.of(sourceFile);
+        Path target = Path.of(targetZip);
+        try {
+            Path parent = target.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            try (OutputStream out = Files.newOutputStream(target);
+                 ZipOutputStream zip = new ZipOutputStream(out)) {
+                zip.putNextEntry(new ZipEntry(entryName));
+                Files.copy(source, zip);
+                zip.closeEntry();
+            }
+        } catch (IOException e) {
+            // Never leave a truncated archive that could pass for a real backup.
+            try {
+                Files.deleteIfExists(target);
+            } catch (IOException ignored) {
+                // the original failure is the one worth reporting
+            }
+            throw new UncheckedIOException("could not zip " + sourceFile + " into " + targetZip, e);
+        }
+    }
+
+    @Override
+    public void deleteTree(String path, String clientCode) {
+        if (!StorePaths.isAllowedDataDir(path, clientCode)) {
+            throw new IllegalArgumentException("Refusing to delete " + path + " for client " + clientCode);
+        }
+        Path root = Path.of(path);
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        try (Stream<Path> tree = Files.walk(root)) {
+            // Deepest first. Files.walk does not follow symlinks, and Files.delete removes a link
+            // itself rather than its target.
+            for (Path p : (Iterable<Path>) tree.sorted(Comparator.reverseOrder())::iterator) {
+                Files.delete(p);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not delete " + path, e);
+        }
+        log.info("Deleted data directory {}", path);
     }
 
     @Override
@@ -289,6 +418,48 @@ public class SystemdServerOps implements ServerOps {
 
     // ── internals ────────────────────────────────────────────────────────────
 
+    /** Only zones that cannot be misread: UTC/GMT/Z, a numeric offset, or a full IANA id (has a "/"). */
+    private static final Pattern UNAMBIGUOUS_ZONE = Pattern.compile("UTC|GMT|Z|[+-]\\d{2}(:?\\d{2})?|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+");
+
+    private static final Pattern SYSTEMD_TIMESTAMP =
+            Pattern.compile("(\\d{4}-\\d{2}-\\d{2})[ T](\\d{2}:\\d{2}:\\d{2})\\s+(\\S+)");
+
+    /**
+     * Parses systemd's {@code ActiveEnterTimestamp} ({@code Mon 2026-10-26 14:56:41 UTC}). Empty,
+     * with a WARN, for a blank or unparseable value: one misbehaving unit must not break a whole
+     * fleet poll, so callers treat empty as "unknown", never as "current".
+     *
+     * <p>Deliberately lenient where systemd varies: the leading day-of-week is ignored (the date is
+     * authoritative, so a wrong weekday cannot conflict), the zone may be {@code UTC}, an
+     * unambiguous abbreviation (ambiguous ones such as {@code EET}, {@code BST}, {@code CST} are rejected) or a numeric offset ({@code +03}, {@code +03:00}), nothing depends
+     * on the default locale, and the timestamp is found anywhere in the text so a warning line
+     * merged in from stderr does not hide it.
+     */
+    static Optional<Instant> parseSystemdTimestamp(String value) {
+        if (value == null || value.isBlank()) {
+            // Not a problem: a never-started unit (every suspended store is disable --now'd) has a
+            // permanently blank value, and the fleet list polls it every few seconds.
+            log.debug("systemd reported no start time (unit never started)");
+            return Optional.empty();
+        }
+        Matcher m = SYSTEMD_TIMESTAMP.matcher(value);
+        while (m.find()) {
+            try {
+                String token = m.group(3);
+                if (!UNAMBIGUOUS_ZONE.matcher(token).matches()) {
+                    continue; // a bare abbreviation (BST, CST, IST...) is ambiguous: reject, never guess
+                }
+                ZoneId zone = ZoneId.of(token);
+                return Optional.of(LocalDateTime.parse(m.group(1) + "T" + m.group(2)).atZone(zone).toInstant());
+            } catch (DateTimeException e) {
+                // try the next candidate, then give up below
+            }
+        }
+        // Non-blank but unrecognised: the parser met a format it does not handle. Keep the value.
+        log.warn("could not parse non-blank systemd timestamp '{}' - parser needs updating", value);
+        return Optional.empty();
+    }
+
     private static void requireSafeUnitName(String serviceName) {
         if (serviceName == null || !SAFE_UNIT_NAME.matcher(serviceName).matches()) {
             throw new IllegalArgumentException("Unsafe systemd service name: " + serviceName);
@@ -382,6 +553,11 @@ public class SystemdServerOps implements ServerOps {
      * problem, a chatty child deadlocking on a full pipe buffer while nobody is reading it.
      */
     private static void run(String... command) {
+        runCapture(command);
+    }
+
+    /** {@link #run} that also returns the command's trimmed combined output. */
+    private static String runCapture(String... command) {
         String printable = String.join(" ", command);
         Path captured = null;
         try {
@@ -401,6 +577,7 @@ public class SystemdServerOps implements ServerOps {
                         + (output.isEmpty() ? "" : ": " + output));
             }
             log.info("ran: {}", printable);
+            return readCaptured(captured);
         } catch (IOException e) {
             throw new UncheckedIOException("could not run " + printable, e);
         } catch (InterruptedException e) {

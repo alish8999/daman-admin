@@ -2,8 +2,10 @@ package com.daman.admin.controller;
 
 import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
+import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
+import com.daman.admin.service.HostedStoreStatusService;
 import com.daman.admin.service.ServerOps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,8 +46,11 @@ class HostedStoreControllerTest {
         repository = mock(HostedInstanceRepository.class);
         when(repository.findByClientCode(any())).thenReturn(Optional.empty());
         ops = mock(ServerOps.class);
+        when(ops.readIngress()).thenReturn("ingress:\n  - service: http_status:404\n");
         // 3 health polls, no sleep: the tests never wait on a real clock.
-        controller = new HostedStoreController(launcher, repository, ops, 3, 0);
+        controller = new HostedStoreController(launcher, repository, ops,
+                new HostedStoreStatusService(ops),
+                new HostedStoreLifecycleService(repository, ops, mock(com.daman.admin.repository.LicenseRepository.class), 3, 0), 3, 0);
     }
 
     /** What the launcher answers for a run it just accepted. */
@@ -70,6 +75,37 @@ class HostedStoreControllerTest {
 
     private HostedStoreController.ProvisionBody body(String code, String sub) {
         return new HostedStoreController.ProvisionBody(code, sub, null);
+    }
+
+    @Test
+    void suspendMapsToOk409And404() {
+        HostedInstance active = row("acme", "ACTIVE");
+        HostedInstance provisioning = row("beta", "PROVISIONING");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(active));
+        when(repository.findByClientCode("beta")).thenReturn(Optional.of(provisioning));
+
+        assertThat(controller.suspend("acme").getStatusCode().value()).isEqualTo(200);
+        assertThat(active.getStatus()).isEqualTo("SUSPENDED");
+        assertThat(controller.suspend("beta").getStatusCode().value()).isEqualTo(409);
+        assertThat(controller.suspend("ghost").getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void resumeAnswers502WhenTheStoreNeverBecomesHealthy() {
+        HostedInstance suspended = row("acme", "SUSPENDED");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(suspended));
+        when(ops.health(anyInt())).thenReturn(false);
+
+        assertThat(controller.resume("acme").getStatusCode().value()).isEqualTo(502);
+        assertThat(suspended.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void restartRefusesASuspendedStoreWith409() {
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(row("acme", "SUSPENDED")));
+
+        assertThat(controller.restartStore("acme").getStatusCode().value()).isEqualTo(409);
+        verify(ops, never()).restart(anyString());
     }
 
     @Test
@@ -177,6 +213,19 @@ class HostedStoreControllerTest {
     // ---- DELETE /{clientCode}: abandon a half-created store ----
 
     @Test
+    void deleteRefusesASuspendedStoreAndPointsAtRemove() {
+        // Forgetting a SUSPENDED row would leave its unit and the customer's data on disk with no
+        // backup and no row left to drive a proper Remove: the state the removal design prevents.
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(row("acme", "SUSPENDED")));
+
+        ResponseEntity<Map<String, String>> res = controller.forget("acme");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(409);
+        assertThat(res.getBody().get("error")).contains("SUSPENDED").contains("remove");
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
     void deleteRefusesAnActiveStore() {
         // Spec §5.4's "no suspend, stop or delete" decision is about LIVE stores and still stands.
         when(repository.findByClientCode("abu_ammar")).thenReturn(Optional.of(row("abu_ammar", "ACTIVE")));
@@ -246,8 +295,45 @@ class HostedStoreControllerTest {
     void getListsTheRegistry() {
         when(repository.findAll()).thenReturn(List.of(row("abu_ammar", "ACTIVE"), row("viora", "ACTIVE")));
 
-        assertThat(controller.list()).extracting(HostedStoreController.HostedStoreDto::clientCode)
+        assertThat(controller.list().stores()).extracting(HostedStoreController.HostedStoreDto::clientCode)
                 .containsExactly("abu_ammar", "viora");
+    }
+
+    @Test
+    void listCarriesLiveStateAndTheFleetCapacityNumbers() {
+        java.time.Instant jarAt = java.time.Instant.parse("2026-10-26T14:56:31Z");
+        HostedInstance running = row("abu_ammar", "ACTIVE");
+        HostedInstance suspended = row("acme", "SUSPENDED");
+        when(repository.findAll()).thenReturn(List.of(running, suspended));
+        when(ops.fileModifiedAt("/root/daman-store.jar")).thenReturn(Optional.of(jarAt));
+        when(ops.totalMemoryMb()).thenReturn(3814L);
+        when(ops.unitActive("daman-store-abu_ammar")).thenReturn(true);
+        when(ops.health(9101)).thenReturn(true);
+        when(ops.unitStartedAt("daman-store-abu_ammar"))
+                .thenReturn(Optional.of(jarAt.minusSeconds(60)));
+
+        HostedStoreController.FleetDto fleet = controller.list();
+
+        assertThat(fleet.jarModifiedAt()).isEqualTo(jarAt);
+        assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
+        assertThat(fleet.committedStores()).isEqualTo(2);
+        assertThat(fleet.heapMb()).isEqualTo(768);
+        assertThat(fleet.maxStores()).isEqualTo(3);
+        HostedStoreController.HostedStoreDto first = fleet.stores().get(0);
+        assertThat(first.liveStatus()).isEqualTo("running");
+        assertThat(first.staleness()).isEqualTo("stale");
+        assertThat(first.backupAt()).isEqualTo("unknown");
+        assertThat(fleet.stores().get(1).liveStatus()).isEqualTo("suspended");
+    }
+
+    @Test
+    void listCarriesAFailedRowsStage() {
+        HostedInstance failed = row("acme", "FAILED");
+        failed.setFailedStage("DNS");
+        when(repository.findAll()).thenReturn(List.of(failed));
+        HostedStoreController.HostedStoreDto dto = controller.list().stores().get(0);
+        assertThat(dto.liveStatus()).isEqualTo("failed");
+        assertThat(dto.failedStage()).isEqualTo("DNS");
     }
 
     @Test
@@ -424,5 +510,101 @@ class HostedStoreControllerTest {
 
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         assertThat(results(res).get(0).healthy()).isTrue();
+    }
+
+    // ---- forget drops the tunnel rule (a freed port must not keep a live hostname) ----------
+
+    private static final String INGRESS_WITH_RULE =
+            "ingress:\n"
+            + "  - hostname: admin-api.damansoft.com\n    service: http://localhost:8082\n"
+            + "  - hostname: abu-ammar-api.damansoft.com\n    service: http://localhost:9101\n"
+            + "  - service: http_status:404\n";
+
+    @Test
+    void deleteDropsTheFailedRowsIngressRuleBeforeFreeingItsPort() {
+        HostedInstance failed = row("abu_amar", "FAILED");
+        failed.setFailedStage("PAGES_ATTACH");
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(failed));
+        when(ops.readIngress()).thenReturn(INGRESS_WITH_RULE);
+        org.mockito.ArgumentCaptor<String> written = org.mockito.ArgumentCaptor.forClass(String.class);
+
+        assertThat(controller.forget("abu_amar").getStatusCode().value()).isEqualTo(200);
+
+        org.mockito.InOrder o = org.mockito.Mockito.inOrder(ops, repository);
+        o.verify(ops).writeIngress(written.capture());
+        o.verify(ops).reloadCloudflared();
+        o.verify(repository).delete(failed);
+        assertThat(written.getValue()).doesNotContain("abu-ammar-api.damansoft.com")
+                .contains("admin-api.damansoft.com");
+    }
+
+    @Test
+    void deleteStillSucceedsWhenTheFailedRowHasNoIngressRule() {
+        HostedInstance failed = row("abu_amar", "FAILED");
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(failed));
+
+        assertThat(controller.forget("abu_amar").getStatusCode().value()).isEqualTo(200);
+
+        verify(ops, never()).writeIngress(anyString());
+        verify(ops, never()).reloadCloudflared();
+        verify(repository).delete(failed);
+    }
+
+    @Test
+    void deleteNeverAimsAnIngressRemovalAtAHostnameThatIsNotTheRowsOwn() {
+        HostedInstance bad = row("abu_amar", "FAILED");
+        bad.setApiHostname("admin-api.damansoft.com");
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(bad));
+
+        assertThat(controller.forget("abu_amar").getStatusCode().value()).isEqualTo(200);
+
+        verify(ops, never()).writeIngress(anyString());
+    }
+
+    // ---- POST /{clientCode}/remove ----------------------------------------------------------
+
+    @Test
+    void removeAnswers200WithTheResultForASuspendedStore() {
+        HostedInstance suspended = row("abu_amar", "SUSPENDED");
+        suspended.setDataDir("/root/stores/abu_amar");
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(suspended));
+        when(ops.fileModifiedAt(anyString())).thenReturn(Optional.of(java.time.Instant.now()));
+
+        ResponseEntity<?> res = controller.remove("abu_amar");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(res.getBody()).isInstanceOf(HostedStoreLifecycleService.RemoveResult.class);
+        HostedStoreLifecycleService.RemoveResult r = (HostedStoreLifecycleService.RemoveResult) res.getBody();
+        assertThat(r.clientCode()).isEqualTo("abu_amar");
+        assertThat(r.keptBackup()).startsWith("/root/removed-stores/abu_amar-");
+        verify(ops).deleteTree("/root/stores/abu_amar", "abu_amar");
+        verify(repository).delete(suspended);
+    }
+
+    @Test
+    void removeRefusesANonSuspendedStoreWith409AndTouchesNothing() {
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(row("abu_amar", "ACTIVE")));
+
+        ResponseEntity<?> res = controller.remove("abu_amar");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(409);
+        verify(ops, never()).stopAndDisable(anyString());
+        verify(ops, never()).deleteTree(any(), any());
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void removeOfAnUnknownClientIs404() {
+        assertThat(controller.remove("nobody").getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void removeIsRefusedWhileThatClientsProvisionIsStillRunning() {
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(row("abu_amar", "SUSPENDED")));
+        when(launcher.isRunning("abu_amar")).thenReturn(true);
+
+        assertThat(controller.remove("abu_amar").getStatusCode().value()).isEqualTo(409);
+        verify(ops, never()).deleteTree(any(), any());
+        verify(repository, never()).delete(any());
     }
 }

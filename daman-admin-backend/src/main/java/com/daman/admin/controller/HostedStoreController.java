@@ -2,9 +2,11 @@ package com.daman.admin.controller;
 
 import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
+import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreProvisioningService.ProvisionRequest;
+import com.daman.admin.service.HostedStoreStatusService;
 import com.daman.admin.service.ServerOps;
 import com.daman.admin.service.SubdomainRules;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -57,21 +60,28 @@ public class HostedStoreController {
     private final HostedStoreProvisionLauncher launcher;
     private final HostedInstanceRepository repository;
     private final ServerOps ops;
+    private final HostedStoreStatusService statusService;
+    private final HostedStoreLifecycleService lifecycle;
     private final int healthAttempts;
     private final long healthIntervalMs;
 
     @Autowired
     public HostedStoreController(HostedStoreProvisionLauncher launcher,
-                                 HostedInstanceRepository repository, ServerOps ops) {
-        this(launcher, repository, ops, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
+                                 HostedInstanceRepository repository, ServerOps ops,
+                                 HostedStoreStatusService statusService,
+                                 HostedStoreLifecycleService lifecycle) {
+        this(launcher, repository, ops, statusService, lifecycle, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
     }
 
     HostedStoreController(HostedStoreProvisionLauncher launcher,
                           HostedInstanceRepository repository, ServerOps ops,
+                          HostedStoreStatusService statusService, HostedStoreLifecycleService lifecycle,
                           int healthAttempts, long healthIntervalMs) {
         this.launcher = launcher;
         this.repository = repository;
         this.ops = ops;
+        this.statusService = statusService;
+        this.lifecycle = lifecycle;
         this.healthAttempts = healthAttempts;
         this.healthIntervalMs = healthIntervalMs;
     }
@@ -101,14 +111,30 @@ public class HostedStoreController {
     public record HostedStoreDto(
             Long id, String clientCode, String subdomain, int port, String serviceName,
             String apiHostname, String frontendHostname, String status, String failedStage,
-            LocalDateTime createdAt, LocalDateTime updatedAt) {
+            LocalDateTime createdAt, LocalDateTime updatedAt,
+            String liveStatus, String staleness, Instant startedAt,
+            String backupAt, Long backupSizeBytes) {
 
+        /** Registry facts only (provision/forget answers): the live fields are not probed here. */
         static HostedStoreDto of(HostedInstance i) {
+            return of(i, null);
+        }
+
+        static HostedStoreDto of(HostedInstance i, HostedStoreStatusService.LiveState live) {
             return new HostedStoreDto(i.getId(), i.getClientCode(), i.getSubdomain(), i.getPort(),
                     i.getServiceName(), i.getApiHostname(), i.getFrontendHostname(), i.getStatus(),
-                    i.getFailedStage(), i.getCreatedAt(), i.getUpdatedAt());
+                    i.getFailedStage(), i.getCreatedAt(), i.getUpdatedAt(),
+                    live == null ? null : live.liveStatus(),
+                    live == null ? null : live.staleness(),
+                    live == null ? null : live.startedAt(),
+                    live == null ? null : live.backupAt(),
+                    live == null ? null : live.backupSizeBytes());
         }
     }
+
+    /** The list response: the stores plus the fleet-level numbers a dashboard header needs. */
+    public record FleetDto(List<HostedStoreDto> stores, Instant jarModifiedAt, long totalMemoryMb,
+                           int committedStores, int heapMb, int maxStores) {}
 
     @PostMapping
     public ResponseEntity<?> provision(@RequestBody(required = false) ProvisionBody body) {
@@ -150,9 +176,13 @@ public class HostedStoreController {
      * on the correctly-named client, and the H2 console is disabled, so the only escape was an H2
      * shell over SSH.
      *
-     * <p><b>Registry-only.</b> Nothing is torn down, exactly as a failed provision tears nothing
-     * down: the DNS records, the Pages custom domain, the systemd unit and the data directory all
-     * survive and are the operator's to clean up (DEPLOYMENT.md §10.5 lists them). Deleting the row
+     * <p><b>Registry-only for data and infrastructure, with one exception.</b> The DNS records, the
+     * Pages custom domain, the systemd unit and the data directory all survive and are the
+     * operator's to clean up (DEPLOYMENT.md §10.5 lists them). The tunnel ingress rule for the
+     * row's own {@code <sub>-api} hostname is dropped (absent is fine): deleting the row frees its
+     * port, so a surviving rule would point the departed hostname at the next store to get that
+     * port, a cross-tenant leak. The "registry-only" promise exists so Forget cannot destroy data;
+     * dropping a rule for a store that does not exist destroys none. Deleting the row
      * only stops the registry claiming that store exists — it also frees its subdomain and its
      * port for reuse, which is the point.
      */
@@ -168,15 +198,30 @@ public class HostedStoreController {
                     + " — refusing to delete the row of a live store. This route exists only to"
                     + " abandon a half-created one.", HttpStatus.CONFLICT);
         }
+        if ("SUSPENDED".equals(row.getStatus())) {
+            return error("Hosted store '" + clientCode + "' is SUSPENDED — refusing to delete its row:"
+                    + " that would leave its unit and the customer's data on disk with no backup and no"
+                    + " row left to remove it by. Use POST /api/hosted-stores/" + clientCode
+                    + "/remove, which takes a backup first.", HttpStatus.CONFLICT);
+        }
         if (launcher.isRunning(clientCode)) {
             return error("A provision for client '" + clientCode + "' is running right now;"
                     + " deleting its row underneath it would have the run re-create it. Wait for"
                     + " the row to read FAILED, then retry.", HttpStatus.CONFLICT);
         }
+        // Closes a tenancy leak: a row that failed at API_DNS or later already has a live ingress
+        // rule, and deleting the row frees its port for the next store. An absent rule is fine.
+        boolean ingressDropped = false;
+        if (HostedStoreLifecycleService.hasOwnApiHostname(row)) {
+            ingressDropped = lifecycle.dropIngressRule(row);
+        } else {
+            log.warn("Not touching the ingress for '{}': API hostname {} is not its own", clientCode,
+                    row.getApiHostname());
+        }
         repository.delete(row);
-        log.warn("Deleted the hosted-store registry row for '{}' (was {} at stage {}). Its unit,"
-                        + " data directory, DNS records and Pages domain were NOT touched.",
-                clientCode, row.getStatus(), row.getFailedStage());
+        log.warn("Deleted the hosted-store registry row for '{}' (was {} at stage {}). Ingress rule"
+                        + " dropped: {}. Its unit, data directory, DNS records and Pages domain were NOT touched.",
+                clientCode, row.getStatus(), row.getFailedStage(), ingressDropped);
         return ResponseEntity.ok(Map.of(
                 "deleted", clientCode,
                 "warning", "Registry row only. The systemd unit " + row.getServiceName()
@@ -187,8 +232,15 @@ public class HostedStoreController {
     }
 
     @GetMapping
-    public List<HostedStoreDto> list() {
-        return repository.findAll().stream().map(HostedStoreDto::of).toList();
+    public FleetDto list() {
+        List<HostedInstance> rows = repository.findAll();
+        HostedStoreStatusService.FleetState fleet = statusService.describe(rows);
+        List<HostedStoreDto> stores = new java.util.ArrayList<>();
+        for (int n = 0; n < rows.size(); n++) {
+            stores.add(HostedStoreDto.of(rows.get(n), fleet.states().get(n)));
+        }
+        return new FleetDto(stores, fleet.jarModifiedAt(), fleet.totalMemoryMb(),
+                fleet.committedStores(), fleet.heapMb(), fleet.maxStores());
     }
 
     /**
@@ -277,6 +329,61 @@ public class HostedStoreController {
         }
         return new RestartResult(i.getClientCode(), true, false,
                 "restarted but /api/health never answered 200 within " + healthAttempts + " polls");
+    }
+
+    /**
+     * Suspend: a billing lever. Disables and stops the unit and marks the row SUSPENDED, so neither
+     * a reboot, a release walk nor re-running Create brings the store back. Idempotent.
+     */
+    @PostMapping("/{clientCode}/suspend")
+    public ResponseEntity<?> suspend(@PathVariable String clientCode) {
+        return lifecycleCall(() -> lifecycle.suspend(clientCode));
+    }
+
+    /** Resume a suspended store; 502 when it was started but never became healthy. Idempotent. */
+    @PostMapping("/{clientCode}/resume")
+    public ResponseEntity<?> resume(@PathVariable String clientCode) {
+        return lifecycleCall(() -> lifecycle.resume(clientCode));
+    }
+
+    /** Restart one ACTIVE store; a suspended one is refused with 409. 502 when it stays unhealthy. */
+    @PostMapping("/{clientCode}/restart")
+    public ResponseEntity<?> restartStore(@PathVariable String clientCode) {
+        return lifecycleCall(() -> lifecycle.restartOne(clientCode));
+    }
+
+    /**
+     * Irreversible teardown of a SUSPENDED store, keeping one backup zip. 409 for a store that is
+     * not suspended or whose paths fail the safety checks, 404 for an unknown client.
+     */
+    @PostMapping("/{clientCode}/remove")
+    public ResponseEntity<?> remove(@PathVariable String clientCode) {
+        if (launcher.isRunning(clientCode)) {
+            return error("A provision for client '" + clientCode + "' is running right now;"
+                    + " removing the store underneath it would have the run re-create its unit and"
+                    + " ingress rule. Wait for it to finish, then retry.", HttpStatus.CONFLICT);
+        }
+        try {
+            return ResponseEntity.ok(lifecycle.remove(clientCode));
+        } catch (HostedStoreLifecycleService.NotFoundException e) {
+            return error(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (HostedStoreLifecycleService.ConflictException e) {
+            return error(e.getMessage(), HttpStatus.CONFLICT);
+        }
+    }
+
+    /** 404 unknown client, 409 wrong status, 502 ran but never healthy (health wait is 75 s max). */
+    private ResponseEntity<?> lifecycleCall(java.util.function.Supplier<HostedStoreLifecycleService.LifecycleResult> action) {
+        try {
+            HostedStoreLifecycleService.LifecycleResult r = action.get();
+            HttpStatus status = HostedStoreLifecycleService.UNHEALTHY.equals(r.status())
+                    ? HttpStatus.BAD_GATEWAY : HttpStatus.OK;
+            return ResponseEntity.status(status).body(r);
+        } catch (HostedStoreLifecycleService.NotFoundException e) {
+            return error(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (HostedStoreLifecycleService.ConflictException e) {
+            return error(e.getMessage(), HttpStatus.CONFLICT);
+        }
     }
 
     @GetMapping("/suggest-subdomain")

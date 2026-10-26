@@ -41,6 +41,13 @@ const storeFrontendEchoScript = writeTempScript(
   'param([string]$PagesProject)\nWrite-Host "ARGS:${PagesProject}"\nexit 0\n'
 );
 SLOTS['store-backend'].scriptPath = storeBackendEchoScript;
+// The two split-out multi-store slots. Deploy-only is deliberately SLOW so a test can hold its
+// lock while it starts the others; restart-only is the plain echo.
+const storeDeployOnlySlowEchoScript = writeTempScript(
+  'Write-Host "ARGS:[$($args -join \',\')]"\nWrite-Host "ENVTOKEN:$($env:DAMAN_ADMIN_TOKEN)"\nStart-Sleep -Seconds 3\nexit 0\n'
+);
+SLOTS['store-deploy-only'].scriptPath = storeDeployOnlySlowEchoScript;
+SLOTS['store-restart-all'].scriptPath = storeBackendEchoScript;
 SLOTS['store-frontend'].scriptPath = storeFrontendEchoScript;
 
 // Regression test setup for the double-fire ('error' then 'exit') spawn-failure
@@ -273,6 +280,48 @@ test('the fixed slot arguments cannot be overridden from the query string', asyn
   assert.ok(!res.body.includes('evil'));
 });
 
+test('the deploy-only slot passes -NoRestart and nothing else', async () => {
+  await post('/api/deploy/store-deploy-only/token', { token: FAKE_ADMIN_TOKEN });
+  const res = await get('/api/deploy/store-deploy-only/stream');
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(res.body.includes('ARGS:[-NoRestart]'), `wrong arguments: ${res.body}`);
+  assert.ok(res.body.includes(`ENVTOKEN:${FAKE_ADMIN_TOKEN}`));
+  assert.ok(res.body.includes('"code":0'));
+});
+
+test('the restart-only slot passes -RestartOnly and nothing else', async () => {
+  await post('/api/deploy/store-restart-all/token', { token: FAKE_ADMIN_TOKEN });
+  const res = await get('/api/deploy/store-restart-all/stream');
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(res.body.includes('ARGS:[-RestartOnly]'), `wrong arguments: ${res.body}`);
+  assert.ok(res.body.includes(`ENVTOKEN:${FAKE_ADMIN_TOKEN}`));
+  assert.ok(res.body.includes('"code":0'));
+});
+
+test('all three store slots require an admin token', () => {
+  for (const name of ['store-backend', 'store-deploy-only', 'store-restart-all']) {
+    assert.strictEqual(SLOTS[name].requiresAdminToken, true, `${name} must require a token`);
+  }
+});
+
+test('the three store slots hold independent run locks', async () => {
+  for (const name of ['store-backend', 'store-deploy-only', 'store-restart-all']) {
+    await post(`/api/deploy/${name}/token`, { token: FAKE_ADMIN_TOKEN });
+  }
+  const slow = get('/api/deploy/store-deploy-only/stream'); // holds its lock ~3 s
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const status = JSON.parse((await get('/api/status')).body);
+  assert.strictEqual(status['store-deploy-only'], true);
+  assert.strictEqual(status['store-backend'], false);
+  assert.strictEqual(status['store-restart-all'], false);
+  // The same slot is locked...
+  assert.strictEqual((await get('/api/deploy/store-deploy-only/stream')).statusCode, 409);
+  // ...but the other two are not blocked by it.
+  assert.strictEqual((await get('/api/deploy/store-restart-all/stream')).statusCode, 200);
+  assert.strictEqual((await get('/api/deploy/store-backend/stream')).statusCode, 200);
+  await slow;
+});
+
 test('the new store slots appear in /api/status with their own independent locks', async () => {
   const status = JSON.parse((await get('/api/status')).body);
   assert.strictEqual(status['store-backend'], false);
@@ -489,6 +538,190 @@ test('a blank expiry is forwarded as an empty string (licence without an expiry)
     const res = await post('/api/remote/hosted-stores', { clientCode: 'acme', subdomain: 'acme' });
     assert.strictEqual(res.statusCode, 201);
     assert.deepStrictEqual(JSON.parse(seen[0].body), { clientCode: 'acme', subdomain: 'acme', expiresAt: '' });
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+// ---- Hosted-store lifecycle proxy (suspend / resume / restart / remove) ------------------
+// Every test aims the remote at a local fake. Nothing here may reach admin-api.damansoft.com:
+// these routes suspend, restart and permanently delete real customers' stores.
+
+const { LIFECYCLE_PROXY_TIMEOUT_MS } = require('./server');
+
+test('each lifecycle action proxies to the remote admin backend, not localhost', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote(200, { ok: true });
+  aimRemoteAt(fakePort);
+  try {
+    for (const action of ['suspend', 'resume', 'restart', 'remove']) {
+      const res = await post(`/api/remote/hosted-stores/acme-1/${action}`, '');
+      assert.strictEqual(res.statusCode, 200, action);
+    }
+    assert.deepStrictEqual(seen.map((s) => `${s.method} ${s.url}`), [
+      'POST /api/hosted-stores/acme-1/suspend',
+      'POST /api/hosted-stores/acme-1/resume',
+      'POST /api/hosted-stores/acme-1/restart',
+      'POST /api/hosted-stores/acme-1/remove',
+    ]);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('a client code outside the allowlist is rejected with 400 before any proxying', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const bad = ['..', '%2e%2e', 'a%20b', 'a%2Fb', '', '-lead', '_lead', 'a'.repeat(65), 'a.b', 'a%00b'];
+    for (const code of bad) {
+      const res = await post(`/api/remote/hosted-stores/${code}/remove`, '');
+      assert.strictEqual(res.statusCode, 400, `code "${code}"`);
+    }
+    // 64 chars is the longest allowed.
+    const ok = await post(`/api/remote/hosted-stores/${'a'.repeat(64)}/suspend`, '');
+    assert.strictEqual(ok.statusCode, 201);
+    assert.strictEqual(seen.length, 1, 'only the valid code may have been relayed');
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('an unknown action is 404 and never reaches the remote', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    for (const action of ['delete', 'start', 'Remove', '']) {
+      const res = await post(`/api/remote/hosted-stores/acme/${action}`, '');
+      assert.strictEqual(res.statusCode, 404, `action "${action}"`);
+    }
+    // A GET can never trigger a lifecycle action.
+    const viaGet = await get('/api/remote/hosted-stores/acme/remove');
+    assert.strictEqual(viaGet.statusCode, 404);
+    assert.strictEqual(seen.length, 0);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('lifecycle routes reject a cross-origin request', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const evil = await post('/api/remote/hosted-stores/acme/remove', '', { Origin: 'http://evil.example' });
+    assert.strictEqual(evil.statusCode, 403);
+    const noCors = await post('/api/remote/hosted-stores/acme/remove', '', { 'Sec-Fetch-Site': 'cross-site' });
+    assert.strictEqual(noCors.statusCode, 403);
+    assert.strictEqual(seen.length, 0);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('lifecycle routes relay the Authorization header unmodified', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const auth = 'Bearer lifecycle-token-xyz';
+    for (const action of ['suspend', 'resume', 'restart', 'remove']) {
+      await post(`/api/remote/hosted-stores/acme/${action}`, '', { Authorization: auth });
+    }
+    assert.strictEqual(seen.length, 4);
+    for (const s of seen) assert.strictEqual(s.headers.authorization, auth);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('lifecycle timeout outlasts the backend 75 s health wait but stays under the 100 s edge limit', () => {
+  assert.ok(LIFECYCLE_PROXY_TIMEOUT_MS > 75000);
+  assert.ok(LIFECYCLE_PROXY_TIMEOUT_MS < 100000);
+});
+
+test('lifecycle routes hand LIFECYCLE_PROXY_TIMEOUT_MS to http.request', async () => {
+  const { fake, port: fakePort } = await startFakeRemote(200, { ok: true });
+  aimRemoteAt(fakePort);
+  const realRequest = http.request;
+  const seenOptions = [];
+  http.request = function (...args) {
+    // Only record calls aimed at the fake remote, not the test's own client request.
+    if (args[0] && args[0].port === fakePort && args[0].timeout !== undefined) seenOptions.push(args[0]);
+    return realRequest.apply(this, args);
+  };
+  try {
+    for (const action of ['suspend', 'resume', 'restart', 'remove']) {
+      await post(`/api/remote/hosted-stores/acme/${action}`, '');
+    }
+  } finally {
+    http.request = realRequest;
+    restoreRemote();
+    fake.close();
+  }
+  assert.strictEqual(seenOptions.length, 4);
+  for (const o of seenOptions) assert.strictEqual(o.timeout, 90000);
+});
+
+test('an unreachable remote on a lifecycle route is reported as 503, never answered locally', async () => {
+  restoreRemote();
+  Object.assign(REMOTE_ADMIN_BACKEND, { secure: false, host: '127.0.0.1', port: 1 });
+  try {
+    const res = await post('/api/remote/hosted-stores/acme/suspend', '');
+    assert.strictEqual(res.statusCode, 503);
+  } finally {
+    restoreRemote();
+  }
+});
+
+test('the scripts index.html loads are actually served (registry-rows.js used to 404)', async () => {
+  for (const name of ['main.js', 'registry-rows.js', 'token-state-core.js', 'store-row-core.js']) {
+    const res = await get('/' + name);
+    assert.strictEqual(res.statusCode, 200, name);
+    assert.ok(res.body.length > 0, name);
+  }
+});
+
+// ---- Forget row: DELETE /api/remote/hosted-stores/{code} -------------------------------------
+// Registry-only on the remote. Not Remove: that is POST .../remove and destroys the store's data.
+
+function del(pathAndQuery, headers) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path: pathAndQuery, method: 'DELETE', headers }, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+test('forget-row proxies DELETE to the remote registry route, relaying the Authorization header', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote(200, { ok: true });
+  aimRemoteAt(fakePort);
+  try {
+    const res = await del('/api/remote/hosted-stores/acme-1', { Authorization: 'Bearer t' });
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(`${seen[0].method} ${seen[0].url}`, 'DELETE /api/hosted-stores/acme-1');
+    assert.strictEqual(seen[0].headers.authorization, 'Bearer t');
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('forget-row rejects a bad code and a cross-origin request before any proxying', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    assert.strictEqual((await del('/api/remote/hosted-stores/a%2Fb')).statusCode, 400);
+    assert.strictEqual((await del('/api/remote/hosted-stores/-lead')).statusCode, 400);
+    assert.strictEqual((await del('/api/remote/hosted-stores/acme', { Origin: 'http://evil.example' })).statusCode, 403);
+    assert.strictEqual(seen.length, 0);
   } finally {
     restoreRemote();
     fake.close();

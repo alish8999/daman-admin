@@ -82,7 +82,7 @@ public class HostedStoreProvisioningService {
     private static final long PUBLIC_HEALTH_DELAY_MS = 5_000L;
 
     /** Free RAM that must remain after another store's heap (spec §7's suggestion). */
-    private static final int RAM_MARGIN_MB = 300;
+    private static final int RAM_MARGIN_MB = HostedCapacity.RAM_MARGIN_MB;
 
     /**
      * RAM reserved for everything on this box that is <b>not</b> a hosted store: the admin
@@ -95,7 +95,7 @@ public class HostedStoreProvisioningService {
      * "roughly three". With this value the guard allows a 2nd and a 3rd store and refuses a 4th,
      * which is exactly that conclusion.
      */
-    private static final int NON_STORE_RESERVE_MB = 1024;
+    private static final int NON_STORE_RESERVE_MB = HostedCapacity.NON_STORE_RESERVE_MB;
 
     private static final String SERVICE_PREFIX = "daman-store-";
 
@@ -105,6 +105,7 @@ public class HostedStoreProvisioningService {
     private static final String STATUS_PROVISIONING = "PROVISIONING";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_FAILED = "FAILED";
+    private static final String STATUS_SUSPENDED = "SUSPENDED";
     private static final String LICENCE_ACTIVE = "ACTIVE";
     private static final String LICENCE_LABEL = "hosted-store";
 
@@ -242,6 +243,14 @@ public class HostedStoreProvisioningService {
             log.info("Hosted store '{}' already exists on {} (port {}) — reporting it unchanged",
                     clientCode, existing.getFrontendHostname(), existing.getPort());
             return new PreparedProvision(existing, ProvisionStage.VERIFY, expiresAt, true);
+        }
+
+        // A SUSPENDED row has no failedStage, so it would fall through to resumeStageOf() == ALLOCATE
+        // and the walk would re-run UNIT + START, and START is `enable --now`: Create would silently
+        // put a suspended (non-paying) customer back online. Only Resume may do that.
+        if (existing != null && STATUS_SUSPENDED.equals(existing.getStatus())) {
+            throw new RefusedException("Hosted store '" + clientCode + "' is suspended; "
+                    + "Create will not bring it back online. Use Resume to re-enable it.");
         }
 
         if (existing == null) {

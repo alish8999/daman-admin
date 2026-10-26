@@ -34,13 +34,32 @@
 .PARAMETER AdminToken
     Admin session Bearer token (the one from an admin-portal login). Falls back to the
     DAMAN_ADMIN_TOKEN environment variable. The restart route is admin-token-gated.
+
+.PARAMETER NoRestart
+    Build and upload the jar, but do NOT restart any store (skips step 5 only). DANGEROUS, and
+    the end of the run says so: the new jar sits at /root/daman-store.jar while every store keeps
+    running the old one from memory, and every unit has Restart=always - so each store loads the new
+    jar at some unpredictable later moment (a crash, a reboot, an in-app restore), unsupervised, with
+    no health-checked walk. Use it only when you will run -RestartOnly soon after.
+
+.PARAMETER RestartOnly
+    Do NOT build or upload: just walk the stores and restart them onto whatever jar is already at
+    /root/daman-store.jar (skips steps 1, 3 and 4). The admin-token preflight (step 2) still runs,
+    because the restart route is token-gated and a stale token should fail before anything happens.
+    Mutually exclusive with -NoRestart.
 #>
 
 param(
-    [string]$AdminToken = $env:DAMAN_ADMIN_TOKEN
+    [string]$AdminToken = $env:DAMAN_ADMIN_TOKEN,
+    [switch]$NoRestart,
+    [switch]$RestartOnly
 )
 
 $ErrorActionPreference = "Stop"
+
+# Skipping the build/upload AND the restart would leave nothing to do - almost certainly a mistake,
+# so refuse it rather than quietly running only the preflight.
+if ($NoRestart -and $RestartOnly) { throw "-NoRestart and -RestartOnly are mutually exclusive: together they would skip every step that changes anything." }
 
 $JavaHome    = "C:\Users\ASUS\.jdks\ms-21.0.10"
 $BackendDir  = "D:\Daman\src\daman-backend"
@@ -83,10 +102,16 @@ function Invoke-ServerCurl([string]$Method, [string]$UrlPath) {
 
 # The Maven wrapper's cached mvn.cmd folder hash has moved between sessions before -
 # discover it instead of hardcoding it.
+# Only needed to build, so a -RestartOnly run (which builds nothing) must not fail for want of Maven.
+if (-not $RestartOnly) {
 $MvnCmd = Get-ChildItem -Path "C:\Users\ASUS\.m2\wrapper\dists" -Recurse -Filter "mvn.cmd" -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName   # highest version dir wins (3.9.x > 3.8.x)
 if (-not $MvnCmd) { throw "No mvn.cmd found under C:\Users\ASUS\.m2\wrapper\dists - run a Maven build once in IntelliJ to populate it." }
+}
 
+# -RestartOnly ships nothing, so the generic-build check (which guards what gets SHIPPED) and the
+# build and upload below are skipped; the token preflight is not - see step 2.
+if (-not $RestartOnly) {
 Write-Host "==> [1/5] Verifying this is a generic build..." -ForegroundColor Cyan
 if ((Get-Content $MetaPath -Raw) -notmatch '(?m)^\s*client\.generic\s*=\s*true\s*$') {
     throw "client-meta.properties is not client.generic=true (a per-client dev-run may have left it). Run 'Reset dev' in the admin panel, then retry."
@@ -94,12 +119,16 @@ if ((Get-Content $MetaPath -Raw) -notmatch '(?m)^\s*client\.generic\s*=\s*true\s
 if ((Get-Content $MetaPath -Raw) -match '(?m)^\s*client\.code\s*=\s*\S') {
     throw "client-meta.properties has a client.code set - refusing to ship a per-client build as a hosted generic instance."
 }
+}
 
+# Runs in EVERY mode: it is what catches a stale token before anything is built or changed, and a
+# restart-only run needs a valid token just as much (its only job is the token-gated restart route).
 Write-Host "==> [2/5] Checking the admin token against the server (before anything is changed)..." -ForegroundColor Cyan
 $pre = Invoke-ServerCurl "GET" "/api/hosted-stores"
 if ($pre[-1] -eq "401") { throw "The server rejected the admin token (HTTP 401) - it is stale or wrong. Log in to the admin portal again and pass a fresh -AdminToken. Nothing was built or changed." }
 if ($pre[-1] -ne "200") { throw "Preflight GET /api/hosted-stores returned HTTP $($pre[-1]) - expected 200. Nothing was built or changed." }
 
+if (-not $RestartOnly) {
 Write-Host "==> [3/5] Building daman-backend (JDK 21)..." -ForegroundColor Cyan
 $env:JAVA_HOME = $JavaHome
 & $MvnCmd -q -o clean package "-DskipTests" -f $PomPath
@@ -118,7 +147,22 @@ if ($LASTEXITCODE -ne 0) { throw "scp of the jar failed." }
 # (no live jar yet) is tolerated so the mv below still runs.
 ssh $Server "cp -p ${RemoteJar} ${RemoteJar}.prev 2>/dev/null; mv -f ${RemoteJar}.new ${RemoteJar}"
 if ($LASTEXITCODE -ne 0) { throw "Could not move the uploaded jar into place at $RemoteJar." }
+}   # end of the build + upload (steps 3-4), skipped by -RestartOnly
 
+if ($NoRestart) {
+    # Step 5 is skipped. Say plainly what that leaves behind - this mode was chosen knowingly; the
+    # job here is to keep the risk visible, not to argue with it.
+    Write-Host ""
+    Write-Host "==> [5/5] SKIPPED (-NoRestart). The jar is uploaded; NO store was restarted." -ForegroundColor Yellow
+    Write-Host "!!! WARNING: the new jar is at $RemoteJar but every store is still running the OLD one from memory." -ForegroundColor Yellow
+    Write-Host "    Every unit has Restart=always, so EACH STORE WILL LOAD THE NEW JAR at some unpredictable later" -ForegroundColor Yellow
+    Write-Host "    moment - a crash, a server reboot, an in-app restore - one at a time, unsupervised, with no" -ForegroundColor Yellow
+    Write-Host "    health-checked walk and no canary. Run 'Restart all' (-RestartOnly) soon to take control of it." -ForegroundColor Yellow
+    Write-Host "    The previous jar is kept at $RemoteJar.prev for a manual rollback." -ForegroundColor Yellow
+    return
+}
+
+if ($RestartOnly) { Write-Host "    -RestartOnly: restarting onto the jar already at $RemoteJar (nothing was built or uploaded)." -ForegroundColor DarkGray }
 Write-Host "==> [5/5] Restarting every hosted store, one at a time (halts at the first unhealthy one)..." -ForegroundColor Cyan
 Write-Host "    Stores are walked in id order: the oldest store is the canary." -ForegroundColor DarkGray
 $lines = Invoke-ServerCurl "POST" "/api/hosted-stores/restart-all"

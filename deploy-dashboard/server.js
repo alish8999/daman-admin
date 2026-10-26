@@ -12,6 +12,7 @@ const { runScript } = require('./lib/script-runner');
 const PORT = 5500;
 const HOST = '127.0.0.1';
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const LIB_DIR = path.join(__dirname, 'lib');
 const GENERIC_BUILD_DIR = path.join(__dirname, '..', '..', 'clients-build', 'generic');
 
 // What "/api/health" reports on. Read-only, best-effort - purely informational,
@@ -37,6 +38,12 @@ const VERSION_QUERY_PATTERN = /^\d+\.\d+\.\d+$/;
 // never depends on daman-admin-backend's own CORS config.
 const LOCAL_ADMIN_BACKEND = { host: 'localhost', port: 8083 };
 const BUILD_PROXY_TIMEOUT_MS = 8000;
+// GET /api/remote/hosted-stores: per ACTIVE store the backend does two systemctl spawns plus an HTTP
+// health probe with a 10 s request timeout, so ONE hung JVM (port bound, not answering) costs 10 s
+// by itself and the 8 s default would drop the whole table to 'showing the last good read'. 45 s
+// leaves room for a few such stores plus the systemctl spawns, and stays under Cloudflare's 100 s
+// edge limit. (The backend's probe timeouts are deliberately unchanged.)
+const FLEET_PROXY_TIMEOUT_MS = 45000;
 
 // The REAL client records and licences live in the server's H2 on the Hetzner box, not in the
 // local H2 behind :8083, so provisioning has to run on the remote portal. Exported (and
@@ -66,6 +73,16 @@ const REMOTE_ADMIN_BACKEND = {
 // edge, which answers 524 after 100 s of origin silence regardless of what we set here. The long
 // wait lives in the page's registry poll instead (public/main.js, pollUntilTerminal).
 const PROVISION_TIMEOUT_MS = 30000;
+// Lifecycle actions on a hosted store (suspend/resume/restart/remove). resume and restart wait on
+// the store's health server-side for up to 75 s, and remove also reloads cloudflared (which briefly
+// interrupts every hostname on the tunnel), so the 8 s default would give up on - and report as
+// failed - an operation that is actually succeeding, on routes that restart live customers' stores.
+// 90 s clears the backend's 75 s wait yet stays under Cloudflare's 100 s edge limit, after which the
+// edge answers 524 regardless of what is set here.
+const LIFECYCLE_PROXY_TIMEOUT_MS = 90000;
+// The code is interpolated into a URL path, so it is checked against this allowlist BEFORE
+// encodeURIComponent; anything else is a 400 that never reaches the remote.
+const STORE_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const MAX_JSON_BODY_BYTES = 16 * 1024;
 const BUILD_PLATFORMS = new Set(['win', 'winx86']);
 
@@ -95,6 +112,12 @@ const STATIC_FILES = {
   '/': { file: 'index.html', type: 'text/html; charset=utf-8' },
   '/main.js': { file: 'main.js', type: 'application/javascript; charset=utf-8' },
   '/style.css': { file: 'style.css', type: 'text/css; charset=utf-8' },
+  // Loaded by index.html BEFORE main.js. registry-rows.js was referenced there but never listed
+  // here, so it 404ed and registryRows was undefined at runtime.
+  '/registry-rows.js': { file: 'registry-rows.js', type: 'application/javascript; charset=utf-8' },
+  // Lives in lib/ so node's tests can require it; served from there rather than copied.
+  '/token-state-core.js': { dir: LIB_DIR, file: 'token-state-core.js', type: 'application/javascript; charset=utf-8' },
+  '/store-row-core.js': { dir: LIB_DIR, file: 'store-row-core.js', type: 'application/javascript; charset=utf-8' },
 };
 
 // CSRF guard: every endpoint here is side-effecting or local-only, and the
@@ -118,7 +141,7 @@ function isSameOrigin(req) {
 }
 
 function serveStatic(res, entry) {
-  const filePath = path.join(PUBLIC_DIR, entry.file);
+  const filePath = path.join(entry.dir || PUBLIC_DIR, entry.file);
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -522,7 +545,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (req.method === 'GET' && pathname === '/api/remote/hosted-stores') {
-    proxyToRemoteAdminBackend(req, 'GET', '/api/hosted-stores', res);
+    proxyToRemoteAdminBackend(req, 'GET', '/api/hosted-stores', res, undefined, FLEET_PROXY_TIMEOUT_MS);
     return;
   }
   if (req.method === 'GET' && pathname === '/api/remote/hosted-stores/suggest-subdomain') {
@@ -535,6 +558,34 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && pathname === '/api/remote/hosted-stores') {
     await handleRemoteProvision(req, res);
+    return;
+  }
+
+  const lifecycleMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)[/](suspend|resume|restart|remove)$/.exec(pathname);
+  if (req.method === 'POST' && lifecycleMatch) {
+    const code = lifecycleMatch[1];
+    if (!STORE_CODE_PATTERN.test(code)) {
+      sendJson(res, 400, { error: 'Invalid client code.' });
+      return;
+    }
+    proxyToRemoteAdminBackend(
+      req, 'POST',
+      `/api/hosted-stores/${encodeURIComponent(code)}/${lifecycleMatch[2]}`, res,
+      undefined, LIFECYCLE_PROXY_TIMEOUT_MS
+    );
+    return;
+  }
+
+  // Forget row: the registry row ONLY (the remote refuses an ACTIVE one). This is not Remove; that is
+  // POST .../remove above and destroys the store's data. Same code allowlist as the lifecycle routes.
+  const forgetMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)$/.exec(pathname || '');
+  if (req.method === 'DELETE' && forgetMatch) {
+    const code = forgetMatch[1];
+    if (!STORE_CODE_PATTERN.test(code)) {
+      sendJson(res, 400, { error: 'Invalid client code.' });
+      return;
+    }
+    proxyToRemoteAdminBackend(req, 'DELETE', `/api/hosted-stores/${encodeURIComponent(code)}`, res);
     return;
   }
 
@@ -556,4 +607,4 @@ if (require.main === module) {
 }
 
 module.exports = { server, runLock, runningPids, killTrackedChildren, isSameOrigin,
-  REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS, adminTokens };
+  REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS, LIFECYCLE_PROXY_TIMEOUT_MS, adminTokens };
