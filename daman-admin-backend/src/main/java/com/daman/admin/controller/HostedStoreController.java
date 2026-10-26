@@ -176,9 +176,13 @@ public class HostedStoreController {
      * on the correctly-named client, and the H2 console is disabled, so the only escape was an H2
      * shell over SSH.
      *
-     * <p><b>Registry-only.</b> Nothing is torn down, exactly as a failed provision tears nothing
-     * down: the DNS records, the Pages custom domain, the systemd unit and the data directory all
-     * survive and are the operator's to clean up (DEPLOYMENT.md §10.5 lists them). Deleting the row
+     * <p><b>Registry-only for data and infrastructure, with one exception.</b> The DNS records, the
+     * Pages custom domain, the systemd unit and the data directory all survive and are the
+     * operator's to clean up (DEPLOYMENT.md §10.5 lists them). The tunnel ingress rule for the
+     * row's own {@code <sub>-api} hostname is dropped (absent is fine): deleting the row frees its
+     * port, so a surviving rule would point the departed hostname at the next store to get that
+     * port, a cross-tenant leak. The "registry-only" promise exists so Forget cannot destroy data;
+     * dropping a rule for a store that does not exist destroys none. Deleting the row
      * only stops the registry claiming that store exists — it also frees its subdomain and its
      * port for reuse, which is the point.
      */
@@ -199,10 +203,19 @@ public class HostedStoreController {
                     + " deleting its row underneath it would have the run re-create it. Wait for"
                     + " the row to read FAILED, then retry.", HttpStatus.CONFLICT);
         }
+        // Closes a tenancy leak: a row that failed at API_DNS or later already has a live ingress
+        // rule, and deleting the row frees its port for the next store. An absent rule is fine.
+        boolean ingressDropped = false;
+        if (HostedStoreLifecycleService.hasOwnApiHostname(row)) {
+            ingressDropped = lifecycle.dropIngressRule(row);
+        } else {
+            log.warn("Not touching the ingress for '{}': API hostname {} is not its own", clientCode,
+                    row.getApiHostname());
+        }
         repository.delete(row);
-        log.warn("Deleted the hosted-store registry row for '{}' (was {} at stage {}). Its unit,"
-                        + " data directory, DNS records and Pages domain were NOT touched.",
-                clientCode, row.getStatus(), row.getFailedStage());
+        log.warn("Deleted the hosted-store registry row for '{}' (was {} at stage {}). Ingress rule"
+                        + " dropped: {}. Its unit, data directory, DNS records and Pages domain were NOT touched.",
+                clientCode, row.getStatus(), row.getFailedStage(), ingressDropped);
         return ResponseEntity.ok(Map.of(
                 "deleted", clientCode,
                 "warning", "Registry row only. The systemd unit " + row.getServiceName()

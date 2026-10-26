@@ -573,15 +573,12 @@ ssh root@162.55.51.189 "curl -s -X DELETE -H 'Authorization: Bearer <admin-token
   way out — the resume refuses to rename a row, `existsBySubdomain` then blocks reusing `acme` on
   the correctly-named client, and the H2 console is disabled, so the only escape was an H2 shell
   over SSH.
-- **It is registry-only. Nothing is torn down** (the same stance as a failed provision). Still
+- **It tears down no data or infrastructure** (the same stance as a failed provision), with one exception: it drops the cloudflared ingress rule for `<sub>-api.damansoft.com` (absent is fine, and it restarts cloudflared only when it removed one), because deleting the row frees its port and a surviving rule would route that hostname to the next store given the port. Still
   present after the delete, and yours to remove by hand if the store is really being abandoned:
   - the systemd unit `/etc/systemd/system/daman-store-<clientCode>.service` — and it has
     `Restart=always`, so **stop and disable it** or it keeps running and holding its port:
     `systemctl disable --now daman-store-<clientCode>` then `rm` the unit and `systemctl daemon-reload`;
   - the data directory `/root/stores/<clientCode>` (its SQLite database and backups);
-  - the cloudflared ingress rule for `<sub>-api.damansoft.com` in `/etc/cloudflared/config.yml`
-    (edit by hand, keep every other rule and the trailing `http_status:404` catch-all, then
-    `systemctl restart cloudflared` - never SIGHUP, see 10.6);
   - both DNS records (`<sub>` and `<sub>-api`) in Cloudflare;
   - the `<sub>.damansoft.com` custom domain on the `daman-store` Pages project;
   - the minted licence row in the admin database (harmless: it is bound to a client code nothing

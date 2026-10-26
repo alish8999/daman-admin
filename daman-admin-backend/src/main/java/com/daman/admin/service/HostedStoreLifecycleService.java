@@ -182,10 +182,7 @@ public class HostedStoreLifecycleService {
             throw new ConflictException("Refusing to remove '" + code + "': its registered data"
                     + " directory " + dataDir + " is not one of the two places a store may live.");
         }
-        String apiHostLabel = row.getApiHostname() == null ? "" : row.getApiHostname().split("\\.", 2)[0];
-        if (row.getSubdomain() == null || row.getApiHostname() == null
-                || !apiHostLabel.equals(row.getSubdomain() + "-api")
-                || SubdomainRules.RESERVED.contains(apiHostLabel)) {
+        if (!hasOwnApiHostname(row)) {
             throw new ConflictException("Refusing to remove '" + code + "': its API hostname "
                     + row.getApiHostname() + " is not '<subdomain>-api' for this store, so dropping"
                     + " its ingress rule could break another tenant.");
@@ -217,15 +214,9 @@ public class HostedStoreLifecycleService {
         ops.deleteUnit(row.getServiceName());
         steps.add("Deleted unit " + row.getServiceName() + " (no error if it was already gone).");
 
-        String ingress = ops.readIngress();
-        String edited = IngressEditor.removeRule(ingress, row.getApiHostname());
-        if (edited.equals(ingress)) {
-            steps.add("Ingress rule for " + row.getApiHostname() + " was already absent.");
-        } else {
-            ops.writeIngress(edited);
-            ops.reloadCloudflared();
-            steps.add("Removed the ingress rule for " + row.getApiHostname() + " and reloaded cloudflared.");
-        }
+        steps.add(dropIngressRule(row)
+                ? "Removed the ingress rule for " + row.getApiHostname() + " and reloaded cloudflared."
+                : "Ingress rule for " + row.getApiHostname() + " was already absent.");
 
         ops.deleteTree(dataDir, code);
         steps.add(dirPresent ? "Deleted data directory " + dataDir + "."
@@ -238,6 +229,32 @@ public class HostedStoreLifecycleService {
         steps.add("Deleted the registry row.");
         log.warn("Removed hosted store '{}'. Backup: {}. Steps: {}", code, keptBackup, steps);
         return new RemoveResult(code, keptBackup, keptBackup == null, licenceRevoked, steps);
+    }
+
+    /** True when the row's API hostname is exactly {@code <subdomain>-api.<zone>} and not a reserved one. */
+    public static boolean hasOwnApiHostname(HostedInstance row) {
+        if (row.getSubdomain() == null || row.getApiHostname() == null) {
+            return false;
+        }
+        String label = row.getApiHostname().split("\\.", 2)[0];
+        return label.equals(row.getSubdomain() + "-api") && !SubdomainRules.RESERVED.contains(label);
+    }
+
+    /**
+     * Drops the row's {@code <sub>-api} ingress rule, writing and reloading cloudflared only when
+     * the rule was actually there. Returns whether it was. {@code nextFreePort()} reissues a freed
+     * port, so a surviving rule would route the departed hostname to the next tenant's store.
+     * Callers must have checked {@link #hasOwnApiHostname} first.
+     */
+    public boolean dropIngressRule(HostedInstance row) {
+        String ingress = ops.readIngress();
+        String edited = IngressEditor.removeRule(ingress, row.getApiHostname());
+        if (edited.equals(ingress)) {
+            return false;
+        }
+        ops.writeIngress(edited);
+        ops.reloadCloudflared();
+        return true;
     }
 
     /** Same selection as {@code LicenseController.revokeByClient}: newest ACTIVE row, else newest row. */
