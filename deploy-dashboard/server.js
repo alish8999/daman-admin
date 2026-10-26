@@ -66,6 +66,16 @@ const REMOTE_ADMIN_BACKEND = {
 // edge, which answers 524 after 100 s of origin silence regardless of what we set here. The long
 // wait lives in the page's registry poll instead (public/main.js, pollUntilTerminal).
 const PROVISION_TIMEOUT_MS = 30000;
+// Lifecycle actions on a hosted store (suspend/resume/restart/remove). resume and restart wait on
+// the store's health server-side for up to 75 s, and remove also reloads cloudflared (which briefly
+// interrupts every hostname on the tunnel), so the 8 s default would give up on - and report as
+// failed - an operation that is actually succeeding, on routes that restart live customers' stores.
+// 90 s clears the backend's 75 s wait yet stays under Cloudflare's 100 s edge limit, after which the
+// edge answers 524 regardless of what is set here.
+const LIFECYCLE_PROXY_TIMEOUT_MS = 90000;
+// The code is interpolated into a URL path, so it is checked against this allowlist BEFORE
+// encodeURIComponent; anything else is a 400 that never reaches the remote.
+const STORE_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const MAX_JSON_BODY_BYTES = 16 * 1024;
 const BUILD_PLATFORMS = new Set(['win', 'winx86']);
 
@@ -538,6 +548,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  const lifecycleMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)[/](suspend|resume|restart|remove)$/.exec(pathname);
+  if (req.method === 'POST' && lifecycleMatch) {
+    const code = lifecycleMatch[1];
+    if (!STORE_CODE_PATTERN.test(code)) {
+      sendJson(res, 400, { error: 'Invalid client code.' });
+      return;
+    }
+    proxyToRemoteAdminBackend(
+      req, 'POST',
+      `/api/hosted-stores/${encodeURIComponent(code)}/${lifecycleMatch[2]}`, res,
+      undefined, LIFECYCLE_PROXY_TIMEOUT_MS
+    );
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Not found');
 });
@@ -556,4 +581,4 @@ if (require.main === module) {
 }
 
 module.exports = { server, runLock, runningPids, killTrackedChildren, isSameOrigin,
-  REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS, adminTokens };
+  REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS, LIFECYCLE_PROXY_TIMEOUT_MS, adminTokens };

@@ -543,3 +543,113 @@ test('a blank expiry is forwarded as an empty string (licence without an expiry)
     fake.close();
   }
 });
+
+// ---- Hosted-store lifecycle proxy (suspend / resume / restart / remove) ------------------
+// Every test aims the remote at a local fake. Nothing here may reach admin-api.damansoft.com:
+// these routes suspend, restart and permanently delete real customers' stores.
+
+const { LIFECYCLE_PROXY_TIMEOUT_MS } = require('./server');
+
+test('each lifecycle action proxies to the remote admin backend, not localhost', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote(200, { ok: true });
+  aimRemoteAt(fakePort);
+  try {
+    for (const action of ['suspend', 'resume', 'restart', 'remove']) {
+      const res = await post(`/api/remote/hosted-stores/acme-1/${action}`, '');
+      assert.strictEqual(res.statusCode, 200, action);
+    }
+    assert.deepStrictEqual(seen.map((s) => `${s.method} ${s.url}`), [
+      'POST /api/hosted-stores/acme-1/suspend',
+      'POST /api/hosted-stores/acme-1/resume',
+      'POST /api/hosted-stores/acme-1/restart',
+      'POST /api/hosted-stores/acme-1/remove',
+    ]);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('a client code outside the allowlist is rejected with 400 before any proxying', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const bad = ['..', '%2e%2e', 'a%20b', 'a%2Fb', '', '-lead', '_lead', 'a'.repeat(65), 'a.b', 'a%00b'];
+    for (const code of bad) {
+      const res = await post(`/api/remote/hosted-stores/${code}/remove`, '');
+      assert.strictEqual(res.statusCode, 400, `code "${code}"`);
+    }
+    // 64 chars is the longest allowed.
+    const ok = await post(`/api/remote/hosted-stores/${'a'.repeat(64)}/suspend`, '');
+    assert.strictEqual(ok.statusCode, 201);
+    assert.strictEqual(seen.length, 1, 'only the valid code may have been relayed');
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('an unknown action is 404 and never reaches the remote', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    for (const action of ['delete', 'start', 'Remove', '']) {
+      const res = await post(`/api/remote/hosted-stores/acme/${action}`, '');
+      assert.strictEqual(res.statusCode, 404, `action "${action}"`);
+    }
+    // A GET can never trigger a lifecycle action.
+    const viaGet = await get('/api/remote/hosted-stores/acme/remove');
+    assert.strictEqual(viaGet.statusCode, 404);
+    assert.strictEqual(seen.length, 0);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('lifecycle routes reject a cross-origin request', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const evil = await post('/api/remote/hosted-stores/acme/remove', '', { Origin: 'http://evil.example' });
+    assert.strictEqual(evil.statusCode, 403);
+    const noCors = await post('/api/remote/hosted-stores/acme/remove', '', { 'Sec-Fetch-Site': 'cross-site' });
+    assert.strictEqual(noCors.statusCode, 403);
+    assert.strictEqual(seen.length, 0);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('lifecycle routes relay the Authorization header unmodified', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const auth = 'Bearer lifecycle-token-xyz';
+    for (const action of ['suspend', 'resume', 'restart', 'remove']) {
+      await post(`/api/remote/hosted-stores/acme/${action}`, '', { Authorization: auth });
+    }
+    assert.strictEqual(seen.length, 4);
+    for (const s of seen) assert.strictEqual(s.headers.authorization, auth);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('lifecycle timeout outlasts the backend 75 s health wait but stays under the 100 s edge limit', () => {
+  assert.ok(LIFECYCLE_PROXY_TIMEOUT_MS > 75000);
+  assert.ok(LIFECYCLE_PROXY_TIMEOUT_MS < 100000);
+});
+
+test('an unreachable remote on a lifecycle route is reported as 503, never answered locally', async () => {
+  restoreRemote();
+  Object.assign(REMOTE_ADMIN_BACKEND, { secure: false, host: '127.0.0.1', port: 1 });
+  try {
+    const res = await post('/api/remote/hosted-stores/acme/suspend', '');
+    assert.strictEqual(res.statusCode, 503);
+  } finally {
+    restoreRemote();
+  }
+});
