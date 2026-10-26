@@ -213,6 +213,19 @@ class HostedStoreControllerTest {
     // ---- DELETE /{clientCode}: abandon a half-created store ----
 
     @Test
+    void deleteRefusesASuspendedStoreAndPointsAtRemove() {
+        // Forgetting a SUSPENDED row would leave its unit and the customer's data on disk with no
+        // backup and no row left to drive a proper Remove: the state the removal design prevents.
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(row("acme", "SUSPENDED")));
+
+        ResponseEntity<Map<String, String>> res = controller.forget("acme");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(409);
+        assertThat(res.getBody().get("error")).contains("SUSPENDED").contains("remove");
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
     void deleteRefusesAnActiveStore() {
         // Spec §5.4's "no suspend, stop or delete" decision is about LIVE stores and still stands.
         when(repository.findByClientCode("abu_ammar")).thenReturn(Optional.of(row("abu_ammar", "ACTIVE")));

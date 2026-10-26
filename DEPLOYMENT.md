@@ -570,7 +570,7 @@ ssh root@162.55.51.189 "curl -s -X DELETE -H 'Authorization: Bearer <admin-token
   http://localhost:8083/api/hosted-stores/<clientCode>"
 ```
 
-- It **refuses an `ACTIVE` row** (409). This route exists only for a store that never finished; a
+- It **refuses an `ACTIVE` or a `SUSPENDED` row** (409; the `SUSPENDED` refusal points at Remove). This route exists only for a store that never finished; a
   departed customer's store is **Remove**, a different operation (§10.7), not this. It also
   refuses while that client's provision is actually running (409).
 - Why it exists: pick `acem` instead of `acme`, let it half-complete, and there was previously no
@@ -762,19 +762,20 @@ you need it.
 | | Forget row (`DELETE /api/hosted-stores/<code>`, §10.5) | Remove (`POST .../remove`) |
 |---|---|---|
 | For | a mistyped or half-created store | a departed customer |
-| Row status | `FAILED` / `PROVISIONING` (the API refuses only `ACTIVE`) | `SUSPENDED` only |
+| Row status | `FAILED` / `PROVISIONING` (the API refuses `ACTIVE` and `SUSPENDED`) | `SUSPENDED` only |
 | Touches | the registry row, plus the `<sub>-api` ingress rule | unit, data, ingress rule, licence, row |
 | Backup | none (nothing to keep) | one zip, above |
 
 They are on different rows in the table on purpose. After Forget, §10.5's leftover list is yours: the
 unit, the data directory, both DNS records and the Pages custom domain. After Remove, the unit, data
 and ingress rule are gone, but **both DNS records and the Pages custom domain for `<sub>` are still
-yours to delete in Cloudflare**. The dashboard offers Forget only on `FAILED` rows, but the API
-refuses only `ACTIVE`, so never call it by hand on a `SUSPENDED` store: it would delete the row and
-leave a disabled unit and the customer's data on disk with no backup.
+yours to delete in Cloudflare**. The dashboard offers Forget only on `FAILED` rows, and the API also
+refuses a `SUSPENDED` row (409 pointing at Remove), because deleting that row would leave a disabled
+unit and the customer's data on disk with no backup and no row to remove it by.
 
-A `FAILED` row also shows a **Resume** button. As built, it calls `/resume`, which is for
-`SUSPENDED` stores and answers 409 for `FAILED`. To resume a failed *provision*, re-run Create (§10.5).
+A `FAILED` row shows **Retry provisioning**, which does not call any lifecycle route: it opens the
++ New store panel pre-filled with that row's client and subdomain, and pressing Create re-runs the
+stage walk from `failedStage` (§10.5). The lifecycle `/resume` is only for `SUSPENDED` stores.
 
 #### The two tokens
 

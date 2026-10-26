@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge } = require('./store-row-core');
+const { actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor } = require('./store-row-core');
 
 test('an ACTIVE store offers restart and suspend, never remove', () => {
   assert.deepStrictEqual(actionsFor('ACTIVE'), ['restart', 'suspend']);
@@ -11,8 +11,9 @@ test('a SUSPENDED store offers resume and remove', () => {
   assert.deepStrictEqual(actionsFor('SUSPENDED'), ['resume', 'remove']);
 });
 
-test('a FAILED store offers resume and forget-row, never remove', () => {
-  assert.deepStrictEqual(actionsFor('FAILED'), ['resume', 'forget-row']);
+test('a FAILED store offers retry-provisioning and forget-row, never remove or resume', () => {
+  assert.deepStrictEqual(actionsFor('FAILED'), ['retry-provisioning', 'forget-row']);
+  assert.ok(!actionsFor('FAILED').includes('resume'), 'the lifecycle /resume 409s on anything but SUSPENDED');
   assert.ok(!actionsFor('FAILED').includes('remove'));
 });
 
@@ -176,4 +177,23 @@ test('readAge says how old the last good read is', () => {
   assert.strictEqual(readAge(NOW - 2 * 3600000, NOW), '2 h old');
   assert.strictEqual(readAge(NOW + 5000, NOW), '0 s old');
   assert.strictEqual(readAge(null, NOW), 'age unknown');
+});
+
+test('no row ever offers an action mapped to the lifecycle /resume route unless it is SUSPENDED', () => {
+  // The regression guard for the whole class of mistake: "resume" meant two different things
+  // (un-suspend vs re-run a half-finished provision) and the FAILED row was wired to the wrong one.
+  for (const status of ['ACTIVE', 'SUSPENDED', 'FAILED', 'PROVISIONING', 'SOMETHING_NEW', undefined]) {
+    const hitsResume = actionsFor(status).filter((a) => lifecycleRouteFor(a) === 'resume');
+    if (status === 'SUSPENDED') assert.deepStrictEqual(hitsResume, ['resume']);
+    else assert.deepStrictEqual(hitsResume, [], String(status));
+  }
+});
+
+test('only the real lifecycle actions map to a route; retry-provisioning and forget-row do not', () => {
+  assert.strictEqual(lifecycleRouteFor('suspend'), 'suspend');
+  assert.strictEqual(lifecycleRouteFor('restart'), 'restart');
+  assert.strictEqual(lifecycleRouteFor('remove'), 'remove');
+  assert.strictEqual(lifecycleRouteFor('retry-provisioning'), null);
+  assert.strictEqual(lifecycleRouteFor('forget-row'), null);
+  assert.strictEqual(lifecycleRouteFor('nonsense'), null);
 });

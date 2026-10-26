@@ -17,12 +17,24 @@
   const ACTIONS = {
     ACTIVE: ['restart', 'suspend'],
     SUSPENDED: ['resume', 'remove'],
-    FAILED: ['resume', 'forget-row'],
+    // NOT 'resume': the lifecycle /resume route only un-suspends and 409s on a FAILED row.
+    // 'retry-provisioning' re-runs Create (which picks up at failedStage); it is a page action,
+    // not a lifecycle route.
+    FAILED: ['retry-provisioning', 'forget-row'],
     PROVISIONING: [],
   };
 
   function actionsFor(status) {
     return Object.prototype.hasOwnProperty.call(ACTIONS, status) ? ACTIONS[status].slice() : [];
+  }
+
+  // The lifecycle routes (POST /api/remote/hosted-stores/{code}/<route>) an action maps to. Actions
+  // absent here are NOT lifecycle calls: retry-provisioning opens the New store panel, forget-row
+  // is a DELETE. main.js posts only through this map, so an action cannot reach a route by accident.
+  const LIFECYCLE_ROUTE = { restart: 'restart', suspend: 'suspend', resume: 'resume', remove: 'remove' };
+
+  function lifecycleRouteFor(action) {
+    return Object.prototype.hasOwnProperty.call(LIFECYCLE_ROUTE, action) ? LIFECYCLE_ROUTE[action] : null;
   }
 
   const LIVE = {
@@ -161,5 +173,5 @@
     return Math.floor(min / 60) + ' h old';
   }
 
-  return { readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
+  return { lifecycleRouteFor, readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
 });

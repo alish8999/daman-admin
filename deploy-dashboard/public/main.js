@@ -908,6 +908,28 @@
         .catch(() => setStatus('Could not reach the dashboard server', 'failure'));
     }
 
+    // "Retry provisioning" on a FAILED row of the fleet table lands here: open the panel with that
+    // row's client and subdomain filled in. Pressing Create then resumes the stage walk.
+    document.addEventListener('prefill-create-store', (e) => {
+      const { clientCode, subdomain } = e.detail || {};
+      if (!clientCode) return;
+      suggestSeq++; // a pending suggestion for an earlier pick must not overwrite this
+      if (newStorePanel && newStorePanel.hidden && newStoreBtn) newStoreBtn.click();
+      // The client list may not have loaded (or the client may be absent from it): make sure the
+      // option exists so the select really holds this code.
+      if (!Array.from(clientSelect.options).some((o) => o.value === clientCode)) {
+        const opt = document.createElement('option');
+        opt.value = clientCode;
+        opt.textContent = clientCode;
+        clientSelect.append(opt);
+      }
+      clientSelect.value = clientCode;
+      subdomainInput.value = subdomain || '';
+      subdomainHint.textContent = '(from the failed row; Create resumes where it stopped)';
+      setStatus('Pre-filled from the failed row. Press Create to retry provisioning; it resumes at the stage that failed.');
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
     let loadTimer = null;
     tokens.onInput('portal', () => {
       clearTimeout(loadTimer);
@@ -1122,6 +1144,7 @@
     const FLEET_POLL_MS = 10000;
     const ACTION_LABEL = {
       restart: 'Restart', suspend: 'Suspend', resume: 'Resume', remove: 'Remove…', 'forget-row': 'Forget row',
+      'retry-provisioning': 'Retry provisioning',
     };
     // Remove and Forget row look and read differently on purpose: Remove destroys a customer's data,
     // Forget row only deletes a registry record.
@@ -1287,7 +1310,9 @@
     }
 
     function post(code, action) {
-      return tokens.track('portal', fetch('/api/remote/hosted-stores/' + encodeURIComponent(code) + '/' + action, {
+      const route = core.lifecycleRouteFor(action);
+      if (!route) return Promise.reject(new Error('"' + action + '" is not a lifecycle action'));
+      return tokens.track('portal', fetch('/api/remote/hosted-stores/' + encodeURIComponent(code) + '/' + route, {
         method: 'POST',
         headers: authHeaders(),
       }));
@@ -1378,6 +1403,12 @@
         runAction(code, 'Restarting', () => post(code, 'restart'));
       } else if (action === 'remove') {
         openRemove(code);
+      } else if (action === 'retry-provisioning') {
+        // Not a lifecycle call. Re-running Create is what resumes the stage walk (it picks up at
+        // failedStage and keeps the port), so hand the operator to that panel, pre-filled.
+        document.dispatchEvent(new CustomEvent('prefill-create-store', {
+          detail: { clientCode: code, subdomain: store ? store.subdomain : '' },
+        }));
       } else if (action === 'forget-row') {
         if (!window.confirm('Forget the registry row for "' + code + '"?\n\nThis is NOT Remove. It deletes only the registry record, to free the subdomain and port of a mistyped or half-created store. It does not stop any service, delete DNS or tunnel entries, or delete any data.')) return;
         runAction(code, 'Forgetting row for', () => forget(code));

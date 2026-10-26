@@ -198,6 +198,12 @@ public class HostedStoreController {
                     + " — refusing to delete the row of a live store. This route exists only to"
                     + " abandon a half-created one.", HttpStatus.CONFLICT);
         }
+        if ("SUSPENDED".equals(row.getStatus())) {
+            return error("Hosted store '" + clientCode + "' is SUSPENDED — refusing to delete its row:"
+                    + " that would leave its unit and the customer's data on disk with no backup and no"
+                    + " row left to remove it by. Use POST /api/hosted-stores/" + clientCode
+                    + "/remove, which takes a backup first.", HttpStatus.CONFLICT);
+        }
         if (launcher.isRunning(clientCode)) {
             return error("A provision for client '" + clientCode + "' is running right now;"
                     + " deleting its row underneath it would have the run re-create it. Wait for"
