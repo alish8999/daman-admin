@@ -394,10 +394,20 @@ everything it needs per store is an existing property or JVM flag, so the POS-ba
 - **Registry:** each store is a `HostedInstance` row in the admin database (`GET /api/hosted-stores`):
   client code, subdomain, port, service name, hostnames, `status` (`PROVISIONING` | `ACTIVE` |
   `FAILED`) and `failedStage`.
-- **viora is a deliberate exception:** its own jar (`/root/daman-store-viora.jar`), its own Pages
-  project, and its legacy data directory `/root/.daman/viora`. It is excluded from the shared-jar
-  release by service name (`daman-store-viora`). Its registry row exists only so port 8090 is never
-  reallocated to someone else.
+- **viora is a partial exception:** its own Pages project and its legacy data directory
+  `/root/.daman/viora`, but **since 2026-10-26 it runs the shared jar like every other store** and
+  is restarted by a normal release. It was excluded before that (by service name), which made it
+  the one store a release could not reach — and so the only one that never received a backend fix,
+  which is how it spent weeks running the auto-backup defect that lost its data on 2026-10-25.
+  - Its unit is the one hand-written unit on the box. It carries **no `-Duser.home`**, which is
+    what keeps its data at `/root/.daman/viora` instead of `/root/stores/viora`, so it must never
+    be re-rendered by `StoreUnitRenderer`. That is guarded by `viora` being a reserved client code
+    (`SubdomainRules.RESERVED`), which provisioning refuses outright.
+  - Its backups therefore land in `/root/.daman/viora/backups` (the default beside the DB file),
+    not under `/root/stores/`, because its unit sets no `DAMAN_BACKUP_DIR` either.
+  - `/root/daman-store-viora.jar` is kept on the box as the rollback target, not deleted.
+  - Its registry row is the **oldest**, so viora is now the canary of every release: it is the
+    first store restarted and the one a bad jar halts on.
 
 ### 10.2 Creating an online client
 
@@ -513,7 +523,11 @@ Read the guarantee honestly:
 - **Trap:** re-running the deploy after a halt overwrites `.prev` with the already-bad jar, so the
   rollback above only works until the next deploy. Roll back (or copy `.prev` aside) *before*
   deploying again.
-- viora is not touched by this release.
+- viora **is** part of this release (since 2026-10-26) and, being the oldest row, is restarted
+  first. To roll viora alone back to its own jar:
+  ```bash
+  ssh root@162.55.51.189 "sed -i 's#-jar /root/daman-store.jar#-jar /root/daman-store-viora.jar#' /etc/systemd/system/daman-store-viora.service && systemctl daemon-reload && systemctl restart daman-store-viora"
+  ```
 
 ### 10.5 A provision failed: reading the row and resuming
 

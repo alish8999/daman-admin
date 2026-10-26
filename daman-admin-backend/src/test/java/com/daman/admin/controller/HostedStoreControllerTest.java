@@ -369,21 +369,23 @@ class HostedStoreControllerTest {
     }
 
     @Test
-    void restartAllExcludesVioraWhichRunsItsOwnJarAndSaysSo() {
-        // viora's unit points at /root/daman-store-viora.jar, not the shared jar, and is frozen:
-        // a shared-jar release must not bounce a live paying store that is not running it.
+    void restartAllNowIncludesVioraSinceItRunsTheSharedJarToo() {
+        // viora was excluded by service name while its unit ran /root/daman-store-viora.jar. That
+        // made it the one store a release could not reach - and so the only one that never got a
+        // backend fix, which is how it ended up running for weeks with the auto-backup defect.
+        // Its unit was moved onto the shared jar on 2026-10-26, so it is an ordinary store here.
         when(repository.findAll()).thenReturn(List.of(store("viora", 8090, "ACTIVE"), store("a", 9101, "ACTIVE")));
         when(ops.health(anyInt())).thenReturn(true);
 
         ResponseEntity<?> res = controller.restartAll();
 
-        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode).containsExactly("a");
-        verify(ops, never()).restart("daman-store-viora");
-        verify(ops, never()).health(8090);
-        // The exclusion is now auditable at release time, not only in this test.
-        assertThat(skipped(res)).hasSize(1);
-        assertThat(skipped(res).get(0).clientCode()).isEqualTo("viora");
-        assertThat(skipped(res).get(0).reason()).contains("daman-store-viora.jar");
+        // Walked in registry order. In production viora's row is the oldest, so from now on the
+        // live store that has been running longest is also the canary of every release.
+        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode)
+                .containsExactly("viora", "a");
+        verify(ops).restart("daman-store-viora");
+        verify(ops).health(8090);
+        assertThat(skipped(res)).isEmpty();
     }
 
     @Test
@@ -392,7 +394,7 @@ class HostedStoreControllerTest {
         // disk changed under every store. 200 with an empty walked list is what the script has to
         // shout about — it used to print "every hosted store restarted healthy".
         when(repository.findAll()).thenReturn(List.of(
-                store("viora", 8090, "ACTIVE"), store("a", 9101, "FAILED")));
+                store("viora", 8090, "FAILED"), store("a", 9101, "FAILED")));
 
         ResponseEntity<?> res = controller.restartAll();
 

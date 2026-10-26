@@ -19,8 +19,14 @@
     oldest store is always the canary. The jar is uploaded to a temp name and renamed into place,
     so a running JVM never has its jar rewritten underneath it.
 
-    viora is frozen on its own jar (/root/daman-store-viora.jar) and is deliberately NOT restarted
-    by this release; the server excludes it.
+    viora is an ordinary store here since 2026-10-26. It used to run its own frozen jar
+    (/root/daman-store-viora.jar) and was excluded by the server, which made it the one store a
+    release could not reach - and so the only one that never received a backend fix. Its unit now
+    points at the shared jar. It keeps its legacy data directory (/root/.daman/viora), because its
+    unit carries no -Duser.home, so its unit must never be re-rendered by StoreUnitRenderer; that
+    is guarded by `viora` being a reserved client code. Its old jar is kept for rollback.
+
+    viora's registry row is the oldest, so viora is now the canary of every release.
 
     The jar is a GENERIC build (client-meta.properties must say client.generic=true - this script
     refuses to ship anything else).

@@ -54,15 +54,6 @@ public class HostedStoreController {
     private static final int HEALTH_ATTEMPTS = 40;
     private static final long HEALTH_INTERVAL_MS = 3000;
 
-    /**
-     * Viora is frozen on its OWN jar (/root/daman-store-viora.jar), not the shared one, so a
-     * shared-jar release must not restart it. Rule chosen: exclude by service name. Deliberate, not
-     * incidental - the unit text is not stored in the registry, so "jar path is not the shared one"
-     * cannot be evaluated here; every other provisioned unit is rendered by StoreUnitRenderer with
-     * the shared jar by construction.
-     */
-    static final String VIORA_SERVICE = "daman-store-viora";
-
     private final HostedStoreProvisionLauncher launcher;
     private final HostedInstanceRepository repository;
     private final ServerOps ops;
@@ -244,11 +235,18 @@ public class HostedStoreController {
         return ResponseEntity.ok(new RestartReport(walked, skipped));
     }
 
-    /** Why this row is not part of a shared-jar release, or null when it is. */
+    /**
+     * Why this row is not part of a shared-jar release, or null when it is.
+     *
+     * <p>Status is now the only reason. viora used to be excluded here by service name, because
+     * its unit ran its own {@code /root/daman-store-viora.jar}; it was moved onto the shared jar
+     * on 2026-10-26 (it was the only store a release could not reach, and so the only one that
+     * never received a backend fix). Its unit is still the one hand-written unit on the box — it
+     * keeps the legacy {@code /root/.daman/viora} data directory and therefore carries no
+     * {@code -Duser.home} — so it must never be re-rendered by {@code StoreUnitRenderer}. That is
+     * guarded elsewhere, by {@code viora} being a reserved client code that provisioning refuses.
+     */
     private static String skipReason(HostedInstance i) {
-        if (VIORA_SERVICE.equals(i.getServiceName())) {
-            return "runs its own jar (/root/daman-store-viora.jar), not the shared one";
-        }
         if (!"ACTIVE".equals(i.getStatus())) {
             return "not ACTIVE (" + i.getStatus()
                     + (i.getFailedStage() == null ? "" : " at stage " + i.getFailedStage()) + ")";
