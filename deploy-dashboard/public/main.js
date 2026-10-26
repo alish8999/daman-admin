@@ -1333,8 +1333,18 @@
       return request()
         .then((r) => r.text().then((text) => ({ r, body: parse(text) })))
         .then(({ r, body }) => {
-          if (r.ok) setNotice(verb + ' ' + code + ': done.', 'success');
-          else setNotice(verb + ' ' + code + ' failed: ' + describeFailure(r, body), 'failure');
+          if (r.ok) {
+            let msg = verb + ' ' + code + ': done.';
+            if (verb === 'Removing' && body && typeof body === 'object') {
+              if (body.keptBackup) msg += ' The only copy of the data is the backup at ' + body.keptBackup + '.';
+              else if (body.backupSkipped) msg += ' No backup was taken (the data directory was already gone).';
+            }
+            setNotice(msg, 'success');
+          } else {
+            let msg = verb + ' ' + code + ' failed: ' + describeFailure(r, body);
+            if (verb === 'Removing') msg += ' Removal can be re-run: click Remove again, every step tolerates a target that is already gone.';
+            setNotice(msg, 'failure');
+          }
         })
         .catch((err) => setNotice(verb + ' ' + code + ' failed: ' + err.message, 'failure'))
         .then(() => {

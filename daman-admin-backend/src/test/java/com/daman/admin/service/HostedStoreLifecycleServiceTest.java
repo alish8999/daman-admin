@@ -397,6 +397,9 @@ class HostedStoreLifecycleServiceTest {
     void aUnitThatIsMidRestartIsStillStoppedBeforeTheBackupIsTaken() {
         // unitActive would have said false for an activating/deactivating unit; the stop must be
         // attempted regardless so the copy is never taken from a live database.
+        // NOTE: the unitActive stub below is decorative - remove() no longer calls unitActive at all.
+        // The test is still meaningful: its InOrder verify would fail if a unitActive gate were ever
+        // reintroduced, which is the regression it names.
         suspendedAcmeWithDatabase();
         when(ops.unitActive("daman-store-acme")).thenReturn(false);
 

@@ -643,6 +643,29 @@ test('lifecycle timeout outlasts the backend 75 s health wait but stays under th
   assert.ok(LIFECYCLE_PROXY_TIMEOUT_MS < 100000);
 });
 
+test('lifecycle routes hand LIFECYCLE_PROXY_TIMEOUT_MS to http.request', async () => {
+  const { fake, port: fakePort } = await startFakeRemote(200, { ok: true });
+  aimRemoteAt(fakePort);
+  const realRequest = http.request;
+  const seenOptions = [];
+  http.request = function (...args) {
+    // Only record calls aimed at the fake remote, not the test's own client request.
+    if (args[0] && args[0].port === fakePort && args[0].timeout !== undefined) seenOptions.push(args[0]);
+    return realRequest.apply(this, args);
+  };
+  try {
+    for (const action of ['suspend', 'resume', 'restart', 'remove']) {
+      await post(`/api/remote/hosted-stores/acme/${action}`, '');
+    }
+  } finally {
+    http.request = realRequest;
+    restoreRemote();
+    fake.close();
+  }
+  assert.strictEqual(seenOptions.length, 4);
+  for (const o of seenOptions) assert.strictEqual(o.timeout, 90000);
+});
+
 test('an unreachable remote on a lifecycle route is reported as 503, never answered locally', async () => {
   restoreRemote();
   Object.assign(REMOTE_ADMIN_BACKEND, { secure: false, host: '127.0.0.1', port: 1 });

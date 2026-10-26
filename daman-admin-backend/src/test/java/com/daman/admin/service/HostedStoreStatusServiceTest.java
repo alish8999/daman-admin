@@ -122,6 +122,28 @@ class HostedStoreStatusServiceTest {
         assertThat(s.backupAt()).isEqualTo("2026-10-26T03:00:00Z");
         assertThat(s.backupSizeBytes()).isEqualTo(4096L);
         verify(ops, never()).unitActive(anyString());
+        verify(ops, never()).health(Mockito.anyInt());
+        verify(ops, never()).unitStartedAt(anyString());
+    }
+
+    @Test
+    void provisioningRowIsNotProbed() {
+        var s = service.of(row("p", "PROVISIONING"), JAR_AT);
+        assertThat(s.liveStatus()).isEqualTo("starting");
+        verify(ops, never()).unitActive(anyString());
+        verify(ops, never()).health(Mockito.anyInt());
+        verify(ops, never()).unitStartedAt(anyString());
+    }
+
+    @Test
+    void oneRowThatThrowsDegradesToUnknownAndTheOthersSurvive() {
+        when(ops.newestBackup("/root/stores/bad/backups")).thenThrow(new java.io.UncheckedIOException(new java.io.IOException("denied")));
+        var fleet = service.describe(List.of(row("good", "ACTIVE"), row("bad", "ACTIVE"), row("good2", "ACTIVE")));
+        assertThat(fleet.states()).hasSize(3);
+        assertThat(fleet.states().get(0).liveStatus()).isEqualTo("running");
+        assertThat(fleet.states().get(1).liveStatus()).isEqualTo("unknown");
+        assertThat(fleet.states().get(1).staleness()).isEqualTo("unknown");
+        assertThat(fleet.states().get(2).liveStatus()).isEqualTo("running");
     }
 
     @Test

@@ -428,7 +428,7 @@
         <h2 id="remove-modal-title">Remove store <code id="remove-modal-code"></code></h2>
         <button type="button" class="modal-close" id="remove-modal-close" aria-label="Close">&times;</button>
       </div>
-      <p class="modal-hint"><strong>This deletes the customer's data.</strong> The store's service, tunnel rule, DNS record, hostname and database are torn down. <strong>One backup is kept</strong> on the server at <code id="remove-modal-path"></code>. Nothing else is kept, and the store cannot be resumed afterwards.</p>
+      <p class="modal-hint"><strong>This deletes the customer's data.</strong> The store's service, tunnel rule and database are torn down. <strong>The DNS records and the Pages custom domain are left in place</strong> and must be removed by hand if the hostname is not being reused. <strong>One backup is kept</strong> on the server at <code id="remove-modal-path"></code>. Nothing else is kept, and the store cannot be resumed afterwards.</p>
       <label class="version-field">
         <span>Type the store code <strong id="remove-modal-expect"></strong> to confirm</span>
         <input type="text" class="build-version-input" id="remove-modal-input" autocomplete="off" spellcheck="false">

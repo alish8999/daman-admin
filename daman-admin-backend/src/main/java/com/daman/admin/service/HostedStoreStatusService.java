@@ -1,6 +1,7 @@
 package com.daman.admin.service;
 
 import com.daman.admin.entity.HostedInstance;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,7 @@ import java.util.Optional;
  * Optional both for a never-started unit and for a timestamp it could not parse: an absent
  * timestamp is {@code unknown}, never {@code current}.
  */
+@Slf4j
 @Service
 public class HostedStoreStatusService {
 
@@ -46,7 +48,21 @@ public class HostedStoreStatusService {
                         HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
     }
 
+    /**
+     * One misbehaving store must not blank the fleet: any failure reading this row (an unreadable
+     * backups directory, a systemctl that exits non-zero or times out) degrades just this row to
+     * {@code unknown} and leaves the others intact.
+     */
     public LiveState of(HostedInstance row, Instant sharedJarModifiedAt) {
+        try {
+            return probe(row, sharedJarModifiedAt);
+        } catch (RuntimeException e) {
+            log.warn("Could not read live state of hosted store '{}': {}", row.getClientCode(), e.toString());
+            return new LiveState(UNKNOWN, UNKNOWN, null, UNKNOWN, null);
+        }
+    }
+
+    private LiveState probe(HostedInstance row, Instant sharedJarModifiedAt) {
         // Reading a backup directory is a filesystem read: it needs no live unit, and it matters
         // most for a suspended store, which the operator reads before deciding to remove it.
         Optional<ServerOps.BackupInfo> backup = newestBackup(row);

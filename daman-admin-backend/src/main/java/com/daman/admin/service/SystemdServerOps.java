@@ -430,8 +430,8 @@ public class SystemdServerOps implements ServerOps {
      * fleet poll, so callers treat empty as "unknown", never as "current".
      *
      * <p>Deliberately lenient where systemd varies: the leading day-of-week is ignored (the date is
-     * authoritative, so a wrong weekday cannot conflict), the zone may be an abbreviation
-     * ({@code UTC}, {@code EET}) or a numeric offset ({@code +03}, {@code +03:00}), nothing depends
+     * authoritative, so a wrong weekday cannot conflict), the zone may be {@code UTC}, an
+     * unambiguous abbreviation (ambiguous ones such as {@code EET}, {@code BST}, {@code CST} are rejected) or a numeric offset ({@code +03}, {@code +03:00}), nothing depends
      * on the default locale, and the timestamp is found anywhere in the text so a warning line
      * merged in from stderr does not hide it.
      */

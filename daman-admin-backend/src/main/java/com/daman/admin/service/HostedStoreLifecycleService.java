@@ -208,6 +208,9 @@ public class HostedStoreLifecycleService {
             ops.stopAndDisable(row.getServiceName());
             steps.add("Stopped and disabled " + row.getServiceName() + ".");
         } catch (RuntimeException e) {
+            // steps is lost if a later step throws, and on a live unit this means the zip below may be
+            // a hot copy with an uncheckpointed WAL, so the failure must be in the log.
+            log.warn("Pre-backup stop of '{}' (unit {}) failed; continuing: {}", code, row.getServiceName(), e.toString());
             steps.add("unit already stopped or gone (" + e.getMessage() + ")");
         }
 

@@ -38,6 +38,12 @@ const VERSION_QUERY_PATTERN = /^\d+\.\d+\.\d+$/;
 // never depends on daman-admin-backend's own CORS config.
 const LOCAL_ADMIN_BACKEND = { host: 'localhost', port: 8083 };
 const BUILD_PROXY_TIMEOUT_MS = 8000;
+// GET /api/remote/hosted-stores: per ACTIVE store the backend does two systemctl spawns plus an HTTP
+// health probe with a 10 s request timeout, so ONE hung JVM (port bound, not answering) costs 10 s
+// by itself and the 8 s default would drop the whole table to 'showing the last good read'. 45 s
+// leaves room for a few such stores plus the systemctl spawns, and stays under Cloudflare's 100 s
+// edge limit. (The backend's probe timeouts are deliberately unchanged.)
+const FLEET_PROXY_TIMEOUT_MS = 45000;
 
 // The REAL client records and licences live in the server's H2 on the Hetzner box, not in the
 // local H2 behind :8083, so provisioning has to run on the remote portal. Exported (and
@@ -539,7 +545,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (req.method === 'GET' && pathname === '/api/remote/hosted-stores') {
-    proxyToRemoteAdminBackend(req, 'GET', '/api/hosted-stores', res);
+    proxyToRemoteAdminBackend(req, 'GET', '/api/hosted-stores', res, undefined, FLEET_PROXY_TIMEOUT_MS);
     return;
   }
   if (req.method === 'GET' && pathname === '/api/remote/hosted-stores/suggest-subdomain') {
