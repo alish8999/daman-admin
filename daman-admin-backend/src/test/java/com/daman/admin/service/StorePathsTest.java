@@ -54,4 +54,11 @@ class StorePathsTest {
         assertThat(StorePaths.removedBackupZip("acme", LocalDate.of(2026, 10, 26)))
                 .isEqualTo("/root/removed-stores/acme-2026-10-26.zip");
     }
+
+    @Test void theGenericBuildsFixedDataDirIsNeverAStoreDataDir() {
+        assertThat(StorePaths.isAllowedDataDir("/root/.daman/data", "data")).isFalse();
+        assertThat(StorePaths.isAllowedDataDir("/root/stores/data", "data")).isTrue();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> StorePaths.databaseFile("/root/.daman/data", "data"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

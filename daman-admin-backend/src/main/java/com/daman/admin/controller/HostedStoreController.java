@@ -352,6 +352,11 @@ public class HostedStoreController {
      */
     @PostMapping("/{clientCode}/remove")
     public ResponseEntity<?> remove(@PathVariable String clientCode) {
+        if (launcher.isRunning(clientCode)) {
+            return error("A provision for client '" + clientCode + "' is running right now;"
+                    + " removing the store underneath it would have the run re-create its unit and"
+                    + " ingress rule. Wait for it to finish, then retry.", HttpStatus.CONFLICT);
+        }
         try {
             return ResponseEntity.ok(lifecycle.remove(clientCode));
         } catch (HostedStoreLifecycleService.NotFoundException e) {

@@ -27,6 +27,10 @@ public final class StorePaths {
         if (path == null || clientCode == null || !SAFE_CODE.matcher(clientCode).matches()) {
             return false;
         }
+        // /root/.daman/data is the generic build's fixed data path, not a store.
+        if ("data".equals(clientCode) && path.equals(DAMAN_ROOT + clientCode)) {
+            return false;
+        }
         return path.equals(STORES_ROOT + clientCode) || path.equals(DAMAN_ROOT + clientCode);
     }
 
@@ -44,6 +48,9 @@ public final class StorePaths {
     public static String databaseFile(String dataDir, String clientCode) {
         if (dataDir == null || clientCode == null || !SAFE_CODE.matcher(clientCode).matches()) {
             throw new IllegalArgumentException("Cannot derive a database path for " + dataDir + " / " + clientCode);
+        }
+        if (!isAllowedDataDir(dataDir, clientCode)) {
+            throw new IllegalArgumentException("Not a store data directory: " + dataDir);
         }
         if (dataDir.equals(DAMAN_ROOT + clientCode)) {
             return dataDir + "/daman_db.sqlite";

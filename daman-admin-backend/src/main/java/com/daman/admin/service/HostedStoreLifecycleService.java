@@ -198,13 +198,23 @@ public class HostedStoreLifecycleService {
 
         List<String> steps = new ArrayList<>();
 
-        ops.stopAndDisable(row.getServiceName());
-        steps.add("Stopped and disabled " + row.getServiceName() + " (already stopped if it was suspended).");
+        // Gated: `systemctl disable --now` exits non-zero for a unit that no longer exists, which
+        // would make every re-run of a half-finished removal die here. isActive is exit-code
+        // tolerant. A SUSPENDED store is already stopped, and deleteUnit + daemon-reload follow
+        // regardless, so skipping the disable for an inactive or missing unit is safe.
+        if (ops.unitActive(row.getServiceName())) {
+            ops.stopAndDisable(row.getServiceName());
+            steps.add("Stopped and disabled " + row.getServiceName() + ".");
+        } else {
+            steps.add("Unit " + row.getServiceName() + " was already stopped or gone; nothing to stop.");
+        }
 
         String keptBackup = null;
         if (dbPresent) {
             keptBackup = StorePaths.removedBackupZip(code, LocalDate.now());
             ops.zipFileInto(dbFile, keptBackup, "daman_db.sqlite");
+            // Logged immediately so the trail survives any later failure (steps is lost on a throw).
+            log.warn("Kept backup for '{}' at {}", code, keptBackup);
             steps.add("Backed up " + dbFile + " to " + keptBackup + ".");
         } else {
             steps.add("No backup taken: the data directory " + dataDir + " is already gone, so an"
@@ -248,8 +258,11 @@ public class HostedStoreLifecycleService {
      */
     public boolean dropIngressRule(HostedInstance row) {
         String ingress = ops.readIngress();
+        // removeRule normalises CRLF/CR to LF; compare against the same normalisation or a CRLF file
+        // would look "changed" and restart cloudflared (an outage for every hostname) for nothing.
+        String normalised = ingress.replace("\r\n", "\n").replace('\r', '\n');
         String edited = IngressEditor.removeRule(ingress, row.getApiHostname());
-        if (edited.equals(ingress)) {
+        if (edited.equals(normalised)) {
             return false;
         }
         ops.writeIngress(edited);

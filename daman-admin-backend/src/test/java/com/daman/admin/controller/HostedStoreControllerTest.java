@@ -583,4 +583,14 @@ class HostedStoreControllerTest {
     void removeOfAnUnknownClientIs404() {
         assertThat(controller.remove("nobody").getStatusCode().value()).isEqualTo(404);
     }
+
+    @Test
+    void removeIsRefusedWhileThatClientsProvisionIsStillRunning() {
+        when(repository.findByClientCode("abu_amar")).thenReturn(Optional.of(row("abu_amar", "SUSPENDED")));
+        when(launcher.isRunning("abu_amar")).thenReturn(true);
+
+        assertThat(controller.remove("abu_amar").getStatusCode().value()).isEqualTo(409);
+        verify(ops, never()).deleteTree(any(), any());
+        verify(repository, never()).delete(any());
+    }
 }

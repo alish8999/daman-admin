@@ -216,6 +216,7 @@ class HostedStoreLifecycleServiceTest {
     @Test
     void removeRunsItsStepsInTheSafeOrder() {
         suspendedAcmeWithDatabase();
+        when(ops.unitActive("daman-store-acme")).thenReturn(true);
 
         HostedStoreLifecycleService.RemoveResult r = service.remove("acme");
 
@@ -363,5 +364,33 @@ class HostedStoreLifecycleServiceTest {
         InOrder o = inOrder(ops, licenses, repository);
         o.verify(ops).deleteTree(any(), any());
         o.verify(repository).delete(row);
+    }
+
+    @Test
+    void removeResumesAfterTheUnitIsGoneWithoutCallingTheDisableThatWouldThrow() {
+        // The real SystemdServerOps.stopAndDisable throws for a missing unit (systemctl disable
+        // exits 1). A Mockito no-op cannot be intolerant, so make it behave like the real one.
+        suspendedAcmeWithDatabase();
+        when(ops.unitActive("daman-store-acme")).thenReturn(false);
+        org.mockito.Mockito.doThrow(new IllegalStateException("unit does not exist"))
+                .when(ops).stopAndDisable(anyString());
+
+        HostedStoreLifecycleService.RemoveResult r = service.remove("acme");
+
+        verify(ops, never()).stopAndDisable(anyString());
+        verify(ops).deleteUnit("daman-store-acme");
+        verify(repository).delete(row);
+        assertThat(r.steps()).anyMatch(s -> s.contains("already stopped or gone"));
+    }
+
+    @Test
+    void aCrlfIngressFileWithoutTheRuleIsNotRewrittenAndCloudflaredIsNotRestarted() {
+        suspendedAcmeWithDatabase();
+        when(ops.readIngress()).thenReturn(INGRESS.replace("acme-api", "gone-api").replace("\n", "\r\n"));
+
+        service.remove("acme");
+
+        verify(ops, never()).writeIngress(any());
+        verify(ops, never()).reloadCloudflared();
     }
 }

@@ -64,14 +64,13 @@ public final class IngressEditor {
     /**
      * Removes the rule (hostname line plus its indented continuation lines). No-op if absent.
      *
-     * <p><b>No production caller, on purpose.</b> {@code HostedStoreProvisioningService} only ever
-     * adds its own {@code <sub>-api} hostname: removing a rule is one typo away from dropping
+     * <p><b>Dangerous in the wrong hands:</b> removing a rule is one typo away from dropping
      * {@code admin-api} (the tunnel the provisioning request itself arrives through) or
-     * {@code viora-api} from the shared root-owned config, so teardown stays a manual SSH task.
-     * This method is kept because the shape of the file's editing is tested as a whole, and because
-     * a future deliberate teardown path will need it — but if you are about to wire it up, the
-     * guard "only for a hostname recorded against a registry row we own" belongs at the call site,
-     * not in here.
+     * {@code viora-api} from the shared root-owned config. The one sanctioned production caller is
+     * {@code HostedStoreLifecycleService.dropIngressRule} (store removal and forget), which is only
+     * ever invoked behind {@code HostedStoreLifecycleService.hasOwnApiHostname}: the hostname must
+     * be exactly {@code <subdomain>-api} of a registry row we own and not reserved. That guard
+     * belongs at the call site, not in here; any new caller needs the same one.
      */
     public static String removeRule(String yaml, String hostname) {
         requireValidHostname(hostname);
