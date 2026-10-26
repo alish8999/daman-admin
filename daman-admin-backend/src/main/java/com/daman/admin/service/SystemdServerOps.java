@@ -23,7 +23,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.io.OutputStream;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Comparator;
+import java.util.Locale;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -101,6 +111,132 @@ public class SystemdServerOps implements ServerOps {
     public void restart(String serviceName) {
         requireSafeUnitName(serviceName);
         run("systemctl", "restart", serviceName);
+    }
+
+    @Override
+    public void stopAndDisable(String serviceName) {
+        requireSafeUnitName(serviceName);
+        run("systemctl", "disable", "--now", serviceName);
+    }
+
+    @Override
+    public void enableAndStart(String serviceName) {
+        requireSafeUnitName(serviceName);
+        run("systemctl", "enable", "--now", serviceName);
+    }
+
+    @Override
+    public void deleteUnit(String serviceName) {
+        requireSafeUnitName(serviceName);
+        Path unit = Path.of(unitDir, serviceName + ".service");
+        try {
+            Files.deleteIfExists(unit);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not delete " + unit, e);
+        }
+        log.info("Deleted systemd unit {}", unit);
+        run("systemctl", "daemon-reload");
+    }
+
+    @Override
+    public boolean unitActive(String serviceName) {
+        requireSafeUnitName(serviceName);
+        return isActive(serviceName);
+    }
+
+    @Override
+    public Optional<Instant> unitStartedAt(String serviceName) {
+        requireSafeUnitName(serviceName);
+        String value = runCapture("systemctl", "show", "-p", "ActiveEnterTimestamp", "--value", serviceName);
+        if (value.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(parseSystemdTimestamp(value.trim()));
+        } catch (DateTimeParseException e) {
+            log.warn("could not parse ActiveEnterTimestamp '{}' for {}", value, serviceName);
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<Instant> fileModifiedAt(String path) {
+        try {
+            Path file = Path.of(path);
+            return Files.exists(file) ? Optional.of(Files.getLastModifiedTime(file).toInstant()) : Optional.empty();
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<BackupInfo> newestBackup(String dir) {
+        Path directory = Path.of(dir);
+        if (!Files.isDirectory(directory)) {
+            return Optional.empty();
+        }
+        try (Stream<Path> files = Files.list(directory)) {
+            return files.filter(Files::isRegularFile)
+                    .map(f -> {
+                        try {
+                            return new BackupInfo(f.getFileName().toString(), Files.size(f),
+                                    Files.getLastModifiedTime(f).toInstant());
+                        } catch (IOException e) {
+                            return null;
+                        }
+                    })
+                    .filter(b -> b != null)
+                    .max(Comparator.comparing(BackupInfo::modifiedAt));
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not list " + dir, e);
+        }
+    }
+
+    @Override
+    public void zipFileInto(String sourceFile, String targetZip, String entryName) {
+        Path source = Path.of(sourceFile);
+        Path target = Path.of(targetZip);
+        try {
+            Path parent = target.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            try (OutputStream out = Files.newOutputStream(target);
+                 ZipOutputStream zip = new ZipOutputStream(out)) {
+                zip.putNextEntry(new ZipEntry(entryName));
+                Files.copy(source, zip);
+                zip.closeEntry();
+            }
+        } catch (IOException e) {
+            // Never leave a truncated archive that could pass for a real backup.
+            try {
+                Files.deleteIfExists(target);
+            } catch (IOException ignored) {
+                // the original failure is the one worth reporting
+            }
+            throw new UncheckedIOException("could not zip " + sourceFile + " into " + targetZip, e);
+        }
+    }
+
+    @Override
+    public void deleteTree(String path, String clientCode) {
+        if (!StorePaths.isAllowedDataDir(path, clientCode)) {
+            throw new IllegalArgumentException("Refusing to delete " + path + " for client " + clientCode);
+        }
+        Path root = Path.of(path);
+        if (!Files.exists(root, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        try (Stream<Path> tree = Files.walk(root)) {
+            // Deepest first. Files.walk does not follow symlinks, and Files.delete removes a link
+            // itself rather than its target.
+            for (Path p : (Iterable<Path>) tree.sorted(Comparator.reverseOrder())::iterator) {
+                Files.delete(p);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not delete " + path, e);
+        }
+        log.info("Deleted data directory {}", path);
     }
 
     @Override
@@ -289,6 +425,13 @@ public class SystemdServerOps implements ServerOps {
 
     // ── internals ────────────────────────────────────────────────────────────
 
+    /** {@code EEE yyyy-MM-dd HH:mm:ss z}, with systemd's zone abbreviation (usually UTC). */
+    private static Instant parseSystemdTimestamp(String value) {
+        return ZonedDateTime
+                .parse(value, DateTimeFormatter.ofPattern("EEE yyyy-MM-dd HH:mm:ss z", Locale.ENGLISH))
+                .toInstant();
+    }
+
     private static void requireSafeUnitName(String serviceName) {
         if (serviceName == null || !SAFE_UNIT_NAME.matcher(serviceName).matches()) {
             throw new IllegalArgumentException("Unsafe systemd service name: " + serviceName);
@@ -382,6 +525,11 @@ public class SystemdServerOps implements ServerOps {
      * problem, a chatty child deadlocking on a full pipe buffer while nobody is reading it.
      */
     private static void run(String... command) {
+        runCapture(command);
+    }
+
+    /** {@link #run} that also returns the command's trimmed combined output. */
+    private static String runCapture(String... command) {
         String printable = String.join(" ", command);
         Path captured = null;
         try {
@@ -401,6 +549,7 @@ public class SystemdServerOps implements ServerOps {
                         + (output.isEmpty() ? "" : ": " + output));
             }
             log.info("ran: {}", printable);
+            return readCaptured(captured);
         } catch (IOException e) {
             throw new UncheckedIOException("could not run " + printable, e);
         } catch (InterruptedException e) {

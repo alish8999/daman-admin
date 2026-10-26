@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -626,6 +627,11 @@ class HostedStoreProvisioningServiceTest {
         RuntimeException failWriteIngress;
         final Map<String, String> units = new LinkedHashMap<>();
         final List<String> activatedKeys = new ArrayList<>();
+        Optional<Instant> unitStarted = Optional.empty();
+        Optional<Instant> jarModified = Optional.empty();
+        final Set<String> activeUnits = new HashSet<>();
+        Optional<BackupInfo> newestBackup = Optional.empty();
+        final List<String> deletedTrees = new ArrayList<>();
 
         @Override public void mkdir(String path) {
             calls.add("mkdir:" + path);
@@ -692,6 +698,50 @@ class HostedStoreProvisioningServiceTest {
         @Override public long totalMemoryMb() {
             calls.add("totalMemoryMb");
             return totalMb;
+        }
+
+        @Override public void stopAndDisable(String serviceName) {
+            calls.add("stopAndDisable:" + serviceName);
+            activeUnits.remove(serviceName);
+        }
+
+        @Override public void enableAndStart(String serviceName) {
+            calls.add("enableAndStart:" + serviceName);
+            activeUnits.add(serviceName);
+        }
+
+        @Override public void deleteUnit(String serviceName) {
+            calls.add("deleteUnit:" + serviceName);
+            units.remove(serviceName);
+        }
+
+        @Override public boolean unitActive(String serviceName) {
+            calls.add("unitActive:" + serviceName);
+            return activeUnits.contains(serviceName);
+        }
+
+        @Override public Optional<Instant> unitStartedAt(String serviceName) {
+            calls.add("unitStartedAt:" + serviceName);
+            return unitStarted;
+        }
+
+        @Override public Optional<Instant> fileModifiedAt(String path) {
+            calls.add("fileModifiedAt:" + path);
+            return jarModified;
+        }
+
+        @Override public Optional<BackupInfo> newestBackup(String dir) {
+            calls.add("newestBackup:" + dir);
+            return newestBackup;
+        }
+
+        @Override public void zipFileInto(String sourceFile, String targetZip, String entryName) {
+            calls.add("zipFileInto:" + sourceFile + "->" + targetZip);
+        }
+
+        @Override public void deleteTree(String path, String clientCode) {
+            calls.add("deleteTree:" + path);
+            deletedTrees.add(path);
         }
     }
 

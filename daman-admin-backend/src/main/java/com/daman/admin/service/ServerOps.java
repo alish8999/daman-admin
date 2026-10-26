@@ -1,5 +1,6 @@
 package com.daman.admin.service;
 
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -20,6 +21,9 @@ public interface ServerOps {
      * store's process, not here.
      */
     record LicenceStatus(boolean licensed, String clientCode, String machineId) {}
+
+    /** The newest backup file in a directory: name only (no path), size and last-modified time. */
+    record BackupInfo(String name, long sizeBytes, Instant modifiedAt) {}
 
     /** Creates the directory and every missing parent. No-op when it already exists. */
     void mkdir(String path);
@@ -87,4 +91,40 @@ public interface ServerOps {
      * reading, which a freshly booted JVM makes look far rosier than it is.
      */
     long totalMemoryMb();
+
+    /** {@code systemctl disable --now <serviceName>}: stops it and keeps it from starting on boot. */
+    void stopAndDisable(String serviceName);
+
+    /** {@code systemctl enable --now <serviceName>}: the inverse of {@link #stopAndDisable}. */
+    void enableAndStart(String serviceName);
+
+    /**
+     * Removes {@code /etc/systemd/system/<serviceName>.service} (no error if already gone), then
+     * {@code systemctl daemon-reload}. Does not stop the unit; call {@link #stopAndDisable} first.
+     */
+    void deleteUnit(String serviceName);
+
+    /** True when systemd reports the unit active. Any failure to ask counts as "not active". */
+    boolean unitActive(String serviceName);
+
+    /**
+     * When the unit last entered the active state ({@code ActiveEnterTimestamp}). Empty for a unit
+     * that has never started (systemd prints a blank value), or an unparseable one.
+     */
+    Optional<Instant> unitStartedAt(String serviceName);
+
+    /** Last-modified time of a file, or empty when it does not exist. */
+    Optional<Instant> fileModifiedAt(String path);
+
+    /** The most recently modified regular file directly inside {@code dir}; empty when there is none. */
+    Optional<BackupInfo> newestBackup(String dir);
+
+    /** Writes a zip at {@code targetZip} containing {@code sourceFile} as the single entry {@code entryName}. */
+    void zipFileInto(String sourceFile, String targetZip, String entryName);
+
+    /**
+     * Recursively deletes {@code path}. Throws {@link IllegalArgumentException}, before touching
+     * anything, unless {@link StorePaths#isAllowedDataDir} accepts the path for {@code clientCode}.
+     */
+    void deleteTree(String path, String clientCode);
 }
