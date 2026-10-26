@@ -2,6 +2,7 @@ package com.daman.admin.controller;
 
 import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
+import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreProvisioningService.ProvisionRequest;
@@ -60,23 +61,27 @@ public class HostedStoreController {
     private final HostedInstanceRepository repository;
     private final ServerOps ops;
     private final HostedStoreStatusService statusService;
+    private final HostedStoreLifecycleService lifecycle;
     private final int healthAttempts;
     private final long healthIntervalMs;
 
     @Autowired
     public HostedStoreController(HostedStoreProvisionLauncher launcher,
                                  HostedInstanceRepository repository, ServerOps ops,
-                                 HostedStoreStatusService statusService) {
-        this(launcher, repository, ops, statusService, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
+                                 HostedStoreStatusService statusService,
+                                 HostedStoreLifecycleService lifecycle) {
+        this(launcher, repository, ops, statusService, lifecycle, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
     }
 
     HostedStoreController(HostedStoreProvisionLauncher launcher,
                           HostedInstanceRepository repository, ServerOps ops,
-                          HostedStoreStatusService statusService, int healthAttempts, long healthIntervalMs) {
+                          HostedStoreStatusService statusService, HostedStoreLifecycleService lifecycle,
+                          int healthAttempts, long healthIntervalMs) {
         this.launcher = launcher;
         this.repository = repository;
         this.ops = ops;
         this.statusService = statusService;
+        this.lifecycle = lifecycle;
         this.healthAttempts = healthAttempts;
         this.healthIntervalMs = healthIntervalMs;
     }
@@ -305,6 +310,41 @@ public class HostedStoreController {
         }
         return new RestartResult(i.getClientCode(), true, false,
                 "restarted but /api/health never answered 200 within " + healthAttempts + " polls");
+    }
+
+    /**
+     * Suspend: a billing lever. Disables and stops the unit and marks the row SUSPENDED, so neither
+     * a reboot, a release walk nor re-running Create brings the store back. Idempotent.
+     */
+    @PostMapping("/{clientCode}/suspend")
+    public ResponseEntity<?> suspend(@PathVariable String clientCode) {
+        return lifecycleCall(() -> lifecycle.suspend(clientCode));
+    }
+
+    /** Resume a suspended store; 502 when it was started but never became healthy. Idempotent. */
+    @PostMapping("/{clientCode}/resume")
+    public ResponseEntity<?> resume(@PathVariable String clientCode) {
+        return lifecycleCall(() -> lifecycle.resume(clientCode));
+    }
+
+    /** Restart one ACTIVE store; a suspended one is refused with 409. 502 when it stays unhealthy. */
+    @PostMapping("/{clientCode}/restart")
+    public ResponseEntity<?> restartStore(@PathVariable String clientCode) {
+        return lifecycleCall(() -> lifecycle.restartOne(clientCode));
+    }
+
+    /** 404 unknown client, 409 wrong status, 502 ran but never healthy (health wait is 75 s max). */
+    private ResponseEntity<?> lifecycleCall(java.util.function.Supplier<HostedStoreLifecycleService.LifecycleResult> action) {
+        try {
+            HostedStoreLifecycleService.LifecycleResult r = action.get();
+            HttpStatus status = HostedStoreLifecycleService.UNHEALTHY.equals(r.status())
+                    ? HttpStatus.BAD_GATEWAY : HttpStatus.OK;
+            return ResponseEntity.status(status).body(r);
+        } catch (HostedStoreLifecycleService.NotFoundException e) {
+            return error(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (HostedStoreLifecycleService.ConflictException e) {
+            return error(e.getMessage(), HttpStatus.CONFLICT);
+        }
     }
 
     @GetMapping("/suggest-subdomain")

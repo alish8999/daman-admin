@@ -2,6 +2,7 @@ package com.daman.admin.controller;
 
 import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
+import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreStatusService;
@@ -47,7 +48,8 @@ class HostedStoreControllerTest {
         ops = mock(ServerOps.class);
         // 3 health polls, no sleep: the tests never wait on a real clock.
         controller = new HostedStoreController(launcher, repository, ops,
-                new HostedStoreStatusService(ops), 3, 0);
+                new HostedStoreStatusService(ops),
+                new HostedStoreLifecycleService(repository, ops, 3, 0), 3, 0);
     }
 
     /** What the launcher answers for a run it just accepted. */
@@ -72,6 +74,37 @@ class HostedStoreControllerTest {
 
     private HostedStoreController.ProvisionBody body(String code, String sub) {
         return new HostedStoreController.ProvisionBody(code, sub, null);
+    }
+
+    @Test
+    void suspendMapsToOk409And404() {
+        HostedInstance active = row("acme", "ACTIVE");
+        HostedInstance provisioning = row("beta", "PROVISIONING");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(active));
+        when(repository.findByClientCode("beta")).thenReturn(Optional.of(provisioning));
+
+        assertThat(controller.suspend("acme").getStatusCode().value()).isEqualTo(200);
+        assertThat(active.getStatus()).isEqualTo("SUSPENDED");
+        assertThat(controller.suspend("beta").getStatusCode().value()).isEqualTo(409);
+        assertThat(controller.suspend("ghost").getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void resumeAnswers502WhenTheStoreNeverBecomesHealthy() {
+        HostedInstance suspended = row("acme", "SUSPENDED");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(suspended));
+        when(ops.health(anyInt())).thenReturn(false);
+
+        assertThat(controller.resume("acme").getStatusCode().value()).isEqualTo(502);
+        assertThat(suspended.getStatus()).isEqualTo("SUSPENDED");
+    }
+
+    @Test
+    void restartRefusesASuspendedStoreWith409() {
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(row("acme", "SUSPENDED")));
+
+        assertThat(controller.restartStore("acme").getStatusCode().value()).isEqualTo(409);
+        verify(ops, never()).restart(anyString());
     }
 
     @Test

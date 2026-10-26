@@ -422,6 +422,26 @@ class HostedStoreProvisioningServiceTest {
     }
 
     @Test
+    void provisioningRefusesASuspendedStoreInsteadOfRevivingIt() {
+        // Confirmed hole: prepare() short-circuited only on ACTIVE, so a SUSPENDED row fell through,
+        // resumeStageOf() returned ALLOCATE (failedStage is null) and the walk re-ran UNIT + START,
+        // and START is daemonReloadAndStart(), i.e. `enable --now`. Re-running Create on a
+        // non-paying customer put them back online. (FakeServerOps records that as "start:".)
+        HostedInstance suspended = row("acme", "acme", 8091, "SUSPENDED", null);
+        suspended.setId(3L);
+        instances.add(suspended);
+
+        assertThatThrownBy(() -> service.prepare(new ProvisionRequest("acme", "acme", null)))
+                .isInstanceOf(HostedStoreProvisioningService.RefusedException.class)
+                .hasMessageContaining("suspended")
+                .hasMessageContaining("Resume");
+        assertThat(calls).noneMatch(c -> c.startsWith("start:") || c.startsWith("enableAndStart")
+                || c.startsWith("writeUnit"));
+        assertThat(suspended.getStatus()).isEqualTo("SUSPENDED");
+        verify(hostedRepo, never()).save(any(HostedInstance.class));
+    }
+
+    @Test
     void refusesAReservedClientCodeEvenWithoutARegistryRow() {
         // No registry row at all, so the "already provisioned" early return cannot help: UNIT
         // would overwrite /etc/systemd/system/daman-store-viora.service and the live viora store
