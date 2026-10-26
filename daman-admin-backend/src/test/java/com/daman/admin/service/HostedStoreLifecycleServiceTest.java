@@ -216,7 +216,6 @@ class HostedStoreLifecycleServiceTest {
     @Test
     void removeRunsItsStepsInTheSafeOrder() {
         suspendedAcmeWithDatabase();
-        when(ops.unitActive("daman-store-acme")).thenReturn(true);
 
         HostedStoreLifecycleService.RemoveResult r = service.remove("acme");
 
@@ -367,17 +366,17 @@ class HostedStoreLifecycleServiceTest {
     }
 
     @Test
-    void removeResumesAfterTheUnitIsGoneWithoutCallingTheDisableThatWouldThrow() {
+    void removeResumesAfterTheUnitIsGoneEvenThoughTheDisableThrows() {
         // The real SystemdServerOps.stopAndDisable throws for a missing unit (systemctl disable
         // exits 1). A Mockito no-op cannot be intolerant, so make it behave like the real one.
         suspendedAcmeWithDatabase();
-        when(ops.unitActive("daman-store-acme")).thenReturn(false);
         org.mockito.Mockito.doThrow(new IllegalStateException("unit does not exist"))
                 .when(ops).stopAndDisable(anyString());
 
         HostedStoreLifecycleService.RemoveResult r = service.remove("acme");
 
-        verify(ops, never()).stopAndDisable(anyString());
+        verify(ops).stopAndDisable("daman-store-acme");
+        verify(ops).zipFileInto(any(), any(), any());
         verify(ops).deleteUnit("daman-store-acme");
         verify(repository).delete(row);
         assertThat(r.steps()).anyMatch(s -> s.contains("already stopped or gone"));
@@ -392,5 +391,19 @@ class HostedStoreLifecycleServiceTest {
 
         verify(ops, never()).writeIngress(any());
         verify(ops, never()).reloadCloudflared();
+    }
+
+    @Test
+    void aUnitThatIsMidRestartIsStillStoppedBeforeTheBackupIsTaken() {
+        // unitActive would have said false for an activating/deactivating unit; the stop must be
+        // attempted regardless so the copy is never taken from a live database.
+        suspendedAcmeWithDatabase();
+        when(ops.unitActive("daman-store-acme")).thenReturn(false);
+
+        service.remove("acme");
+
+        InOrder o = inOrder(ops);
+        o.verify(ops).stopAndDisable("daman-store-acme");
+        o.verify(ops).zipFileInto(any(), any(), any());
     }
 }

@@ -198,15 +198,17 @@ public class HostedStoreLifecycleService {
 
         List<String> steps = new ArrayList<>();
 
-        // Gated: `systemctl disable --now` exits non-zero for a unit that no longer exists, which
-        // would make every re-run of a half-finished removal die here. isActive is exit-code
-        // tolerant. A SUSPENDED store is already stopped, and deleteUnit + daemon-reload follow
-        // regardless, so skipping the disable for an inactive or missing unit is safe.
-        if (ops.unitActive(row.getServiceName())) {
+        // Always try to stop, so by the time the zip runs the process is down and the WAL is
+        // checkpointed. This single pre-backup step swallows failure: `systemctl disable --now`
+        // exits 1 for a unit file that no longer exists (the resumed-removal case), and any other
+        // failure is also fine to continue past, because remove is SUSPENDED-only and deleteUnit +
+        // daemon-reload follow regardless. A unitActive gate is NOT used: it reads "inactive" for a
+        // unit that is activating or deactivating, which would copy a live database.
+        try {
             ops.stopAndDisable(row.getServiceName());
             steps.add("Stopped and disabled " + row.getServiceName() + ".");
-        } else {
-            steps.add("Unit " + row.getServiceName() + " was already stopped or gone; nothing to stop.");
+        } catch (RuntimeException e) {
+            steps.add("unit already stopped or gone (" + e.getMessage() + ")");
         }
 
         String keptBackup = null;
