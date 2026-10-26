@@ -418,6 +418,9 @@ public class SystemdServerOps implements ServerOps {
 
     // ── internals ────────────────────────────────────────────────────────────
 
+    /** Only zones that cannot be misread: UTC/GMT/Z, a numeric offset, or a full IANA id (has a "/"). */
+    private static final Pattern UNAMBIGUOUS_ZONE = Pattern.compile("UTC|GMT|Z|[+-]\\d{2}(:?\\d{2})?|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+");
+
     private static final Pattern SYSTEMD_TIMESTAMP =
             Pattern.compile("(\\d{4}-\\d{2}-\\d{2})[ T](\\d{2}:\\d{2}:\\d{2})\\s+(\\S+)");
 
@@ -442,7 +445,11 @@ public class SystemdServerOps implements ServerOps {
         Matcher m = SYSTEMD_TIMESTAMP.matcher(value);
         while (m.find()) {
             try {
-                ZoneId zone = ZoneId.of(m.group(3), ZoneId.SHORT_IDS);
+                String token = m.group(3);
+                if (!UNAMBIGUOUS_ZONE.matcher(token).matches()) {
+                    continue; // a bare abbreviation (BST, CST, IST...) is ambiguous: reject, never guess
+                }
+                ZoneId zone = ZoneId.of(token);
                 return Optional.of(LocalDateTime.parse(m.group(1) + "T" + m.group(2)).atZone(zone).toInstant());
             } catch (DateTimeException e) {
                 // try the next candidate, then give up below

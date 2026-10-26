@@ -51,4 +51,26 @@ class SystemdTimestampParseTest {
         assertThat(SystemdServerOps.parseSystemdTimestamp(
                 "Warning: unit file changed on disk\nMon 2026-10-26 14:56:41 UTC")).isEqualTo(EXPECTED);
     }
+
+    @Test void ambiguousZoneAbbreviationIsRejectedRatherThanGuessed() {
+        // ZoneId.SHORT_IDS maps BST to Asia/Dhaka (+6), CST to Chicago, IST to Kolkata: a confidently
+        // wrong instant (hours out) is worse than "unknown", which the caller surfaces visibly.
+        for (String zone : new String[] {"BST", "CST", "IST", "EET", "EST"}) {
+            assertThat(SystemdServerOps.parseSystemdTimestamp("Mon 2026-10-26 14:56:41 " + zone))
+                    .as(zone).isEmpty();
+        }
+    }
+
+    @Test void fullIanaZoneIdParses() {
+        assertThat(SystemdServerOps.parseSystemdTimestamp("Mon 2026-10-26 14:56:41 Europe/London"))
+                .isEqualTo(EXPECTED); // London is on GMT on 26 Oct 2026 (BST ended 25 Oct)
+        assertThat(SystemdServerOps.parseSystemdTimestamp("Mon 2026-10-26 15:56:41 Europe/Berlin"))
+                .isEqualTo(EXPECTED);
+    }
+
+    @Test void gmtZNumericNoColonOffsetsParse() {
+        assertThat(SystemdServerOps.parseSystemdTimestamp("Mon 2026-10-26 14:56:41 GMT")).isEqualTo(EXPECTED);
+        assertThat(SystemdServerOps.parseSystemdTimestamp("Mon 2026-10-26 14:56:41 Z")).isEqualTo(EXPECTED);
+        assertThat(SystemdServerOps.parseSystemdTimestamp("Mon 2026-10-26 09:56:41 -0500")).isEqualTo(EXPECTED);
+    }
 }
