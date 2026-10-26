@@ -84,6 +84,21 @@
   pollHealth();
   setInterval(pollHealth, 30000);
 
+  // The hosted-store backend release calls an admin-token-gated route on the REMOTE portal, so
+  // it needs the same Bearer token the Create online client card already holds - there is no
+  // second token to paste. Read straight from that input (it is the live value; the card mirrors
+  // it into sessionStorage on every keystroke) and fall back to the stored copy in case this
+  // runs before that card has initialised.
+  function remotePortalToken() {
+    const input = document.querySelector('.create-token-input');
+    if (input && input.value.trim()) return input.value.trim();
+    try {
+      return (sessionStorage.getItem('remotePortalToken') || '').trim();
+    } catch (err) {
+      return ''; // storage blocked - the pasted value above is the only source
+    }
+  }
+
   cards.forEach((card) => {
     const slot = card.dataset.slot;
     const btn = card.querySelector('.deploy-btn');
@@ -112,41 +127,69 @@
         streamUrl += `?version=${encodeURIComponent(version)}`;
       }
 
+      // EventSource cannot send an Authorization header and a token has no business in a URL,
+      // so a slot that needs one hands it over in its own POST first and only then opens the
+      // stream. Everything after this point is identical for every slot.
+      let ready = Promise.resolve();
+      if (slot === 'store-backend') {
+        const token = remotePortalToken();
+        if (!token) {
+          footer.textContent = 'Paste the remote portal token in the "Create online client" card first.';
+          footer.className = 'footer failure';
+          return;
+        }
+        ready = fetch(`/api/deploy/${slot}/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        }).then((r) => {
+          if (!r.ok) return r.json().then((b) => Promise.reject(new Error(b.error || `HTTP ${r.status}`)));
+        });
+      }
+
       btn.disabled = true;
       log.textContent = '';
       logPanel.open = true;
       footer.textContent = 'Running...';
       footer.className = 'footer';
 
-      const source = new EventSource(streamUrl);
-      ownedBySource.add(slot);
-
-      source.addEventListener('log', (event) => {
-        const { line } = JSON.parse(event.data);
-        appendLine(log, line);
-      });
-
-      source.addEventListener('done', (event) => {
-        const { code } = JSON.parse(event.data);
-        if (code === 0) {
-          footer.textContent = 'Done';
-          footer.className = 'footer success';
-        } else {
-          footer.textContent = `Failed (exit code ${code})`;
-          footer.className = 'footer failure';
-        }
-        source.close();
-        ownedBySource.delete(slot);
-        btn.disabled = false;
-      });
-
-      source.onerror = () => {
-        footer.textContent = 'Connection error - deploy may still be running server-side; check the server console.';
+      ready.then(startStream).catch((err) => {
+        footer.textContent = err.message;
         footer.className = 'footer failure';
-        source.close();
-        ownedBySource.delete(slot);
         btn.disabled = false;
-      };
+      });
+
+      function startStream() {
+        const source = new EventSource(streamUrl);
+        ownedBySource.add(slot);
+
+        source.addEventListener('log', (event) => {
+          const { line } = JSON.parse(event.data);
+          appendLine(log, line);
+        });
+
+        source.addEventListener('done', (event) => {
+          const { code } = JSON.parse(event.data);
+          if (code === 0) {
+            footer.textContent = 'Done';
+            footer.className = 'footer success';
+          } else {
+            footer.textContent = `Failed (exit code ${code})`;
+            footer.className = 'footer failure';
+          }
+          source.close();
+          ownedBySource.delete(slot);
+          btn.disabled = false;
+        });
+
+        source.onerror = () => {
+          footer.textContent = 'Connection error - deploy may still be running server-side; check the server console.';
+          footer.className = 'footer failure';
+          source.close();
+          ownedBySource.delete(slot);
+          btn.disabled = false;
+        };
+      }
     });
   });
 

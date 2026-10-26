@@ -71,6 +71,21 @@ const BUILD_PLATFORMS = new Set(['win', 'winx86']);
 
 const runLock = new RunLock(Object.keys(SLOTS));
 
+// Admin Bearer tokens for the slots whose script needs one (SLOTS[...].requiresAdminToken),
+// posted by the page just before it opens that slot's stream. In memory only: never written to
+// disk, never logged, and gone when the dashboard process stops. It is kept after a run rather
+// than consumed, so a retry after a failed build does not need a re-paste - a token that has
+// since gone stale is caught by the script's own preflight, which reports a clean 401 before
+// anything is built or uploaded.
+const adminTokens = new Map();
+
+// What a posted token is allowed to contain. Admin tokens are UUIDs today (SessionService) and
+// a JWT would also pass. The point is not to validate the token - the server cannot - but to
+// keep shell metacharacters out of it: deploy-store-backend.ps1 interpolates it into a
+// single-quoted sh string on the remote, so a straight quote in it would break out of that
+// string and mangle the command.
+const ADMIN_TOKEN_PATTERN = /^[A-Za-z0-9._~+/=-]{8,4096}$/;
+
 // PIDs of every child process currently running for a slot, so a Ctrl+C on the
 // dashboard server doesn't orphan a half-finished deploy (Windows does not
 // clean up a spawned process tree on parent exit).
@@ -318,6 +333,23 @@ function handleDeployStream(req, res, slot, query) {
       return;
     }
   }
+  // Resolved BEFORE the lock is taken, so a missing token leaves the slot free rather than
+  // holding it for a run that was never started.
+  let childEnv = null;
+  if (SLOTS[slot].requiresAdminToken) {
+    // The environment is still honoured as a fallback for running the script by hand outside
+    // the dashboard; the page's posted token wins when there is one, because it is the fresher.
+    const token = adminTokens.get(slot) || process.env.DAMAN_ADMIN_TOKEN || '';
+    if (!token) {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(
+        'No admin token for this deploy. Paste a Bearer token from a login at admin.damansoft.com '
+        + 'into the "Create online client" card - this deploy reuses the same one.'
+      );
+      return;
+    }
+    childEnv = { DAMAN_ADMIN_TOKEN: token };
+  }
   if (!runLock.tryAcquire(slot)) {
     res.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(`${slot} deploy is already running`);
@@ -345,7 +377,7 @@ function handleDeployStream(req, res, slot, query) {
     ...(SLOTS[slot].args || []),
     ...(SLOTS[slot].requiresVersion ? ['-Version', query.version] : []),
   ];
-  const child = runScript(SLOTS[slot].scriptPath, args);
+  const child = runScript(SLOTS[slot].scriptPath, args, childEnv);
   const pid = child.pid;
   if (pid) runningPids.add(pid);
   const untrack = () => { if (pid) runningPids.delete(pid); };
@@ -368,6 +400,38 @@ function handleDeployStream(req, res, slot, query) {
     if (!closed) res.end();
     runLock.release(slot);
   });
+}
+
+// Receives the Bearer token for one token-requiring slot and holds it for that slot's next run.
+// A POST, not a query parameter on the stream GET, so the token never lands in a URL - URLs are
+// the one part of a request that gets logged, kept in history and pasted into bug reports.
+async function handleDeployToken(req, res, slot) {
+  if (!SLOTS[slot] || !SLOTS[slot].requiresAdminToken) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end(`${slot} does not take an admin token`);
+    return;
+  }
+  let raw;
+  try {
+    raw = await readRequestBody(req, MAX_JSON_BODY_BYTES);
+  } catch (err) {
+    sendJson(res, 413, { error: 'Request body too large' });
+    return;
+  }
+  let token;
+  try {
+    token = (JSON.parse(raw) || {}).token;
+  } catch (err) {
+    sendJson(res, 400, { error: 'Body must be JSON {token}' });
+    return;
+  }
+  if (typeof token !== 'string' || !ADMIN_TOKEN_PATTERN.test(token)) {
+    // The token itself is never echoed back, here or anywhere else.
+    sendJson(res, 400, { error: 'token must be a plain Bearer token (no spaces or quotes)' });
+    return;
+  }
+  adminTokens.set(slot, token);
+  sendJson(res, 200, { stored: true });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -405,6 +469,12 @@ const server = http.createServer(async (req, res) => {
   const streamMatch = /^\/api\/deploy\/([a-z]+(?:-[a-z]+)*)\/stream$/.exec(pathname);
   if (req.method === 'GET' && streamMatch) {
     handleDeployStream(req, res, streamMatch[1], parsed.query);
+    return;
+  }
+
+  const tokenMatch = /^\/api\/deploy\/([a-z]+(?:-[a-z]+)*)\/token$/.exec(pathname);
+  if (req.method === 'POST' && tokenMatch) {
+    await handleDeployToken(req, res, tokenMatch[1]);
     return;
   }
 
@@ -486,4 +556,4 @@ if (require.main === module) {
 }
 
 module.exports = { server, runLock, runningPids, killTrackedChildren, isSameOrigin,
-  REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS };
+  REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS, adminTokens };

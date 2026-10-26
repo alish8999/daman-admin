@@ -48,3 +48,21 @@ test('runScript forwards arguments to the script', async () => {
   fs.unlinkSync(script);
   assert.ok(lines.includes('got:9.9.9'));
 });
+
+test('runScript overlays extraEnv for the child without touching this process', async () => {
+  const script = writeTempScript(
+    'Write-Host "tok:$($env:DAMAN_ADMIN_TOKEN)"\nWrite-Host "inherited:$($null -ne $env:PATH)"\nexit 0\n'
+  );
+  const lines = [];
+  const emitter = runScript(script, [], { DAMAN_ADMIN_TOKEN: 'env-only-value' });
+  await new Promise((resolve) => {
+    emitter.on('line', (line) => lines.push(line));
+    emitter.on('exit', resolve);
+  });
+  fs.unlinkSync(script);
+  assert.ok(lines.includes('tok:env-only-value'), `env not passed: ${lines.join('|')}`);
+  // An overlay, not a replacement: the child still needs the rest of the environment (PATH,
+  // USERPROFILE) to find ssh, scp and the Maven wrapper.
+  assert.ok(lines.includes('inherited:True'), `environment was replaced, not overlaid: ${lines.join('|')}`);
+  assert.strictEqual(process.env.DAMAN_ADMIN_TOKEN, undefined);
+});

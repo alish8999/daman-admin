@@ -32,8 +32,10 @@ SLOTS.generic.scriptPath = fastOkScript;
 // The hosted-store slots pass FIXED arguments (declared in lib/slots.js). Point them at
 // throwaway scripts that echo back exactly what they were called with, so the tests can
 // prove those arguments really reach the script under their real parameter names.
+// Echoes its argv AND the admin token it was handed, so the tests can prove the token reaches
+// the script's ENVIRONMENT and never its command line.
 const storeBackendEchoScript = writeTempScript(
-  'Write-Host "ARGS:[$($args -join \',\')]"\nexit 0\n'
+  'Write-Host "ARGS:[$($args -join \',\')]"\nWrite-Host "ENVTOKEN:$($env:DAMAN_ADMIN_TOKEN)"\nexit 0\n'
 );
 const storeFrontendEchoScript = writeTempScript(
   'param([string]$PagesProject)\nWrite-Host "ARGS:${PagesProject}"\nexit 0\n'
@@ -48,7 +50,9 @@ SLOTS['store-frontend'].scriptPath = storeFrontendEchoScript;
 // `runScript` via destructuring at require-time, the same way it captures SLOTS.
 const SPAWN_FAIL_SENTINEL = '__spawn_fail_sentinel__';
 const originalRunScript = scriptRunner.runScript;
-scriptRunner.runScript = function (scriptPath, args) {
+// Forwards EVERY argument, including the environment overlay - a stub that quietly drops one
+// makes the server look like it never passed it.
+scriptRunner.runScript = function (scriptPath, args, extraEnv) {
   if (scriptPath === SPAWN_FAIL_SENTINEL) {
     const emitter = new EventEmitter();
     setImmediate(() => {
@@ -57,11 +61,11 @@ scriptRunner.runScript = function (scriptPath, args) {
     });
     return emitter;
   }
-  return originalRunScript(scriptPath, args);
+  return originalRunScript(scriptPath, args, extraEnv);
 };
 SLOTS.spawnfail = { scriptPath: SPAWN_FAIL_SENTINEL, label: 'Spawn Fail Test' };
 
-const { server, REMOTE_ADMIN_BACKEND, LOCAL_TARGET } = require('./server');
+const { server, REMOTE_ADMIN_BACKEND, LOCAL_TARGET, adminTokens } = require('./server');
 const PRODUCTION_REMOTE = { ...REMOTE_ADMIN_BACKEND };
 
 // Assigned in test.before - the server binds an ephemeral port so `npm test`
@@ -182,7 +186,66 @@ test('a spawn failure that fires both error and exit does not crash the process'
   assert.strictEqual(parsed.spawnfail, false);
 });
 
+// The admin token is posted ahead of the stream for every store-backend run. Each test that
+// needs one stores it itself rather than leaning on a previous test having run. The value is a
+// made-up UUID shaped like a real session token - no real token belongs in a repository.
+const FAKE_ADMIN_TOKEN = '00000000-dead-4000-beef-000000000000';
+
+test('store-backend without an admin token is refused before the slot is locked', async () => {
+  adminTokens.delete('store-backend');
+  const inherited = process.env.DAMAN_ADMIN_TOKEN;
+  delete process.env.DAMAN_ADMIN_TOKEN; // a developer's own shell must not decide this test
+  try {
+    const res = await get('/api/deploy/store-backend/stream');
+    assert.strictEqual(res.statusCode, 400);
+    assert.ok(/token/i.test(res.body), `unhelpful refusal: ${res.body}`);
+    // The run was never started, so the slot must still be free - a refusal that leaked the
+    // lock would wedge the card at "already running" until the dashboard was restarted.
+    const status = JSON.parse((await get('/api/status')).body);
+    assert.strictEqual(status['store-backend'], false);
+  } finally {
+    if (inherited !== undefined) process.env.DAMAN_ADMIN_TOKEN = inherited;
+  }
+});
+
+test('a posted admin token reaches the script in its environment, never on its command line', async () => {
+  const stored = await post('/api/deploy/store-backend/token', { token: FAKE_ADMIN_TOKEN });
+  assert.strictEqual(stored.statusCode, 200);
+  // The store confirms without echoing the token back.
+  assert.ok(!stored.body.includes(FAKE_ADMIN_TOKEN), `token echoed in the response: ${stored.body}`);
+
+  const res = await get('/api/deploy/store-backend/stream');
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(res.body.includes(`ENVTOKEN:${FAKE_ADMIN_TOKEN}`), `token did not reach the script: ${res.body}`);
+  assert.ok(res.body.includes('ARGS:[]'), `token (or anything else) leaked into argv: ${res.body}`);
+});
+
+test('a token containing shell metacharacters is rejected and never stored', async () => {
+  // deploy-store-backend.ps1 interpolates the token into a single-quoted sh string on the
+  // remote, so a straight quote in it would break out of that string.
+  adminTokens.delete('store-backend');
+  for (const bad of ["abc'; rm -rf /; echo '", 'has space', 'tiny', '']) {
+    const res = await post('/api/deploy/store-backend/token', { token: bad });
+    assert.strictEqual(res.statusCode, 400, `accepted a bad token: ${bad}`);
+  }
+  assert.strictEqual(adminTokens.has('store-backend'), false);
+});
+
+test('a slot that takes no admin token has no token endpoint', async () => {
+  assert.strictEqual((await post('/api/deploy/store-frontend/token', { token: FAKE_ADMIN_TOKEN })).statusCode, 404);
+  assert.strictEqual((await post('/api/deploy/nosuchslot/token', { token: FAKE_ADMIN_TOKEN })).statusCode, 404);
+});
+
+test('the token endpoint is covered by the same-origin guard', async () => {
+  // It is an endpoint that takes a secret; a page the developer happens to be visiting must
+  // not be able to plant one for the next deploy.
+  const res = await post('/api/deploy/store-backend/token', { token: FAKE_ADMIN_TOKEN },
+    { Origin: 'http://evil.example' });
+  assert.strictEqual(res.statusCode, 403);
+});
+
 test('store-backend slot passes NO per-store arguments (one shared jar for every store)', async () => {
+  await post('/api/deploy/store-backend/token', { token: FAKE_ADMIN_TOKEN });
   const res = await get('/api/deploy/store-backend/stream');
   assert.strictEqual(res.statusCode, 200);
   assert.ok(res.body.includes('ARGS:[]'), `script was handed arguments: ${res.body}`);
@@ -204,6 +267,7 @@ test('store-frontend slot passes the fixed -PagesProject argument to its script'
 test('the fixed slot arguments cannot be overridden from the query string', async () => {
   // A GET triggers a real production deploy - user input must never reach the script's
   // parameters. Extra query params on a slot without requiresVersion are simply ignored.
+  await post('/api/deploy/store-backend/token', { token: FAKE_ADMIN_TOKEN });
   const res = await get('/api/deploy/store-backend/stream?ClientCode=evil&Port=1&version=9.9.9');
   assert.ok(res.body.includes('ARGS:[]'));
   assert.ok(!res.body.includes('evil'));

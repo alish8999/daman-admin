@@ -245,8 +245,9 @@ from the highest version already built in `clients-build/generic/`), and a **Hos
 - **Create online client** - provisions one hosted store (see §10.2).
 - **Hosted Store Backend (all stores)** - `deploy-store-backend.ps1`: builds `daman-backend`, ships
   the one shared `/root/daman-store.jar`, and restarts every store one at a time. It takes **no
-  arguments** (no client code, no port: the provisioning endpoint owns the per-store units) and
-  needs `DAMAN_ADMIN_TOKEN` set in the dashboard's environment (see §10.3).
+  arguments** (no client code, no port: the provisioning endpoint owns the per-store units) but it
+  does need an admin Bearer token — **paste it into the Create online client card's "Remote portal
+  token" field first and this card reuses it** (see §10.3).
 - **Hosted Store Frontend (shared)** - `deploy-store-frontend.ps1`: deploys the one shared
   `daman-store` Pages project.
 
@@ -458,9 +459,21 @@ Notes:
   token must never be in a git-tracked file, nor inline in the admin unit file (units are
   world-readable by default). The dev-machine copy is `C:\Users\ASUS\.cloudflare\daman-provisioning.token`.
 - **Rotate it** once provisioning is in real use: it passed through a chat transcript during design.
-- **`DAMAN_ADMIN_TOKEN`** must be set in the *dashboard's* environment (before `npm start`) for the
-  all-stores release, or `deploy-store-backend.ps1` stops immediately: the restart route is
-  token-gated and the script has no other way to get a token.
+- **The all-stores release needs an admin Bearer token** — the restart route is token-gated. Get
+  one by logging in at `admin.damansoft.com` (it is the *remote* portal's token; the local
+  `:8083` one is not valid there) and paste it into the deploy dashboard's **Create online
+  client** card. The **Hosted Store Backend** card reuses that same field: it `POST`s the token
+  to `/api/deploy/store-backend/token`, which holds it in the dashboard's memory and hands it to
+  the script in its *environment* — never on the command line, where any process on a Windows box
+  can read it, and never in a URL. Nothing is written to disk and the token is gone when the
+  dashboard stops.
+  - Setting `DAMAN_ADMIN_TOKEN` before `npm start` still works and is the fallback for running
+    `deploy-store-backend.ps1` by hand, but it is not the normal path: admin sessions live in the
+    remote backend's memory, so they die whenever *it* restarts — including on the Admin Backend
+    deploy this same dashboard runs, which logs every admin out. A token fixed at `npm start` goes
+    stale; the pasted one does not need a dashboard restart to replace.
+  - A stale token is caught by the script's own preflight (`GET /api/hosted-stores`), which fails
+    with a clear 401 **before** anything is built, uploaded or restarted.
 
 ### 10.4 Releasing a new backend to every store
 

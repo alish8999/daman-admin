@@ -33,8 +33,15 @@ const SLOTS = {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-backend.ps1'),
     label: 'Hosted Store Backend (all stores)',
     // Shared jar for every store, restarted one at a time by the server: no per-store arguments.
-    // The script reads the admin Bearer token from DAMAN_ADMIN_TOKEN (set before `npm start`).
     args: [],
+    // The restart-all route on the REMOTE portal is admin-token-gated, so this script needs a
+    // Bearer token. It cannot come from the environment at `npm start`: admin sessions live in
+    // the remote backend's memory (SessionService) and die whenever IT restarts - including on
+    // the admin-backend deploy this same dashboard runs, which logs every admin out. The page
+    // already holds a freshly pasted one (the Create online client card's remote portal token);
+    // the server takes it from a POST and hands it to the script in its ENVIRONMENT, never on
+    // the command line, where Windows shows one process's argv to every other process.
+    requiresAdminToken: true,
   },
   'store-frontend': {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-frontend.ps1'),
