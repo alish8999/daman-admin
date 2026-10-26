@@ -44,4 +44,25 @@ class HostedCapacityTest {
         assertTrue(HostedCapacity.hasRoomForAnotherStore(total, 0, 768, 1024, 300));
         assertFalse(HostedCapacity.hasRoomForAnotherStore(total, 1, 768, 1024, 300));
     }
+
+    @Test void maxStoresOnTheRealBoxIsThree() {
+        assertEquals(3, HostedCapacity.maxStores(3814, 768,
+                HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
+    }
+
+    @Test void maxStoresNeverGoesNegative() {
+        assertEquals(0, HostedCapacity.maxStores(500, 768, 1024, 300));
+    }
+
+    @Test void theGuardAndMaxStoresAgreeForEveryCountOnEveryBoxSize() {
+        // One definition of capacity: another store fits exactly while existing < maxStores.
+        for (long total = 0; total <= 8192; total += 97) {
+            int max = HostedCapacity.maxStores(total, 768, 1024, 300);
+            for (long existing = 0; existing <= 12; existing++) {
+                assertEquals(existing < max,
+                        HostedCapacity.hasRoomForAnotherStore(total, existing, 768, 1024, 300),
+                        "total=" + total + " existing=" + existing);
+            }
+        }
+    }
 }

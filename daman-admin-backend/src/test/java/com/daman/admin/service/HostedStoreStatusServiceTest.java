@@ -162,6 +162,9 @@ class HostedStoreStatusServiceTest {
         assertThat(fleet.committedStores()).isEqualTo(3);
         assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
         assertThat(fleet.heapMb()).isEqualTo(StoreUnitRenderer.HEAP_MB);
+        assertThat(fleet.maxStores()).isEqualTo(HostedCapacity.maxStores(3814L, StoreUnitRenderer.HEAP_MB,
+                HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
+        assertThat(fleet.maxStores()).isEqualTo(3);
         assertThat(fleet.jarModifiedAt()).isEqualTo(JAR_AT);
     }
 }

@@ -27,7 +27,7 @@ public class HostedStoreStatusService {
                             String backupAt, Long backupSizeBytes) {}
 
     public record FleetState(List<LiveState> states, Instant jarModifiedAt, long totalMemoryMb,
-                             int committedStores, int heapMb) {}
+                             int committedStores, int heapMb, int maxStores) {}
 
     private final ServerOps ops;
 
@@ -40,7 +40,9 @@ public class HostedStoreStatusService {
     public FleetState describe(List<HostedInstance> rows) {
         Instant jarAt = ops.fileModifiedAt(StoreUnitRenderer.SHARED_JAR).orElse(null);
         List<LiveState> states = rows.stream().map(r -> of(r, jarAt)).toList();
-        return new FleetState(states, jarAt, ops.totalMemoryMb(), rows.size(), StoreUnitRenderer.HEAP_MB);
+        return new FleetState(states, jarAt, ops.totalMemoryMb(), rows.size(), StoreUnitRenderer.HEAP_MB,
+                HostedCapacity.maxStores(ops.totalMemoryMb(), StoreUnitRenderer.HEAP_MB,
+                        HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
     }
 
     public LiveState of(HostedInstance row, Instant sharedJarModifiedAt) {

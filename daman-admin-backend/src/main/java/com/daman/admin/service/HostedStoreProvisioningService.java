@@ -82,7 +82,7 @@ public class HostedStoreProvisioningService {
     private static final long PUBLIC_HEALTH_DELAY_MS = 5_000L;
 
     /** Free RAM that must remain after another store's heap (spec §7's suggestion). */
-    private static final int RAM_MARGIN_MB = 300;
+    private static final int RAM_MARGIN_MB = HostedCapacity.RAM_MARGIN_MB;
 
     /**
      * RAM reserved for everything on this box that is <b>not</b> a hosted store: the admin
@@ -95,7 +95,7 @@ public class HostedStoreProvisioningService {
      * "roughly three". With this value the guard allows a 2nd and a 3rd store and refuses a 4th,
      * which is exactly that conclusion.
      */
-    private static final int NON_STORE_RESERVE_MB = 1024;
+    private static final int NON_STORE_RESERVE_MB = HostedCapacity.NON_STORE_RESERVE_MB;
 
     private static final String SERVICE_PREFIX = "daman-store-";
 

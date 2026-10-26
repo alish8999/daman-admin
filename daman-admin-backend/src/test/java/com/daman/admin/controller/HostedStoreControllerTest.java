@@ -305,6 +305,7 @@ class HostedStoreControllerTest {
         assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
         assertThat(fleet.committedStores()).isEqualTo(2);
         assertThat(fleet.heapMb()).isEqualTo(768);
+        assertThat(fleet.maxStores()).isEqualTo(3);
         HostedStoreController.HostedStoreDto first = fleet.stores().get(0);
         assertThat(first.liveStatus()).isEqualTo("running");
         assertThat(first.staleness()).isEqualTo("stale");
