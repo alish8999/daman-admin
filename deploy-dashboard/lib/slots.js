@@ -43,6 +43,24 @@ const SLOTS = {
     // the command line, where Windows shows one process's argv to every other process.
     requiresAdminToken: true,
   },
+  // The two halves of 'store-backend', as separate buttons. Each is its own slot so each holds its
+  // own run lock: a Deploy and a Restart all cannot collide, and neither blocks the other's card.
+  // Both stay SCRIPT slots rather than API calls on purpose: restart-all is a synchronous walk with
+  // up to 120 s of health wait per store, and proxied through admin-api.damansoft.com it would hit
+  // Cloudflare's ~100 s edge timeout (524) while the walk carried on server-side. Same token rule
+  // as above: the script's preflight needs a valid admin token even when it only restarts.
+  'store-deploy-only': {
+    scriptPath: path.join(ADMIN_ROOT, 'deploy-store-backend.ps1'),
+    label: 'Hosted Store Backend (deploy only, no restart)',
+    args: ['-NoRestart'],
+    requiresAdminToken: true,
+  },
+  'store-restart-all': {
+    scriptPath: path.join(ADMIN_ROOT, 'deploy-store-backend.ps1'),
+    label: 'Hosted Store Backend (restart all, no deploy)',
+    args: ['-RestartOnly'],
+    requiresAdminToken: true,
+  },
   'store-frontend': {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-frontend.ps1'),
     label: 'Hosted Store Frontend (shared)',

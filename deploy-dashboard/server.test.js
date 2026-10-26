@@ -41,6 +41,13 @@ const storeFrontendEchoScript = writeTempScript(
   'param([string]$PagesProject)\nWrite-Host "ARGS:${PagesProject}"\nexit 0\n'
 );
 SLOTS['store-backend'].scriptPath = storeBackendEchoScript;
+// The two split-out multi-store slots. Deploy-only is deliberately SLOW so a test can hold its
+// lock while it starts the others; restart-only is the plain echo.
+const storeDeployOnlySlowEchoScript = writeTempScript(
+  'Write-Host "ARGS:[$($args -join \',\')]"\nWrite-Host "ENVTOKEN:$($env:DAMAN_ADMIN_TOKEN)"\nStart-Sleep -Seconds 3\nexit 0\n'
+);
+SLOTS['store-deploy-only'].scriptPath = storeDeployOnlySlowEchoScript;
+SLOTS['store-restart-all'].scriptPath = storeBackendEchoScript;
 SLOTS['store-frontend'].scriptPath = storeFrontendEchoScript;
 
 // Regression test setup for the double-fire ('error' then 'exit') spawn-failure
@@ -271,6 +278,48 @@ test('the fixed slot arguments cannot be overridden from the query string', asyn
   const res = await get('/api/deploy/store-backend/stream?ClientCode=evil&Port=1&version=9.9.9');
   assert.ok(res.body.includes('ARGS:[]'));
   assert.ok(!res.body.includes('evil'));
+});
+
+test('the deploy-only slot passes -NoRestart and nothing else', async () => {
+  await post('/api/deploy/store-deploy-only/token', { token: FAKE_ADMIN_TOKEN });
+  const res = await get('/api/deploy/store-deploy-only/stream');
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(res.body.includes('ARGS:[-NoRestart]'), `wrong arguments: ${res.body}`);
+  assert.ok(res.body.includes(`ENVTOKEN:${FAKE_ADMIN_TOKEN}`));
+  assert.ok(res.body.includes('"code":0'));
+});
+
+test('the restart-only slot passes -RestartOnly and nothing else', async () => {
+  await post('/api/deploy/store-restart-all/token', { token: FAKE_ADMIN_TOKEN });
+  const res = await get('/api/deploy/store-restart-all/stream');
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(res.body.includes('ARGS:[-RestartOnly]'), `wrong arguments: ${res.body}`);
+  assert.ok(res.body.includes(`ENVTOKEN:${FAKE_ADMIN_TOKEN}`));
+  assert.ok(res.body.includes('"code":0'));
+});
+
+test('all three store slots require an admin token', () => {
+  for (const name of ['store-backend', 'store-deploy-only', 'store-restart-all']) {
+    assert.strictEqual(SLOTS[name].requiresAdminToken, true, `${name} must require a token`);
+  }
+});
+
+test('the three store slots hold independent run locks', async () => {
+  for (const name of ['store-backend', 'store-deploy-only', 'store-restart-all']) {
+    await post(`/api/deploy/${name}/token`, { token: FAKE_ADMIN_TOKEN });
+  }
+  const slow = get('/api/deploy/store-deploy-only/stream'); // holds its lock ~3 s
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const status = JSON.parse((await get('/api/status')).body);
+  assert.strictEqual(status['store-deploy-only'], true);
+  assert.strictEqual(status['store-backend'], false);
+  assert.strictEqual(status['store-restart-all'], false);
+  // The same slot is locked...
+  assert.strictEqual((await get('/api/deploy/store-deploy-only/stream')).statusCode, 409);
+  // ...but the other two are not blocked by it.
+  assert.strictEqual((await get('/api/deploy/store-restart-all/stream')).statusCode, 200);
+  assert.strictEqual((await get('/api/deploy/store-backend/stream')).statusCode, 200);
+  await slow;
 });
 
 test('the new store slots appear in /api/status with their own independent locks', async () => {
