@@ -434,7 +434,9 @@ public class SystemdServerOps implements ServerOps {
      */
     static Optional<Instant> parseSystemdTimestamp(String value) {
         if (value == null || value.isBlank()) {
-            log.warn("systemd reported no start time (unit never started?)");
+            // Not a problem: a never-started unit (every suspended store is disable --now'd) has a
+            // permanently blank value, and the fleet list polls it every few seconds.
+            log.debug("systemd reported no start time (unit never started)");
             return Optional.empty();
         }
         Matcher m = SYSTEMD_TIMESTAMP.matcher(value);
@@ -446,7 +448,8 @@ public class SystemdServerOps implements ServerOps {
                 // try the next candidate, then give up below
             }
         }
-        log.warn("could not parse systemd timestamp '{}'", value);
+        // Non-blank but unrecognised: the parser met a format it does not handle. Keep the value.
+        log.warn("could not parse non-blank systemd timestamp '{}' - parser needs updating", value);
         return Optional.empty();
     }
 
