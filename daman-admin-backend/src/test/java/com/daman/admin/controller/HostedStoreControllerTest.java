@@ -96,7 +96,7 @@ class HostedStoreControllerTest {
         when(ops.health(anyInt())).thenReturn(false);
 
         assertThat(controller.resume("acme").getStatusCode().value()).isEqualTo(502);
-        assertThat(suspended.getStatus()).isEqualTo("SUSPENDED");
+        assertThat(suspended.getStatus()).isEqualTo("ACTIVE");
     }
 
     @Test

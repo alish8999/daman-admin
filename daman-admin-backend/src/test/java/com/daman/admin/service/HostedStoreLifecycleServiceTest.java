@@ -94,16 +94,19 @@ class HostedStoreLifecycleServiceTest {
     }
 
     @Test
-    void resumeThatNeverBecomesHealthyLeavesTheRowSuspendedAndSaysSo() {
+    void resumeThatNeverConfirmsHealthyStillMarksTheRowActiveSoItIsNotInvisible() {
         row.setStatus("SUSPENDED");
         when(ops.health(anyInt())).thenReturn(false);
 
         LifecycleResult r = service.resume("acme");
 
-        assertThat(row.getStatus()).isEqualTo("SUSPENDED");
-        verify(repository, never()).save(any(HostedInstance.class));
+        // Registry = intent, live axis = reality: SUSPENDED + running would be invisible and
+        // skipped by release walks. The unit is deliberately not rolled back (slow cold boot).
+        assertThat(row.getStatus()).isEqualTo("ACTIVE");
+        verify(ops, never()).stopAndDisable(anyString());
+        verify(repository).save(row);
         assertThat(r.status()).isEqualTo(HostedStoreLifecycleService.UNHEALTHY);
-        assertThat(r.message()).contains("SUSPENDED").contains("3");
+        assertThat(r.message()).contains("ACTIVE").contains("3").contains("live state");
     }
 
     @Test

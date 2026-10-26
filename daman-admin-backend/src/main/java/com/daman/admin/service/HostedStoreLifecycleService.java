@@ -85,9 +85,12 @@ public class HostedStoreLifecycleService {
     }
 
     /**
-     * Idempotent: resuming a running store reports success. The row is marked ACTIVE only once
-     * {@code /api/health} answers; if it never does the row stays SUSPENDED and the unit is left
-     * enabled and running so the operator can inspect it or simply retry Resume.
+     * Idempotent: resuming a running store reports success. The row is marked ACTIVE as soon as
+     * the unit is enabled and started, before the health wait: the registry status records intent
+     * (this store is meant to run) and the live axis reports reality. Leaving it SUSPENDED while
+     * the unit runs would show a lie in the fleet list and exclude a serving store from release
+     * walks. If health never confirms, the unit is NOT rolled back (a cold boot can outlast the
+     * 75 s bound); the result is UNHEALTHY (502) and the store list shows the live state.
      */
     public LifecycleResult resume(String clientCode) {
         HostedInstance row = find(clientCode);
@@ -99,13 +102,16 @@ public class HostedStoreLifecycleService {
                     + ", not SUSPENDED; only a suspended store can be resumed.");
         }
         ops.enableAndStart(row.getServiceName());
-        if (!waitHealthy(row.getPort())) {
-            return new LifecycleResult(clientCode, UNHEALTHY, "Unit enabled and started, but /api/health"
-                    + " never answered 200 within " + healthAttempts + " polls. The store is still"
-                    + " marked SUSPENDED; retry Resume once it is healthy.");
-        }
         row.setStatus(ACTIVE);
         repository.save(row);
+        if (!waitHealthy(row.getPort())) {
+            log.warn("Resumed hosted store '{}' but /api/health did not confirm within {} polls",
+                    clientCode, healthAttempts);
+            return new LifecycleResult(clientCode, UNHEALTHY, "The store was started and is marked"
+                    + " ACTIVE, but it did not confirm healthy within " + healthAttempts
+                    + " polls. The store list shows its live state (starting, or stopped if it"
+                    + " never comes up).");
+        }
         log.info("Resumed hosted store '{}'", clientCode);
         return new LifecycleResult(clientCode, ACTIVE, "Resumed and healthy.");
     }
