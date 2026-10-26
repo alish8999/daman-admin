@@ -12,9 +12,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class HostedStoreStatusServiceTest {
@@ -108,11 +108,32 @@ class HostedStoreStatusServiceTest {
     }
 
     @Test
-    void failedRowReportsItsStage() {
-        HostedInstance failed = row("f", "FAILED");
-        failed.setFailedStage("DNS");
-        assertThat(service.of(failed, JAR_AT).liveStatus()).isEqualTo("failed");
-        verifyNoInteractions(ops);
+    void failedRowReadsFailedWithoutProbingTheUnit() {
+        assertThat(service.of(row("f", "FAILED"), JAR_AT).liveStatus()).isEqualTo("failed");
+        verify(ops, never()).unitActive(anyString());
+        verify(ops, never()).health(Mockito.anyInt());
+        verify(ops, never()).unitStartedAt(anyString());
+    }
+
+    @Test
+    void suspendedRowStillReportsItsBackup() {
+        var s = service.of(row("s", "SUSPENDED"), JAR_AT);
+        assertThat(s.liveStatus()).isEqualTo("suspended");
+        assertThat(s.backupAt()).isEqualTo("2026-10-26T03:00:00Z");
+        assertThat(s.backupSizeBytes()).isEqualTo(4096L);
+        verify(ops, never()).unitActive(anyString());
+    }
+
+    @Test
+    void rowWithNoDataDirReadsBackupUnknownWithoutAskingTheDisk() {
+        HostedInstance early = row("e", "PROVISIONING");
+        early.setDataDir(null);
+        var s = service.of(early, JAR_AT);
+        assertThat(s.backupAt()).isEqualTo("unknown");
+        verify(ops, never()).newestBackup(anyString());
+        early.setDataDir("  ");
+        assertThat(service.of(early, JAR_AT).backupAt()).isEqualTo("unknown");
+        verify(ops, never()).newestBackup(anyString());
     }
 
     @Test
@@ -120,7 +141,7 @@ class HostedStoreStatusServiceTest {
         // A store whose owner redirected its backups is not a store without them.
         when(ops.newestBackup(anyString())).thenReturn(Optional.empty());
         var s = service.of(row, JAR_AT);
-        assertThat(s.backupLabel()).isEqualTo("unknown");
+        assertThat(s.backupAt()).isEqualTo("unknown");
         assertThat(s.backupSizeBytes()).isNull();
     }
 
@@ -128,7 +149,7 @@ class HostedStoreStatusServiceTest {
     void backupIsReadFromTheStoresBackupsDirectory() {
         var s = service.of(row, JAR_AT);
         verify(ops).newestBackup("/root/stores/acme/backups");
-        assertThat(s.backupLabel()).isEqualTo("2026-10-26T03:00:00Z");
+        assertThat(s.backupAt()).isEqualTo("2026-10-26T03:00:00Z");
         assertThat(s.backupSizeBytes()).isEqualTo(4096L);
     }
 

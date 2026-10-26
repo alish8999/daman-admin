@@ -24,7 +24,7 @@ public class HostedStoreStatusService {
 
     /** {@code backupSizeBytes} and {@code startedAt} are null when not known. */
     public record LiveState(String liveStatus, String staleness, Instant startedAt,
-                            String backupLabel, Long backupSizeBytes) {}
+                            String backupAt, Long backupSizeBytes) {}
 
     public record FleetState(List<LiveState> states, Instant jarModifiedAt, long totalMemoryMb,
                              int committedStores, int heapMb) {}
@@ -44,10 +44,13 @@ public class HostedStoreStatusService {
     }
 
     public LiveState of(HostedInstance row, Instant sharedJarModifiedAt) {
+        // Reading a backup directory is a filesystem read: it needs no live unit, and it matters
+        // most for a suspended store, which the operator reads before deciding to remove it.
+        Optional<ServerOps.BackupInfo> backup = newestBackup(row);
         String status = row.getStatus();
-        if ("SUSPENDED".equals(status)) return notProbed("suspended");
-        if ("FAILED".equals(status)) return notProbed("failed");
-        if ("PROVISIONING".equals(status)) return notProbed("starting");
+        if ("SUSPENDED".equals(status)) return notProbed("suspended", backup);
+        if ("FAILED".equals(status)) return notProbed("failed", backup);
+        if ("PROVISIONING".equals(status)) return notProbed("starting", backup);
 
         String live;
         if (!ops.unitActive(row.getServiceName())) {
@@ -64,13 +67,25 @@ public class HostedStoreStatusService {
             staleness = startedAt.isBefore(sharedJarModifiedAt) ? "stale" : "current";
         }
 
-        Optional<ServerOps.BackupInfo> backup = ops.newestBackup(row.getDataDir() + "/backups");
-        return new LiveState(live, staleness, startedAt,
-                backup.map(b -> b.modifiedAt().toString()).orElse(UNKNOWN),
-                backup.map(ServerOps.BackupInfo::sizeBytes).orElse(null));
+        return new LiveState(live, staleness, startedAt, backupAt(backup), backupSize(backup));
     }
 
-    private static LiveState notProbed(String live) {
-        return new LiveState(live, UNKNOWN, null, UNKNOWN, null);
+    /** A row with no dataDir yet (early PROVISIONING) has no backups directory to ask about. */
+    private Optional<ServerOps.BackupInfo> newestBackup(HostedInstance row) {
+        String dir = row.getDataDir();
+        if (dir == null || dir.isBlank()) return Optional.empty();
+        return ops.newestBackup(dir + "/backups");
+    }
+
+    private static String backupAt(Optional<ServerOps.BackupInfo> b) {
+        return b.map(x -> x.modifiedAt().toString()).orElse(UNKNOWN);
+    }
+
+    private static Long backupSize(Optional<ServerOps.BackupInfo> b) {
+        return b.map(ServerOps.BackupInfo::sizeBytes).orElse(null);
+    }
+
+    private static LiveState notProbed(String live, Optional<ServerOps.BackupInfo> backup) {
+        return new LiveState(live, UNKNOWN, null, backupAt(backup), backupSize(backup));
     }
 }

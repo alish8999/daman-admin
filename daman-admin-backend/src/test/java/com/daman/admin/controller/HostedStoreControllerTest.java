@@ -274,8 +274,18 @@ class HostedStoreControllerTest {
         HostedStoreController.HostedStoreDto first = fleet.stores().get(0);
         assertThat(first.liveStatus()).isEqualTo("running");
         assertThat(first.staleness()).isEqualTo("stale");
-        assertThat(first.backupLabel()).isEqualTo("unknown");
+        assertThat(first.backupAt()).isEqualTo("unknown");
         assertThat(fleet.stores().get(1).liveStatus()).isEqualTo("suspended");
+    }
+
+    @Test
+    void listCarriesAFailedRowsStage() {
+        HostedInstance failed = row("acme", "FAILED");
+        failed.setFailedStage("DNS");
+        when(repository.findAll()).thenReturn(List.of(failed));
+        HostedStoreController.HostedStoreDto dto = controller.list().stores().get(0);
+        assertThat(dto.liveStatus()).isEqualTo("failed");
+        assertThat(dto.failedStage()).isEqualTo("DNS");
     }
 
     @Test

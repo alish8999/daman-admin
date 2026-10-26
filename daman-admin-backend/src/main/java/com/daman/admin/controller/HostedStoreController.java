@@ -108,7 +108,7 @@ public class HostedStoreController {
             String apiHostname, String frontendHostname, String status, String failedStage,
             LocalDateTime createdAt, LocalDateTime updatedAt,
             String liveStatus, String staleness, Instant startedAt,
-            String backupLabel, Long backupSizeBytes) {
+            String backupAt, Long backupSizeBytes) {
 
         /** Registry facts only (provision/forget answers): the live fields are not probed here. */
         static HostedStoreDto of(HostedInstance i) {
@@ -122,7 +122,7 @@ public class HostedStoreController {
                     live == null ? null : live.liveStatus(),
                     live == null ? null : live.staleness(),
                     live == null ? null : live.startedAt(),
-                    live == null ? null : live.backupLabel(),
+                    live == null ? null : live.backupAt(),
                     live == null ? null : live.backupSizeBytes());
         }
     }
