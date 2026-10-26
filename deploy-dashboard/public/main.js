@@ -1108,6 +1108,289 @@
     });
   })();
 
+  // ── Hosted-store fleet table ─────────────────────────────────────────────
+  // One row per registry row, polled every FLEET_POLL_MS while the tab is visible. All decisions
+  // (which buttons, what text) live in lib/store-row-core.js; this block is only DOM + fetch.
+  // Rows are built with textContent, never innerHTML: hostnames and failed-stage text come from
+  // the server.
+  (function initFleetTable() {
+    const mount = document.getElementById('fleet-mount');
+    const meta = document.getElementById('fleet-meta');
+    if (!mount || !meta) return;
+
+    const core = window.storeRowCore;
+    const FLEET_POLL_MS = 10000;
+    const ACTION_LABEL = {
+      restart: 'Restart', suspend: 'Suspend', resume: 'Resume', remove: 'Remove…', 'forget-row': 'Forget row',
+    };
+    // Remove and Forget row look and read differently on purpose: Remove destroys a customer's data,
+    // Forget row only deletes a registry record.
+    const ACTION_CLASS = { remove: 'row-btn-danger', 'forget-row': 'row-btn-forget' };
+
+    let timer = null;
+    let inFlight = false;
+    let lastRows = null;
+    let lastFleet = null;
+    let pollNotice = false; // the visible notice is a failed-poll one, so a good poll may clear it
+    const busy = new Set(); // codes with a lifecycle request in flight
+
+    const notice = document.createElement('p');
+    notice.className = 'fleet-notice';
+    notice.setAttribute('role', 'status');
+    notice.hidden = true;
+    mount.before(notice);
+
+    function setNotice(text, kind) {
+      notice.textContent = text;
+      notice.className = 'fleet-notice' + (kind ? ' ' + kind : '');
+      notice.hidden = !text;
+    }
+
+    function authHeaders() {
+      const token = tokens.value('portal');
+      return token ? { Authorization: 'Bearer ' + token } : {};
+    }
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined && text !== null) node.textContent = text;
+      return node;
+    }
+
+    function showMessage(text) {
+      mount.replaceChildren(el('p', 'fleet-empty', text));
+    }
+
+    function render() {
+      if (!lastRows) return;
+      const now = Date.now();
+      meta.textContent = [core.capacityLabel(lastFleet), 'Jar on disk: ' + core.formatJarTime(lastFleet && lastFleet.jarModifiedAt, now)]
+        .filter(Boolean).join(' · ');
+
+      if (lastRows.length === 0) {
+        showMessage('No hosted stores yet. Use + New store.');
+        return;
+      }
+
+      const table = el('table', 'fleet-table');
+      const thead = el('thead');
+      const head = el('tr');
+      ['Store', 'Hostnames', 'Port', 'Status', 'Backup', 'Actions'].forEach((t) => head.append(el('th', null, t)));
+      thead.append(head);
+      table.append(thead);
+
+      const body = el('tbody');
+      lastRows.forEach((store) => {
+        const label = core.rowLabel(store);
+        const tr = el('tr');
+        tr.dataset.code = store.clientCode;
+
+        tr.append(el('td', 'cell-code', store.clientCode));
+
+        const hosts = el('td', 'cell-hosts');
+        if (store.frontendHostname) {
+          const a = el('a', null, store.frontendHostname);
+          a.href = 'https://' + store.frontendHostname;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          hosts.append(a);
+        }
+        if (store.apiHostname) hosts.append(el('div', 'cell-sub', store.apiHostname));
+        tr.append(hosts);
+
+        tr.append(el('td', null, store.port === undefined || store.port === null ? '—' : String(store.port)));
+
+        const status = el('td', 'cell-status');
+        status.append(el('span', 'pill pill-' + label.statusClass, label.statusText));
+        if (label.stalenessClass) status.append(el('span', 'pill pill-' + label.stalenessClass, label.stalenessClass));
+        if (label.detail) status.append(el('div', 'cell-sub', label.detail));
+        tr.append(status);
+
+        tr.append(el('td', 'cell-backup', core.backupLabel(store, now)));
+
+        const actions = el('td', 'cell-actions');
+        const working = busy.has(store.clientCode);
+        core.actionsFor(store.status).forEach((action) => {
+          const b = el('button', 'row-btn ' + (ACTION_CLASS[action] || ''), ACTION_LABEL[action]);
+          b.type = 'button';
+          b.dataset.action = action;
+          b.dataset.code = store.clientCode;
+          b.disabled = working;
+          actions.append(b);
+        });
+        if (working) actions.append(el('span', 'cell-sub', 'working…'));
+        tr.append(actions);
+
+        body.append(tr);
+      });
+      table.append(body);
+      mount.replaceChildren(table);
+    }
+
+    function describeFailure(r, body) {
+      if (body && typeof body === 'object' && (body.error || body.message)) return String(body.error || body.message);
+      if (r.status === 401) return 'portal token rejected (expired)';
+      return 'HTTP ' + r.status;
+    }
+
+    function parse(text) {
+      try { return JSON.parse(text); } catch (err) { return null; }
+    }
+
+    function schedule() {
+      clearTimeout(timer);
+      timer = null;
+      // A 401 means every further tick is another 401: stop until a new token is pasted.
+      if (document.hidden || tokens.isExpired('portal') || !tokens.value('portal')) return;
+      timer = setTimeout(refresh, FLEET_POLL_MS);
+    }
+
+    function refresh() {
+      clearTimeout(timer);
+      timer = null;
+      if (!tokens.value('portal')) {
+        lastRows = null;
+        meta.textContent = '';
+        showMessage('Paste the portal token above to load the stores.');
+        return Promise.resolve();
+      }
+      if (tokens.isExpired('portal')) {
+        showMessage('Portal token expired. Paste a fresh one above to resume.');
+        return Promise.resolve();
+      }
+      if (inFlight) return Promise.resolve();
+      inFlight = true;
+      return tokens.track('portal', fetch('/api/remote/hosted-stores', { headers: authHeaders() }))
+        .then((r) => r.text().then((text) => ({ r, body: parse(text) })))
+        .then(({ r, body }) => {
+          // Both backend shapes (bare array / { stores }): see registry-rows.js. Not a migration shim.
+          const rows = r.ok ? registryRows(body) : null;
+          if (!rows) {
+            // Keep the last good table; a failed read is not "no stores".
+            if (!lastRows) showMessage('Could not read the stores (' + describeFailure(r, body) + ').');
+            else { setNotice('Could not refresh the stores (' + describeFailure(r, body) + '); showing the last good read.', 'failure'); pollNotice = true; }
+            return;
+          }
+          if (pollNotice) { setNotice(''); pollNotice = false; }
+          lastRows = rows;
+          lastFleet = Array.isArray(body) ? { stores: rows } : body;
+          render();
+        })
+        .catch(() => {
+          if (!lastRows) showMessage('Could not reach the dashboard server.');
+        })
+        .then(() => { inFlight = false; schedule(); });
+    }
+
+    function post(code, action) {
+      return tokens.track('portal', fetch('/api/remote/hosted-stores/' + encodeURIComponent(code) + '/' + action, {
+        method: 'POST',
+        headers: authHeaders(),
+      }));
+    }
+
+    function forget(code) {
+      return tokens.track('portal', fetch('/api/remote/hosted-stores/' + encodeURIComponent(code), {
+        method: 'DELETE',
+        headers: authHeaders(),
+      }));
+    }
+
+    // Runs a request for one row: marks it busy, reports the outcome, then re-reads the table.
+    function runAction(code, verb, request) {
+      busy.add(code);
+      setNotice(verb + ' ' + code + '… this can take up to a minute.', '');
+      render();
+      return request()
+        .then((r) => r.text().then((text) => ({ r, body: parse(text) })))
+        .then(({ r, body }) => {
+          if (r.ok) setNotice(verb + ' ' + code + ': done.', 'success');
+          else setNotice(verb + ' ' + code + ' failed: ' + describeFailure(r, body), 'failure');
+        })
+        .catch((err) => setNotice(verb + ' ' + code + ' failed: ' + err.message, 'failure'))
+        .then(() => {
+          busy.delete(code);
+          return refresh();
+        });
+    }
+
+    // ── Remove dialog: the store's code has to be typed ──
+    const backdrop = document.getElementById('remove-modal-backdrop');
+    const dlgCode = document.getElementById('remove-modal-code');
+    const dlgPath = document.getElementById('remove-modal-path');
+    const dlgExpect = document.getElementById('remove-modal-expect');
+    const dlgInput = document.getElementById('remove-modal-input');
+    const dlgSubmit = document.getElementById('remove-modal-submit');
+    let removing = null;
+
+    function closeRemove() {
+      backdrop.hidden = true;
+      removing = null;
+      dlgInput.value = '';
+    }
+
+    function openRemove(code) {
+      removing = code;
+      dlgCode.textContent = code;
+      dlgExpect.textContent = code;
+      // The date is chosen by the server when it writes the archive, so it stays a placeholder here.
+      dlgPath.textContent = '/root/removed-stores/' + code + '-<date>.zip';
+      dlgInput.value = '';
+      dlgSubmit.disabled = true;
+      backdrop.hidden = false;
+      dlgInput.focus();
+    }
+
+    dlgInput.addEventListener('input', () => {
+      dlgSubmit.disabled = !(removing && dlgInput.value === removing);
+    });
+    dlgSubmit.addEventListener('click', () => {
+      const code = removing;
+      if (!code || dlgInput.value !== code) return; // re-checked here: the disabled flag is not the guard
+      closeRemove();
+      runAction(code, 'Removing', () => post(code, 'remove'));
+    });
+    document.getElementById('remove-modal-close').addEventListener('click', closeRemove);
+    document.getElementById('remove-modal-cancel').addEventListener('click', closeRemove);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeRemove(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !backdrop.hidden) closeRemove(); });
+
+    mount.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn || btn.disabled) return;
+      const code = btn.dataset.code;
+      const action = btn.dataset.action;
+      const store = (lastRows || []).find((s) => s.clientCode === code);
+      const domain = (store && store.frontendHostname) || code;
+
+      if (action === 'suspend') {
+        if (!window.confirm('Suspend ' + domain + '?\n\nThe store goes offline and its customer cannot use it until you resume it. Their data is kept.')) return;
+        runAction(code, 'Suspending', () => post(code, 'suspend'));
+      } else if (action === 'resume') {
+        runAction(code, 'Resuming', () => post(code, 'resume'));
+      } else if (action === 'restart') {
+        runAction(code, 'Restarting', () => post(code, 'restart'));
+      } else if (action === 'remove') {
+        openRemove(code);
+      } else if (action === 'forget-row') {
+        if (!window.confirm('Forget the registry row for "' + code + '"?\n\nThis is NOT Remove. It deletes only the registry record, to free the subdomain and port of a mistyped or half-created store. It does not stop any service, delete DNS or tunnel entries, or delete any data.')) return;
+        runAction(code, 'Forgetting row for', () => forget(code));
+      }
+    });
+
+    let debounce = null;
+    tokens.onInput('portal', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(refresh, 400);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { clearTimeout(timer); timer = null; } else refresh();
+    });
+
+    refresh();
+  })();
+
   // On load, reflect anything already running server-side (e.g. the page was
   // reloaded mid-deploy). Re-attaching to the live log is out of scope - this
   // only keeps the button state honest.

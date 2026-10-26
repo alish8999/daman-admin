@@ -111,6 +111,7 @@ const STATIC_FILES = {
   '/registry-rows.js': { file: 'registry-rows.js', type: 'application/javascript; charset=utf-8' },
   // Lives in lib/ so node's tests can require it; served from there rather than copied.
   '/token-state-core.js': { dir: LIB_DIR, file: 'token-state-core.js', type: 'application/javascript; charset=utf-8' },
+  '/store-row-core.js': { dir: LIB_DIR, file: 'store-row-core.js', type: 'application/javascript; charset=utf-8' },
 };
 
 // CSRF guard: every endpoint here is side-effecting or local-only, and the
@@ -566,6 +567,19 @@ const server = http.createServer(async (req, res) => {
       `/api/hosted-stores/${encodeURIComponent(code)}/${lifecycleMatch[2]}`, res,
       undefined, LIFECYCLE_PROXY_TIMEOUT_MS
     );
+    return;
+  }
+
+  // Forget row: the registry row ONLY (the remote refuses an ACTIVE one). This is not Remove; that is
+  // POST .../remove above and destroys the store's data. Same code allowlist as the lifecycle routes.
+  const forgetMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)$/.exec(pathname || '');
+  if (req.method === 'DELETE' && forgetMatch) {
+    const code = forgetMatch[1];
+    if (!STORE_CODE_PATTERN.test(code)) {
+      sendJson(res, 400, { error: 'Invalid client code.' });
+      return;
+    }
+    proxyToRemoteAdminBackend(req, 'DELETE', `/api/hosted-stores/${encodeURIComponent(code)}`, res);
     return;
   }
 

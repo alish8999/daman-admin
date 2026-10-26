@@ -655,9 +655,52 @@ test('an unreachable remote on a lifecycle route is reported as 503, never answe
 });
 
 test('the scripts index.html loads are actually served (registry-rows.js used to 404)', async () => {
-  for (const name of ['main.js', 'registry-rows.js', 'token-state-core.js']) {
+  for (const name of ['main.js', 'registry-rows.js', 'token-state-core.js', 'store-row-core.js']) {
     const res = await get('/' + name);
     assert.strictEqual(res.statusCode, 200, name);
     assert.ok(res.body.length > 0, name);
+  }
+});
+
+// ---- Forget row: DELETE /api/remote/hosted-stores/{code} -------------------------------------
+// Registry-only on the remote. Not Remove: that is POST .../remove and destroys the store's data.
+
+function del(pathAndQuery, headers) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path: pathAndQuery, method: 'DELETE', headers }, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+test('forget-row proxies DELETE to the remote registry route, relaying the Authorization header', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote(200, { ok: true });
+  aimRemoteAt(fakePort);
+  try {
+    const res = await del('/api/remote/hosted-stores/acme-1', { Authorization: 'Bearer t' });
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(`${seen[0].method} ${seen[0].url}`, 'DELETE /api/hosted-stores/acme-1');
+    assert.strictEqual(seen[0].headers.authorization, 'Bearer t');
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('forget-row rejects a bad code and a cross-origin request before any proxying', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    assert.strictEqual((await del('/api/remote/hosted-stores/a%2Fb')).statusCode, 400);
+    assert.strictEqual((await del('/api/remote/hosted-stores/-lead')).statusCode, 400);
+    assert.strictEqual((await del('/api/remote/hosted-stores/acme', { Origin: 'http://evil.example' })).statusCode, 403);
+    assert.strictEqual(seen.length, 0);
+  } finally {
+    restoreRemote();
+    fake.close();
   }
 });

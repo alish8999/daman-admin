@@ -80,8 +80,86 @@
       <h2 class="section-label">Hosted stores</h2>
       <button type="button" class="new-store-btn" id="new-store-btn" aria-expanded="false" aria-controls="new-store-panel">+ New store</button>
     </div>
-    <!-- The store table is the next task and mounts here. -->
-    <div id="fleet-mount" class="fleet-mount"></div>
+    <p class="fleet-meta" id="fleet-meta" aria-live="polite"></p>
+    <div id="fleet-mount" class="fleet-mount"><p class="fleet-empty">Paste the portal token above to load the stores.</p></div>
+    <div class="release-bar" aria-label="Release the hosted store backend">
+      <p class="release-bar-note">One shared <code>daman-store.jar</code> serves every store. All three buttons need the <strong>portal</strong> token above (the restart route is token-gated).</p>
+      <div class="release-cards">
+      <section class="card release-card" data-slot="store-backend">
+        <div class="card-head">
+          <div class="card-title">
+            <h2>Deploy &amp; restart all</h2>
+            <p class="card-desc">Build, upload the shared jar, then restart every store one at a time. The walk stops at the first unhealthy store; stores not yet reached still load the new jar on their next restart. Previous jar kept as <code>.prev</code>; viora is restarted first.</p>
+          </div>
+          <span class="footer"></span>
+        </div>
+        <button class="deploy-btn">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Deploy &amp; restart all</span>
+        </button>
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+      </section>
+
+      <section class="card release-card" data-slot="store-deploy-only">
+        <div class="card-head">
+          <div class="card-title">
+            <h2>Deploy <span class="card-tag">no restart</span></h2>
+            <p class="card-desc">Build and upload the shared jar only.</p>
+            <p class="release-warning" role="note"><strong>Leaves a new jar on disk while every store keeps running the old one from memory.</strong> Because the units are <code>Restart=always</code>, each store will load the new jar at an unpredictable later moment: whenever it next crashes, is restarted, or the box reboots. Until then the table shows those stores as stale.</p>
+          </div>
+          <span class="footer"></span>
+        </div>
+        <button class="deploy-btn">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Deploy</span>
+        </button>
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+      </section>
+
+      <section class="card release-card" data-slot="store-restart-all">
+        <div class="card-head">
+          <div class="card-title">
+            <h2>Restart all</h2>
+            <p class="card-desc">Restart every store one at a time, without deploying. Use it after Deploy to load the jar the stores are stale against.</p>
+          </div>
+          <span class="footer"></span>
+        </div>
+        <button class="deploy-btn">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Restart all</span>
+        </button>
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+      </section>
+
+      </div>
+    </div>
     <div id="new-store-panel" hidden>
       <section class="card" data-slot="create-store">
       <div class="card-head">
@@ -172,36 +250,6 @@
         <div class="card-title">
           <h2>Admin Frontend</h2>
           <p class="card-desc">Build &amp; publish to Cloudflare Pages</p>
-        </div>
-        <span class="footer"></span>
-      </div>
-
-      <button class="deploy-btn">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Deploy</span>
-      </button>
-
-      <details class="log-panel">
-        <summary class="log-panel-head">
-          <span class="log-dot" style="--dot-color:#ff5f57"></span>
-          <span class="log-dot" style="--dot-color:#febc2e"></span>
-          <span class="log-dot" style="--dot-color:#28c840"></span>
-          <span class="log-title">output</span>
-          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </summary>
-        <pre class="log" data-empty-text="Nothing run yet."></pre>
-      </details>
-    </section>
-
-    <section class="card" data-slot="store-backend">
-      <div class="card-head">
-        <div class="card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="17" r="1" fill="currentColor"/></svg>
-        </div>
-        <div class="card-title">
-          <h2>Hosted Store Backend <span class="card-tag">all stores</span></h2>
-          <p class="card-desc">Build daman-backend, upload the shared <code>daman-store.jar</code> &amp; restart every hosted store one at a time (the walk stops at the first unhealthy one, but the new jar is already on disk and stores not yet reached will load it on restart; previous jar kept as <code>.prev</code>; viora included, and restarted first)</p>
-          <p class="card-desc"><span class="token-hint">Needs the <strong>portal</strong> token in the strip above (the restart route is token-gated).</span></p>
         </div>
         <span class="footer"></span>
       </div>
@@ -374,7 +422,27 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="remove-modal-backdrop" hidden>
+    <div class="modal modal-danger" role="dialog" aria-modal="true" aria-labelledby="remove-modal-title">
+      <div class="modal-head">
+        <h2 id="remove-modal-title">Remove store <code id="remove-modal-code"></code></h2>
+        <button type="button" class="modal-close" id="remove-modal-close" aria-label="Close">&times;</button>
+      </div>
+      <p class="modal-hint"><strong>This deletes the customer's data.</strong> The store's service, tunnel rule, DNS record, hostname and database are torn down. <strong>One backup is kept</strong> on the server at <code id="remove-modal-path"></code>. Nothing else is kept, and the store cannot be resumed afterwards.</p>
+      <label class="version-field">
+        <span>Type the store code <strong id="remove-modal-expect"></strong> to confirm</span>
+        <input type="text" class="build-version-input" id="remove-modal-input" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="modal-error" id="remove-modal-error" hidden></div>
+      <div class="modal-footer">
+        <button type="button" class="modal-btn modal-btn-secondary" id="remove-modal-cancel">Cancel</button>
+        <button type="button" class="modal-btn modal-btn-danger" id="remove-modal-submit" disabled>Remove store and delete its data</button>
+      </div>
+    </div>
+  </div>
+
   <script src="registry-rows.js"></script>
+  <script src="store-row-core.js"></script>
   <script src="token-state-core.js"></script>
   <script src="main.js"></script>
 </body>
