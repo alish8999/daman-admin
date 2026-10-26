@@ -1370,6 +1370,8 @@
       } else if (action === 'resume') {
         runAction(code, 'Resuming', () => post(code, 'resume'));
       } else if (action === 'restart') {
+        // Restart bounces a LIVE store: its till is down until the backend answers health again.
+        if (!window.confirm('Restart ' + domain + '?\n\nThe store will be briefly unavailable (typically 30 to 60 seconds) while it comes back. Anyone mid-sale on it will be interrupted.')) return;
         runAction(code, 'Restarting', () => post(code, 'restart'));
       } else if (action === 'remove') {
         openRemove(code);

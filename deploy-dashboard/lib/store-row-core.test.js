@@ -80,7 +80,24 @@ test('each live status gets its own pill class', () => {
   assert.ok(classes.every((c) => typeof c === 'string' && c));
 });
 
-test('capacity counts every row including suspended ones', () => {
+test('capacity uses the backend maxStores verbatim, with no tilde', () => {
+  const fleet = { stores: [{}, {}], committedStores: 2, maxStores: 5, totalMemoryMb: 3900, heapMb: 768 };
+  // 5, not the 3 the local estimate would give: the backend is the authority.
+  assertLabel(capacityLabel(fleet), '2 of 5 slots');
+});
+
+test('capacity trusts maxStores of 0 (a full box), not the fallback', () => {
+  assertLabel(capacityLabel({ committedStores: 1, maxStores: 0, totalMemoryMb: 9000, heapMb: 768 }), '1 of 0 slots');
+});
+
+test('capacity ignores a malformed maxStores and falls back to the estimate, hedged', () => {
+  assertLabel(capacityLabel({ committedStores: 2, maxStores: 'x', totalMemoryMb: 3900, heapMb: 768 }), '2 of ~3 slots');
+  assertLabel(capacityLabel({ committedStores: 2, maxStores: -1, totalMemoryMb: 3900, heapMb: 768 }), '2 of ~3 slots');
+});
+
+function assertLabel(actual, expected) { assert.strictEqual(actual, expected); }
+
+test('(older backend, no maxStores) capacity counts every row including suspended ones', () => {
   const fleet = {
     stores: [{ status: 'ACTIVE' }, { status: 'SUSPENDED' }],
     committedStores: 2, totalMemoryMb: 3900, heapMb: 768,

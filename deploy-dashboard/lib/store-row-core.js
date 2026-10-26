@@ -70,12 +70,16 @@
     return out;
   }
 
-  // Mirrors HostedStoreProvisioningService.requireCapacity() /
-  // HostedCapacity.hasRoomForAnotherStore: the box holds N stores when
-  //   total - heap*(N-1) - RESERVE >= heap + MARGIN   =>   N = floor((total - RESERVE - MARGIN) / heap)
-  // RESERVE and MARGIN are private constants on the server and are not in the response, so they are
-  // copied here. That is why the label says "~": if they change on the server this drifts, and the
-  // server's own guard stays the authority.
+  // TWO paths, both permanent (same skew rule as registry-rows.js: this page is routinely newer or
+  // older than the backend it calls):
+  //  1. fleet.maxStores, sent by the backend. HostedCapacity.maxStores is the one definition of
+  //     capacity and is also what makes provisioning refuse, so the number is authoritative and is
+  //     shown without a tilde.
+  //  2. An older backend sends no maxStores. Estimate it from the fleet numbers it does send,
+  //     mirroring HostedCapacity.maxStores: floor((total - RESERVE - MARGIN) / heap). RESERVE and
+  //     MARGIN are private to the server and not in the response, so they are copied here and the
+  //     result is hedged with "~": if they change on the server this path drifts.
+  // Do not delete path 2 and do not add a "remove once deployed" note: skew is how this is deployed.
   const NON_STORE_RESERVE_MB = 1024;
   const RAM_MARGIN_MB = 300;
 
@@ -86,6 +90,9 @@
     const committed = Number.isFinite(fleet.committedStores) ? fleet.committedStores : rows;
     if (!Number.isFinite(fleet.totalMemoryMb) || !Number.isFinite(fleet.heapMb) || fleet.heapMb <= 0) {
       return committed + (committed === 1 ? ' store' : ' stores') + ' (capacity unknown)';
+    }
+    if (Number.isInteger(fleet.maxStores) && fleet.maxStores >= 0) {
+      return committed + ' of ' + fleet.maxStores + ' slots';
     }
     const slots = Math.max(0, Math.floor((fleet.totalMemoryMb - NON_STORE_RESERVE_MB - RAM_MARGIN_MB) / fleet.heapMb));
     return committed + ' of ~' + slots + ' slots';
