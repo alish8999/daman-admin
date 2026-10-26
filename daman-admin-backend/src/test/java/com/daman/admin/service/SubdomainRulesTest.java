@@ -20,7 +20,7 @@ class SubdomainRulesTest {
     }
 
     @Test void refusesHostnamesThatServeLiveInfrastructure() {
-        for (String r : new String[]{"admin", "admin-api", "dl", "www", "viora"}) {
+        for (String r : new String[]{"admin", "admin-api", "dl", "www"}) {
             assertTrue(SubdomainRules.isReserved(r), r + " must be reserved");
         }
         assertFalse(SubdomainRules.isReserved("alhasan"));

@@ -97,9 +97,12 @@ class HostedStoreProvisioningServiceTest {
         ClientConfigRepository clientConfigRepo = mock(ClientConfigRepository.class);
         when(clientConfigRepo.findByClientCode(anyString())).thenAnswer(i -> {
             String code = i.getArgument(0);
-            // "viora" is a real ClientConfig row in production — the reserved-code case is not
-            // hypothetical, it is one form submission away.
-            if (!List.of("acme", "beta", "viora").contains(code)) return Optional.empty();
+            // The reserved-code case is not hypothetical, it is one form submission away: these
+            // are real ClientConfig rows. "admin" stands in for a reserved code now that viora
+            // has been normalised off the reserved list (2026-10-27) — prepare() looks the client
+            // up BEFORE checking the reserved set, so a code the fake does not know would fail
+            // with "Client not found" and never exercise the guard at all.
+            if (!List.of("acme", "beta", "viora", "admin").contains(code)) return Optional.empty();
             ClientConfig c = new ClientConfig();
             c.setClientCode(code);
             c.setAppName(code.toUpperCase() + " Store");
@@ -197,7 +200,7 @@ class HostedStoreProvisioningServiceTest {
 
     @Test
     void rejectsReservedSubdomain() {
-        for (String reserved : List.of("admin", "admin-api", "dl", "www", "viora", "acme-api")) {
+        for (String reserved : List.of("admin", "admin-api", "dl", "www", "acme-api")) {
             assertThatThrownBy(() -> service.provision(new ProvisionRequest("acme", reserved, null)))
                     .as(reserved)
                     .isInstanceOf(IllegalArgumentException.class)
@@ -444,11 +447,15 @@ class HostedStoreProvisioningServiceTest {
     @Test
     void refusesAReservedClientCodeEvenWithoutARegistryRow() {
         // No registry row at all, so the "already provisioned" early return cannot help: UNIT
-        // would overwrite /etc/systemd/system/daman-store-viora.service and the live viora store
-        // would come up empty on its next Restart=always cycle.
-        assertThatThrownBy(() -> service.provision(new ProvisionRequest("viora", "vioracafe", null)))
+        // would overwrite /etc/systemd/system/daman-store-admin.service, which is Daman's own
+        // admin backend.
+        //
+        // This used to use "viora", which was reserved to protect its hand-written unit. viora
+        // came off the list on 2026-10-27 when it was normalised into an ordinary store, so the
+        // case now needs a code that is still reserved. The rule being tested is unchanged.
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("admin", "adminstore", null)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("daman-store-viora.service");
+                .hasMessageContaining("daman-store-admin.service");
 
         assertThat(instances).isEmpty();
         assertThat(calls).isEmpty();
