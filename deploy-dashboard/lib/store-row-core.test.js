@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime } = require('./store-row-core');
+const { actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge } = require('./store-row-core');
 
 test('an ACTIVE store offers restart and suspend, never remove', () => {
   assert.deepStrictEqual(actionsFor('ACTIVE'), ['restart', 'suspend']);
@@ -155,4 +155,25 @@ test('jar time is formatted, and a missing one is said plainly', () => {
   assert.match(formatJarTime('2026-10-26T09:00:00Z', NOW), /3 h ago/);
   assert.match(formatJarTime(null, NOW), /unknown/i);
   assert.match(formatJarTime(undefined, NOW), /unknown/i);
+});
+
+test('an unrecognised liveStatus renders as unknown, never as the registry status', () => {
+  const l = rowLabel({ status: 'ACTIVE', liveStatus: 'degraded' });
+  assert.strictEqual(l.statusText, 'unknown');
+  assert.doesNotMatch(l.statusText, /active/i);
+  assert.match(l.detail, /degraded/);
+  assert.strictEqual(l.stalenessClass, '');
+});
+
+test('an unrecognised liveStatus never gets a staleness verdict either', () => {
+  const l = rowLabel({ status: 'ACTIVE', liveStatus: 'degraded', staleness: 'current' });
+  assert.doesNotMatch(l.detail, /current jar/i);
+});
+
+test('readAge says how old the last good read is', () => {
+  assert.strictEqual(readAge(NOW - 10000, NOW), '10 s old');
+  assert.strictEqual(readAge(NOW - 5 * 60000, NOW), '5 min old');
+  assert.strictEqual(readAge(NOW - 2 * 3600000, NOW), '2 h old');
+  assert.strictEqual(readAge(NOW + 5000, NOW), '0 s old');
+  assert.strictEqual(readAge(null, NOW), 'age unknown');
 });

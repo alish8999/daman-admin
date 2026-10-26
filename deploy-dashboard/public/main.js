@@ -1131,6 +1131,7 @@
     let inFlight = false;
     let lastRows = null;
     let lastFleet = null;
+    let lastGoodAt = null; // when the table was last read successfully
     let pollNotice = false; // the visible notice is a failed-poll one, so a good poll may clear it
     const busy = new Set(); // codes with a lifecycle request in flight
 
@@ -1269,16 +1270,18 @@
           if (!rows) {
             // Keep the last good table; a failed read is not "no stores".
             if (!lastRows) showMessage('Could not read the stores (' + describeFailure(r, body) + ').');
-            else { setNotice('Could not refresh the stores (' + describeFailure(r, body) + '); showing the last good read.', 'failure'); pollNotice = true; }
+            else { setNotice('Could not refresh the stores (' + describeFailure(r, body) + '); showing the last good read (' + core.readAge(lastGoodAt, Date.now()) + ').', 'failure'); pollNotice = true; }
             return;
           }
           if (pollNotice) { setNotice(''); pollNotice = false; }
+          lastGoodAt = Date.now();
           lastRows = rows;
           lastFleet = Array.isArray(body) ? { stores: rows } : body;
           render();
         })
         .catch(() => {
           if (!lastRows) showMessage('Could not reach the dashboard server.');
+          else { setNotice('Could not reach the dashboard server; showing the last good read (' + core.readAge(lastGoodAt, Date.now()) + '). Statuses below may be out of date.', 'failure'); pollNotice = true; }
         })
         .then(() => { inFlight = false; schedule(); });
     }

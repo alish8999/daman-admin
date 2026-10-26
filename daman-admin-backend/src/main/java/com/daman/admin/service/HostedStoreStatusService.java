@@ -40,8 +40,9 @@ public class HostedStoreStatusService {
     public FleetState describe(List<HostedInstance> rows) {
         Instant jarAt = ops.fileModifiedAt(StoreUnitRenderer.SHARED_JAR).orElse(null);
         List<LiveState> states = rows.stream().map(r -> of(r, jarAt)).toList();
-        return new FleetState(states, jarAt, ops.totalMemoryMb(), rows.size(), StoreUnitRenderer.HEAP_MB,
-                HostedCapacity.maxStores(ops.totalMemoryMb(), StoreUnitRenderer.HEAP_MB,
+        long totalMb = ops.totalMemoryMb();
+        return new FleetState(states, jarAt, totalMb, rows.size(), StoreUnitRenderer.HEAP_MB,
+                HostedCapacity.maxStores(totalMb, StoreUnitRenderer.HEAP_MB,
                         HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
     }
 

@@ -44,7 +44,10 @@
   function rowLabel(store) {
     const s = store || {};
     const live = LIVE[s.liveStatus];
-    const base = live || REGISTRY_ONLY[s.status] || { text: s.status ? String(s.status).toLowerCase() : 'unknown', cls: 'idle' };
+    // A liveStatus this page does not know is NOT upgraded to the registry status (which would read
+    // "active"): an unknown stays unknown. Only an ABSENT liveStatus (older backend) uses the registry.
+    const unrecognised = !live && s.liveStatus !== undefined && s.liveStatus !== null && s.liveStatus !== '';
+    const base = live || (unrecognised ? { text: 'unknown', cls: 'idle' } : null) || REGISTRY_ONLY[s.status] || { text: s.status ? String(s.status).toLowerCase() : 'unknown', cls: 'idle' };
     const out = { statusText: base.text, statusClass: base.cls, detail: '', stalenessClass: '' };
 
     if (s.liveStatus === 'running') {
@@ -60,6 +63,8 @@
         out.stalenessClass = 'unknown';
       }
       // staleness absent (older backend): say nothing rather than guess.
+    } else if (unrecognised) {
+      out.detail = 'The backend reported a live status this page does not recognise: "' + String(s.liveStatus) + '".';
     } else if (s.status === 'FAILED') {
       out.detail = s.failedStage ? 'Provisioning failed at stage ' + s.failedStage + '.' : 'Provisioning failed.';
     } else if (s.status === 'PROVISIONING') {
@@ -146,5 +151,15 @@
     return (typeof iso === 'string' && stamp(iso, nowMs)) || 'unknown';
   }
 
-  return { actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
+  // How old the last good read of the fleet is, for the "could not refresh" notice.
+  function readAge(sinceMs, nowMs) {
+    if (!Number.isFinite(sinceMs)) return 'age unknown';
+    const sec = Math.max(0, Math.round((nowMs - sinceMs) / 1000));
+    if (sec < 60) return sec + ' s old';
+    const min = Math.round(sec / 60);
+    if (min < 60) return min + ' min old';
+    return Math.floor(min / 60) + ' h old';
+  }
+
+  return { readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
 });
