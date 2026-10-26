@@ -224,12 +224,23 @@
   // One store's own memory. undefined = backend does not report it -> '' (nothing). A unit that is
   // not running has no memory to report -> 'not running'. null/garbage for a unit that should be up
   // -> 'unknown', never 0.
+  // Live statuses with no process to measure. The one definition: a status not in here and not
+  // reported as a number reads 'unknown', so a new non-running status must be added here.
+  const NOT_RUNNING = new Set(['stopped', 'suspended', 'failed']);
+
+  // Whether to show the Memory column at all: only when the backend reports memoryBytes for some
+  // row (null counts as reported; absent/undefined is an older backend). Carries the permanent
+  // page-newer-than-backend skew rule, so it lives here where it is tested, not in main.js.
+  function hasMemory(rows) {
+    return Array.isArray(rows) && rows.some((s) => s && s.memoryBytes !== undefined);
+  }
+
   function memoryLabel(bytes, liveStatus) {
     if (bytes === undefined) return '';
-    if (liveStatus === 'stopped' || liveStatus === 'suspended' || liveStatus === 'failed') return 'not running';
+    if (NOT_RUNNING.has(liveStatus)) return 'not running';
     if (!isCount(bytes)) return 'unknown';
     return bytes >= GB ? dec(bytes / GB) + ' GB' : Math.round(bytes / MB) + ' MB';
   }
 
-  return { boxLabel, memoryLabel, lifecycleRouteFor, readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
+  return { boxLabel, memoryLabel, hasMemory, lifecycleRouteFor, readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
 });

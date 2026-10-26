@@ -223,7 +223,9 @@ class HostedStoreStatusServiceTest {
         when(ops.storeMemoryBytes("daman-store-good")).thenReturn(Optional.of(5L));
         var fleet = service.describe(List.of(row("good", "ACTIVE"), row("bad", "ACTIVE")));
         assertThat(fleet.states().get(0).memoryBytes()).isEqualTo(5L);
-        assertThat(fleet.states().get(1).liveStatus()).isEqualTo("unknown");
+        // Only the memory cell degrades; the store keeps its real status and staleness.
+        assertThat(fleet.states().get(1).liveStatus()).isEqualTo("running");
+        assertThat(fleet.states().get(1).backupAt()).isNotEqualTo("unknown");
         assertThat(fleet.states().get(1).memoryBytes()).isNull();
     }
 

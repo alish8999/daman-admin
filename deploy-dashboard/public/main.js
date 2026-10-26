@@ -1204,7 +1204,7 @@
       const thead = el('thead');
       const head = el('tr');
       // The Memory column exists only when the backend reports memoryBytes at all (older ones do not).
-      const showMemory = lastRows.some((s) => s && s.memoryBytes !== undefined);
+      const showMemory = core.hasMemory(lastRows);
       ['Store', 'Hostnames', 'Port', 'Status'].concat(showMemory ? ['Memory'] : [], ['Backup', 'Actions']).forEach((t) => head.append(el('th', null, t)));
       thead.append(head);
       table.append(thead);

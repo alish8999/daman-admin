@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { boxLabel, memoryLabel, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor } = require('./store-row-core');
+const { boxLabel, memoryLabel, hasMemory, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor } = require('./store-row-core');
 
 test('an ACTIVE store offers restart and suspend, never remove', () => {
   assert.deepStrictEqual(actionsFor('ACTIVE'), ['restart', 'suspend']);
@@ -250,4 +250,18 @@ test('memoryLabel: absent field is blank, null is unknown, never 0', () => {
   assert.strictEqual(memoryLabel(-1, 'running'), 'unknown');
   assert.strictEqual(memoryLabel(null, 'suspended'), 'not running');
   assert.strictEqual(memoryLabel(null, 'stopped'), 'not running');
+});
+
+test('hasMemory: the Memory column shows only when some row reports memoryBytes', () => {
+  assert.strictEqual(hasMemory([{ memoryBytes: 5 }, {}]), true);
+  assert.strictEqual(hasMemory([{ memoryBytes: null }, { memoryBytes: null }]), true); // reported, unreadable
+  assert.strictEqual(hasMemory([{ clientCode: 'a' }, { clientCode: 'b' }]), false);   // older backend
+  assert.strictEqual(hasMemory([]), false);
+  assert.strictEqual(hasMemory(null), false);
+  assert.strictEqual(hasMemory(undefined), false);
+});
+
+test('memoryLabel: failed is not running, like stopped and suspended', () => {
+  assert.strictEqual(memoryLabel(null, 'failed'), 'not running');
+  assert.strictEqual(memoryLabel(undefined, 'failed'), '');
 });

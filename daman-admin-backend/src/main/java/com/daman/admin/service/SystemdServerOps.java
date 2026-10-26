@@ -418,6 +418,8 @@ public class SystemdServerOps implements ServerOps {
             return Optional.of(new BoxStats(mem[0], mem[1], load,
                     Runtime.getRuntime().availableProcessors(), diskTotal, diskFree, up.longValue()));
         } catch (IOException | RuntimeException e) {
+            // debug, not warn: this runs on every fleet poll (10 s) and would flood the log.
+            log.debug("Box stats unreadable: {}", e.toString());
             return Optional.empty();
         }
     }

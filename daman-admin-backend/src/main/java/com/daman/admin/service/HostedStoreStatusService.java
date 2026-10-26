@@ -91,8 +91,21 @@ public class HostedStoreStatusService {
 
         // A stopped unit is charged nothing and 0 would read as a real measurement, so only a unit
         // that is up is asked; unreadable stays null (unknown).
-        Long memory = "stopped".equals(live) ? null : ops.storeMemoryBytes(row.getServiceName()).orElse(null);
+        Long memory = "stopped".equals(live) ? null : memoryBytes(row);
         return new LiveState(live, staleness, startedAt, backupAt(backup), backupSize(backup), memory);
+    }
+
+    /**
+     * A failure reading this one optional number must not hide the store's real status, so it gets
+     * its own narrow catch and degrades to null (unknown); the outer catch in of() stays for the rest.
+     */
+    private Long memoryBytes(HostedInstance row) {
+        try {
+            return ops.storeMemoryBytes(row.getServiceName()).orElse(null);
+        } catch (RuntimeException e) {
+            log.debug("Could not read memory of hosted store '{}': {}", row.getClientCode(), e.toString());
+            return null;
+        }
     }
 
     /** A row with no dataDir yet (early PROVISIONING) has no backups directory to ask about. */
