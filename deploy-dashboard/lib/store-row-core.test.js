@@ -200,10 +200,10 @@ test('only the real lifecycle actions map to a route; retry-provisioning and for
 
 // Real readings from the box (decimal units on purpose: they must match the Hetzner console's 4 GB / 40 GB).
 const BOX = { ramTotalBytes: 3906292 * 1024, ramAvailableBytes: 1596532 * 1024, load1: 0.01, cores: 2,
-  diskTotalBytes: 39956590592, diskUsableBytes: 39956590592 - 3871309824, uptimeSeconds: 3687582.7 };
+  diskTotalBytes: 39956590592, diskFreeBytes: 37077090304, uptimeSeconds: 3687582.7 };
 
 test('boxLabel renders the real box in decimal units', () => {
-  assert.strictEqual(boxLabel({ boxStats: BOX }), 'box · RAM 2.4 / 4.0 GB · load 0.01 (2 cores) · disk 3.9 / 40 GB · up 42d');
+  assert.strictEqual(boxLabel({ boxStats: BOX }), 'box · RAM 2.4 / 4.0 GB · load 0.01 (2 cores) · disk 2.9 / 40 GB · up 42d');
 });
 
 test('boxLabel RAM used is total minus AVAILABLE (not free)', () => {

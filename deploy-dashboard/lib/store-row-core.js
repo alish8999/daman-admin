@@ -213,8 +213,8 @@
       const cores = Number.isInteger(b.cores) && b.cores > 0 ? ' (' + b.cores + (b.cores === 1 ? ' core)' : ' cores)') : '';
       parts.push('load ' + b.load1.toFixed(2) + cores);
     }
-    const disk = isCount(b.diskTotalBytes) && isCount(b.diskUsableBytes)
-      ? pairLabel(b.diskTotalBytes - b.diskUsableBytes, b.diskTotalBytes) : null;
+    const disk = isCount(b.diskTotalBytes) && isCount(b.diskFreeBytes)
+      ? pairLabel(b.diskTotalBytes - b.diskFreeBytes, b.diskTotalBytes) : null;
     if (disk) parts.push('disk ' + disk);
     const up = uptimeLabel(b.uptimeSeconds);
     if (up) parts.push(up);

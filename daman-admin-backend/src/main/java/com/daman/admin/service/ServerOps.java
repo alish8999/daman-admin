@@ -31,7 +31,7 @@ public interface ServerOps {
      * to render a half-known strip.
      */
     record BoxStats(long ramTotalBytes, long ramAvailableBytes, double load1, int cores,
-                    long diskTotalBytes, long diskUsableBytes, long uptimeSeconds) {}
+                    long diskTotalBytes, long diskFreeBytes, long uptimeSeconds) {}
 
     /** Creates the directory and every missing parent. No-op when it already exists. */
     void mkdir(String path);

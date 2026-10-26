@@ -409,13 +409,14 @@ public class SystemdServerOps implements ServerOps {
             Double load = parseFirstNumber(Files.readString(Path.of(PROC, "loadavg"), StandardCharsets.UTF_8));
             Double up = parseFirstNumber(Files.readString(Path.of(PROC, "uptime"), StandardCharsets.UTF_8));
             java.nio.file.FileStore disk = Files.getFileStore(Path.of(DISK_PATH));
-            long diskTotal = disk.getTotalSpace();
-            long diskUsable = disk.getUsableSpace();
-            if (mem == null || load == null || up == null || diskTotal <= 0 || diskUsable < 0) {
+            long[] diskTF = diskTotalAndFree(disk);
+            long diskTotal = diskTF[0];
+            long diskFree = diskTF[1];
+            if (mem == null || load == null || up == null || diskTotal <= 0 || diskFree < 0 || diskFree > diskTotal) {
                 return Optional.empty();
             }
             return Optional.of(new BoxStats(mem[0], mem[1], load,
-                    Runtime.getRuntime().availableProcessors(), diskTotal, diskUsable, up.longValue()));
+                    Runtime.getRuntime().availableProcessors(), diskTotal, diskFree, up.longValue()));
         } catch (IOException | RuntimeException e) {
             return Optional.empty();
         }
@@ -433,6 +434,18 @@ public class SystemdServerOps implements ServerOps {
     }
 
     private static final Pattern MEMINFO_LINE = Pattern.compile("^(MemTotal|MemAvailable):\\s+(\\d{1,15})\\s*kB\\s*$");
+
+    /**
+     * {total, free} for a filesystem, where free is {@code getUnallocatedSpace()} and deliberately
+     * NOT {@code getUsableSpace()}. Unallocated is free space including the blocks ext4 reserves for
+     * root; usable is only what a non-root process may write. {@code total - unallocated} is exactly
+     * what {@code df} reports as "used"; {@code total - usable} also counts the root-reserved blocks
+     * as consumed (measured on the real box: 4.5 GB vs the true 2.9 GB), and the dashboard would then
+     * disagree with {@code df}. Usable looks like the natural choice. Do not "simplify" to it.
+     */
+    static long[] diskTotalAndFree(java.nio.file.FileStore disk) throws IOException {
+        return new long[] {disk.getTotalSpace(), disk.getUnallocatedSpace()};
+    }
 
     /** {total, available} in BYTES from /proc/meminfo text (values are kB), or null if either line is absent/garbled. */
     static long[] parseMeminfo(String text) {

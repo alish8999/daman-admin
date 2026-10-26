@@ -50,4 +50,26 @@ class SystemdServerOpsStatsParseTest {
         assertThat(SystemdServerOps.parseNonNegativeLong("-5")).isEmpty();
         assertThat(SystemdServerOps.parseNonNegativeLong(null)).isEmpty();
     }
+
+    /** The real box's statvfs readings: unallocated (df's basis) and usable (non-root) differ. */
+    private static java.nio.file.FileStore realBoxDisk() {
+        return new java.nio.file.FileStore() {
+            @Override public String name() { return "x"; }
+            @Override public String type() { return "ext4"; }
+            @Override public boolean isReadOnly() { return false; }
+            @Override public long getTotalSpace() { return 39_956_590_592L; }
+            @Override public long getUsableSpace() { return 35_417_210_880L; }
+            @Override public long getUnallocatedSpace() { return 37_077_090_304L; }
+            @Override public boolean supportsFileAttributeView(Class<? extends java.nio.file.attribute.FileAttributeView> t) { return false; }
+            @Override public boolean supportsFileAttributeView(String n) { return false; }
+            @Override public <V extends java.nio.file.attribute.FileStoreAttributeView> V getFileStoreAttributeView(Class<V> t) { return null; }
+            @Override public Object getAttribute(String a) { return null; }
+        };
+    }
+
+    @Test void diskFreeIsUnallocatedSoUsedMatchesDfNotUsable() throws Exception {
+        long[] tf = SystemdServerOps.diskTotalAndFree(realBoxDisk());
+        assertThat(tf[0]).isEqualTo(39_956_590_592L);
+        assertThat(tf[0] - tf[1]).isEqualTo(2_879_500_288L); // df -B1 "used"
+    }
 }
