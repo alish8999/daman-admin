@@ -251,6 +251,9 @@ from the highest version already built in `clients-build/generic/`), and a **Hos
 - **Hosted Store Frontend (shared)** - `deploy-store-frontend.ps1`: deploys the one shared
   `daman-store` Pages project.
 
+The dashboard also has a hosted-store fleet table (suspend, resume, restart, remove) and the
+release buttons split into Deploy & restart all / Deploy / Restart all: see §10.7.
+
 The only hosted-store argument is the Pages project name, fixed in `deploy-dashboard/lib/slots.js`
 and never taken from the request. The dashboard has to be restarted (`Ctrl+C`, `npm start`) to
 pick up slot changes.
@@ -524,7 +527,8 @@ Read the guarantee honestly:
   back before then if the jar is really bad.
 - **Trap:** re-running the deploy after a halt overwrites `.prev` with the already-bad jar, so the
   rollback above only works until the next deploy. Roll back (or copy `.prev` aside) *before*
-  deploying again.
+  deploying again. The same holds for a **deploy-only** run, with no halt at all: every deploy
+  overwrites `.prev`, so two in a row leave it holding a jar no store ever ran (§10.7).
 - viora **is** part of this release (since 2026-10-26) and, being the oldest row, is restarted
   first. To roll viora alone back to its own jar:
   ```bash
@@ -566,8 +570,8 @@ ssh root@162.55.51.189 "curl -s -X DELETE -H 'Authorization: Bearer <admin-token
   http://localhost:8083/api/hosted-stores/<clientCode>"
 ```
 
-- It **refuses an `ACTIVE` row** (409). Spec §5.4's "no suspend, stop or delete" decision is about
-  live stores and still stands; this route exists only for a store that never finished. It also
+- It **refuses an `ACTIVE` row** (409). This route exists only for a store that never finished; a
+  departed customer's store is **Remove**, a different operation (§10.7), not this. It also
   refuses while that client's provision is actually running (409).
 - Why it exists: pick `acem` instead of `acme`, let it half-complete, and there was previously no
   way out — the resume refuses to rename a row, `existsBySubdomain` then blocks reusing `acme` on
@@ -630,3 +634,159 @@ What to know:
 If the tunnel is ever down: `systemctl start cloudflared`, confirm with `systemctl is-active
 cloudflared` and `journalctl -u cloudflared -n 20` (look for `Registered tunnel connection`), then
 re-run Create to resume the provision from `INGRESS`.
+
+### 10.7 The fleet view: releases, suspend, remove
+
+The deploy dashboard's hosted-store table (one row per registry row, refreshed every 10 s) is the
+day-to-day control surface. It works through the *portal* token (last part of this section). §10.4
+is still the reference for what a release guarantees; this is what the buttons do and what to do
+when one goes wrong.
+
+#### The four release actions, and which road each takes
+
+| Button | What it runs | Road |
+|---|---|---|
+| **Deploy & restart all** | `deploy-store-backend.ps1`: build, upload, then the walk | script over SSH |
+| **Deploy** (tagged "no restart") | `-NoRestart`: build and upload only | script over SSH |
+| **Restart all** | `-RestartOnly`: no build, no upload, walk onto whatever jar is already on the box | script over SSH |
+| per-store **Restart** | `POST /api/hosted-stores/<code>/restart` | API call through `admin-api.damansoft.com` |
+
+The split is not arbitrary. `restart-all` is a synchronous walk with up to **120 s of health wait
+per store** (40 polls x 3 s). Through the tunnel the request crosses Cloudflare's edge, which
+**returns 524 after 100 s of origin silence**: a multi-store walk sent that way would report failure
+while the walk carried on server-side (the same trap as §10.2). So the scripts `curl` the server's own
+`localhost:8083` from *inside* the box over SSH, where there is no edge. A single-store restart waits
+at most 75 s (25 polls x 3 s), under the edge's limit, so it can safely use the API; the dashboard's
+proxy gives it 90 s.
+
+All three script buttons need the portal token even when they upload nothing: the script's preflight
+(`GET /api/hosted-stores`) runs in every mode, so a stale token fails before anything changes.
+`-NoRestart` and `-RestartOnly` together are refused.
+
+**Deploy without restart leaves a loaded gun.** The new jar is renamed into place at
+`/root/daman-store.jar`, but every store keeps running the *old* jar from memory, and every unit has
+`Restart=always`. Each store therefore loads the new jar at an unpredictable later moment (a crash,
+a reboot, an in-app restore), one at a time, with no health-checked walk and no canary. Use it only
+if you will press **Restart all** soon after, and then do.
+
+**`.prev` is overwritten by every deploy, not only after a halt.** The `-NoRestart` warning says the
+previous jar "is kept at `/root/daman-store.jar.prev` for a manual rollback". That is true for
+exactly one deploy: step 4 runs `cp -p /root/daman-store.jar /root/daman-store.jar.prev` before every
+rename. After two deploy-only runs in a row, `.prev` holds the *intermediate* jar that nothing ever
+ran, while the stores are still running the one before it, so the §10.4 rollback would "restore" a
+jar no store has ever been on. This is the same trap as a re-deploy after a halt, reached by a road
+where nothing has failed yet. If you chain deploy-only runs, copy `.prev` aside first, or restart
+between them.
+
+#### Suspend and resume
+
+**Suspend is a billing lever, not a restart.** It is `systemctl disable --now <unit>` **plus** the
+registry status `SUSPENDED`. A plain stop is not enough: units are `enabled` with `Restart=always`,
+so a stopped store comes back on the next reboot. Only an `ACTIVE` store can be suspended (409
+otherwise); suspending a suspended store is a no-op.
+
+Three independent guards stop a suspended store coming back, each covering a case the others do not:
+
+1. the `disable`: no reboot and no `Restart=always` revives the unit;
+2. the release walk skips every row that is not `ACTIVE` (it shows under `skipped`), and per-store
+   **Restart** refuses a suspended store with 409 ("a restart would not hold");
+3. `HostedStoreProvisioningService.prepare()` refuses a `SUSPENDED` row. This closed a real hole:
+   a `SUSPENDED` row has no `failedStage`, so re-running **Create** against it resumed from
+   `ALLOCATE`, re-ran the `UNIT` and `START` stages, and `START` is `enable --now`. Create would have
+   quietly put a non-paying customer back online. Only **Resume** may do that now.
+
+**Resume** is `enable --now`, then sets the row `ACTIVE`, then waits up to 75 s for `/api/health`. If
+health does not confirm in time the row is **still `ACTIVE`** and the unit is left running; the call
+answers **502 `UNHEALTHY`** and the list shows the live state. That is deliberate:
+`SUSPENDED`-while-running is the one silent state, because the list would call it suspended and every
+release would skip a store that is in fact serving. A cold boot can outlast 75 s, so a 502 usually
+means "look again in a minute", not "roll back". Do not re-suspend to retry.
+
+#### Remove: the one irreversible operation
+
+Remove is the teardown for a **departed customer**. The API accepts only a `SUSPENDED` store (409
+otherwise), so the backup is taken from a cleanly stopped database. The dashboard makes you type the
+client code before it sends anything.
+
+`POST /api/hosted-stores/<code>/remove` does six things, in this order:
+
+1. `systemctl disable --now` the unit (a failure here is tolerated: on a re-run the unit may be gone already);
+2. copy the database into the backup zip (below), **before anything is deleted**;
+3. delete the unit file and `daemon-reload`;
+4. drop the `<sub>-api` ingress rule from `/etc/cloudflared/config.yml` and restart cloudflared, only if the rule was there;
+5. delete the data directory (`/root/stores/<code>`, or `/root/.daman/<code>` for a legacy store);
+6. revoke the store's licence, then delete the registry row.
+
+**Step 4 is not optional.** `HostedCapacity.nextFreePort()` reissues a freed port. A surviving
+ingress rule would keep pointing the departed customer's `<sub>-api` hostname at that port, so the
+next customer given it would be served under the old customer's name. (`forget()` drops the rule for
+the same reason, §10.5.) The cloudflared restart briefly interrupts every hostname on the tunnel (§10.6).
+
+Every refusal happens before anything is touched: the row is not `SUSPENDED`; its registered data
+directory is not one of the two allowed locations; its API hostname is not `<subdomain>-api` for this
+store; its data directory exists but holds no database at the expected path (that means the path was
+derived wrongly, and deleting would leave no copy); or a provision for that client is running right
+now. If a run dies partway, running Remove again finishes it: each step tolerates its target already
+being gone.
+
+**What it keeps: one backup, here.**
+
+```
+/root/removed-stores/<clientCode>-<yyyy-MM-dd>.zip
+```
+
+On the server: one zip, one entry named `daman_db.sqlite`, dated the day Remove ran. Nothing else is
+kept (no logs, and none of the per-day zips from `<dataDir>/backups`). Two caveats: it sits on the same
+disk as everything else, not off-box, and removing the same code twice on one day overwrites that
+day's zip. Nothing in the admin code ever deletes it, so clear it out by hand once the retention you
+promised the customer has passed.
+
+**Restoring a removed store.** The zip is already in the format the app's own **Settings, Restore
+from backup** upload wants (`POST /api/admin/database/restore` looks for an entry named
+`daman_db.sqlite`), so it needs no repackaging.
+
+1. Remove leaves the client record in the admin panel alone. Confirm it still exists.
+2. **Create online client** for that client again. It gets a fresh unit, port and DNS, and a *new*
+   licence (the old one was revoked). Subdomain and port may differ from before.
+3. Fetch the zip: `scp root@162.55.51.189:/root/removed-stores/<code>-<date>.zip .`
+4. Sign in to the recreated store as an admin and upload that zip under Settings, Restore from backup.
+   The backend overwrites its database and exits, and `Restart=always` brings it back on the
+   restored data.
+5. Users and data live in that database, so the customer signs in with their old credentials.
+
+Not yet exercised end to end against a real removed store: rehearse it on a throwaway client before
+you need it.
+
+#### Forget row is not Remove
+
+| | Forget row (`DELETE /api/hosted-stores/<code>`, §10.5) | Remove (`POST .../remove`) |
+|---|---|---|
+| For | a mistyped or half-created store | a departed customer |
+| Row status | `FAILED` / `PROVISIONING` (the API refuses only `ACTIVE`) | `SUSPENDED` only |
+| Touches | the registry row, plus the `<sub>-api` ingress rule | unit, data, ingress rule, licence, row |
+| Backup | none (nothing to keep) | one zip, above |
+
+They are on different rows in the table on purpose. After Forget, §10.5's leftover list is yours: the
+unit, the data directory, both DNS records and the Pages custom domain. After Remove, the unit, data
+and ingress rule are gone, but **both DNS records and the Pages custom domain for `<sub>` are still
+yours to delete in Cloudflare**. The dashboard offers Forget only on `FAILED` rows, but the API
+refuses only `ACTIVE`, so never call it by hand on a `SUSPENDED` store: it would delete the row and
+leave a disabled unit and the customer's data on disk with no backup.
+
+A `FAILED` row also shows a **Resume** button. As built, it calls `/resume`, which is for
+`SUSPENDED` stores and answers 409 for `FAILED`. To resume a failed *provision*, re-run Create (§10.5).
+
+#### The two tokens
+
+The dashboard's token strip holds two tokens that look alike and are not interchangeable:
+
+- **Portal**: from a login at `admin.damansoft.com`. The fleet table, per-store actions, the three
+  script release buttons and Create all use it.
+- **Local**: from a login on the local admin portal (`:8083`). Used by Build Generic, versions and the
+  changelog library. The remote backend does not know it.
+
+Both are in-memory sessions that **die whenever their own backend restarts**, including on the Admin
+Backend deploy this same dashboard runs, which logs you out of the portal. The strip shows each
+token's state, and **only a 401 marks one expired**: a 5xx, a timeout or an unreachable backend says
+nothing about the token and leaves it as it was. So "expired" means paste a fresh one; anything else
+is a different problem.
