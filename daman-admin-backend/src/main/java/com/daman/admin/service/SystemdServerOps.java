@@ -9,6 +9,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -20,24 +21,24 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
-import java.io.OutputStream;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
-import java.util.Locale;
-import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * The real {@link ServerOps}: the only class in the hosted-store feature that runs a command,
@@ -148,15 +149,7 @@ public class SystemdServerOps implements ServerOps {
     public Optional<Instant> unitStartedAt(String serviceName) {
         requireSafeUnitName(serviceName);
         String value = runCapture("systemctl", "show", "-p", "ActiveEnterTimestamp", "--value", serviceName);
-        if (value.isBlank()) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(parseSystemdTimestamp(value.trim()));
-        } catch (DateTimeParseException e) {
-            log.warn("could not parse ActiveEnterTimestamp '{}' for {}", value, serviceName);
-            return Optional.empty();
-        }
+        return parseSystemdTimestamp(value);
     }
 
     @Override
@@ -224,7 +217,7 @@ public class SystemdServerOps implements ServerOps {
             throw new IllegalArgumentException("Refusing to delete " + path + " for client " + clientCode);
         }
         Path root = Path.of(path);
-        if (!Files.exists(root, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
             return;
         }
         try (Stream<Path> tree = Files.walk(root)) {
@@ -425,11 +418,36 @@ public class SystemdServerOps implements ServerOps {
 
     // ── internals ────────────────────────────────────────────────────────────
 
-    /** {@code EEE yyyy-MM-dd HH:mm:ss z}, with systemd's zone abbreviation (usually UTC). */
-    private static Instant parseSystemdTimestamp(String value) {
-        return ZonedDateTime
-                .parse(value, DateTimeFormatter.ofPattern("EEE yyyy-MM-dd HH:mm:ss z", Locale.ENGLISH))
-                .toInstant();
+    private static final Pattern SYSTEMD_TIMESTAMP =
+            Pattern.compile("(\\d{4}-\\d{2}-\\d{2})[ T](\\d{2}:\\d{2}:\\d{2})\\s+(\\S+)");
+
+    /**
+     * Parses systemd's {@code ActiveEnterTimestamp} ({@code Mon 2026-10-26 14:56:41 UTC}). Empty,
+     * with a WARN, for a blank or unparseable value: one misbehaving unit must not break a whole
+     * fleet poll, so callers treat empty as "unknown", never as "current".
+     *
+     * <p>Deliberately lenient where systemd varies: the leading day-of-week is ignored (the date is
+     * authoritative, so a wrong weekday cannot conflict), the zone may be an abbreviation
+     * ({@code UTC}, {@code EET}) or a numeric offset ({@code +03}, {@code +03:00}), nothing depends
+     * on the default locale, and the timestamp is found anywhere in the text so a warning line
+     * merged in from stderr does not hide it.
+     */
+    static Optional<Instant> parseSystemdTimestamp(String value) {
+        if (value == null || value.isBlank()) {
+            log.warn("systemd reported no start time (unit never started?)");
+            return Optional.empty();
+        }
+        Matcher m = SYSTEMD_TIMESTAMP.matcher(value);
+        while (m.find()) {
+            try {
+                ZoneId zone = ZoneId.of(m.group(3), ZoneId.SHORT_IDS);
+                return Optional.of(LocalDateTime.parse(m.group(1) + "T" + m.group(2)).atZone(zone).toInstant());
+            } catch (DateTimeException e) {
+                // try the next candidate, then give up below
+            }
+        }
+        log.warn("could not parse systemd timestamp '{}'", value);
+        return Optional.empty();
     }
 
     private static void requireSafeUnitName(String serviceName) {
