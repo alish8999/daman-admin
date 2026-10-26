@@ -33,6 +33,23 @@ class StorePathsTest {
         assertThat(StorePaths.isAllowedDataDir("/root/stores/acme/", "acme")).isFalse();
     }
 
+    @Test void databaseFileDiffersBetweenLegacyAndProvisionedShapes() {
+        // Verified on the live box 2026-10-26.
+        assertThat(StorePaths.databaseFile("/root/.daman/viora", "viora"))
+                .isEqualTo("/root/.daman/viora/daman_db.sqlite");
+        assertThat(StorePaths.databaseFile("/root/stores/daman", "daman"))
+                .isEqualTo("/root/stores/daman/.daman/daman/daman_db.sqlite");
+    }
+
+    @Test void databaseFileRefusesAnUnrecognisedShapeInsteadOfGuessing() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> StorePaths.databaseFile("/tmp/x", "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> StorePaths.databaseFile("/root/stores/a", "b"))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> StorePaths.databaseFile(null, "a"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test void removedBackupZipNamesByCodeAndDate() {
         assertThat(StorePaths.removedBackupZip("acme", LocalDate.of(2026, 10, 26)))
                 .isEqualTo("/root/removed-stores/acme-2026-10-26.zip");

@@ -1,10 +1,17 @@
 package com.daman.admin.service;
 
 import com.daman.admin.entity.HostedInstance;
+import com.daman.admin.entity.License;
 import com.daman.admin.repository.HostedInstanceRepository;
+import com.daman.admin.repository.LicenseRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Per-store lifecycle actions on the hosted-store fleet: suspend, resume, restart. Every OS fact
@@ -49,19 +56,23 @@ public class HostedStoreLifecycleService {
 
     private final HostedInstanceRepository repository;
     private final ServerOps ops;
+    private final LicenseRepository licenseRepository;
     private final int healthAttempts;
     private final long healthIntervalMs;
 
     @Autowired
-    public HostedStoreLifecycleService(HostedInstanceRepository repository, ServerOps ops) {
-        this(repository, ops, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
+    public HostedStoreLifecycleService(HostedInstanceRepository repository, ServerOps ops,
+                                       LicenseRepository licenseRepository) {
+        this(repository, ops, licenseRepository, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
     }
 
     /** Public so controller tests in another package can inject a no-clock wait; not for production wiring. */
     public HostedStoreLifecycleService(HostedInstanceRepository repository, ServerOps ops,
+                                LicenseRepository licenseRepository,
                                 int healthAttempts, long healthIntervalMs) {
         this.repository = repository;
         this.ops = ops;
+        this.licenseRepository = licenseRepository;
         this.healthAttempts = healthAttempts;
         this.healthIntervalMs = healthIntervalMs;
     }
@@ -133,6 +144,116 @@ public class HostedStoreLifecycleService {
                     + " 200 within " + healthAttempts + " polls.");
         }
         return new LifecycleResult(clientCode, ACTIVE, "Restarted and healthy.");
+    }
+
+    /**
+     * @param keptBackup    the zip taken before anything was deleted, or null when none was taken
+     * @param backupSkipped true when no database was left to copy (an earlier run already removed it)
+     * @param steps         what each step did, including the ones that found their target already gone
+     */
+    public record RemoveResult(String clientCode, String keptBackup, boolean backupSkipped,
+                               boolean licenceRevoked, List<String> steps) {}
+
+    /**
+     * Minimum-safe teardown of a departed customer's store (spec 9.3). The only irreversible action
+     * in the fleet feature, so every refusal happens in the preflight, before anything is touched.
+     *
+     * <p>Only a {@code SUSPENDED} store qualifies: the API mirrors the UI's deliberate two-step and
+     * guarantees the copy is taken from a cleanly stopped database. A missing database is not
+     * uniformly harmless. For a suspended (real) customer it means the path was derived wrongly, so
+     * the removal is refused rather than deleting the store with no copy. The one exception is when
+     * the data directory itself is already gone: a previous run got that far and died before
+     * deleting the row, and refusing would strand a half-removed store forever.
+     *
+     * <p>Every step after the backup tolerates its target already being absent. The data directory
+     * and the client code passed to {@code deleteTree} both come from the registry row, never from
+     * the caller.
+     */
+    public RemoveResult remove(String clientCode) {
+        HostedInstance row = find(clientCode);
+        if (!SUSPENDED.equals(row.getStatus())) {
+            throw new ConflictException("Hosted store '" + clientCode + "' is " + row.getStatus()
+                    + ", not SUSPENDED. Suspend it first: removal is only offered for a store that is"
+                    + " already stopped, so the backup is taken from a cleanly stopped database.");
+        }
+        String code = row.getClientCode();
+        String dataDir = row.getDataDir();
+        if (!StorePaths.isAllowedDataDir(dataDir, code)) {
+            throw new ConflictException("Refusing to remove '" + code + "': its registered data"
+                    + " directory " + dataDir + " is not one of the two places a store may live.");
+        }
+        String apiHostLabel = row.getApiHostname() == null ? "" : row.getApiHostname().split("\\.", 2)[0];
+        if (row.getSubdomain() == null || row.getApiHostname() == null
+                || !apiHostLabel.equals(row.getSubdomain() + "-api")
+                || SubdomainRules.RESERVED.contains(apiHostLabel)) {
+            throw new ConflictException("Refusing to remove '" + code + "': its API hostname "
+                    + row.getApiHostname() + " is not '<subdomain>-api' for this store, so dropping"
+                    + " its ingress rule could break another tenant.");
+        }
+        String dbFile = StorePaths.databaseFile(dataDir, code);
+        boolean dbPresent = ops.fileModifiedAt(dbFile).isPresent();
+        boolean dirPresent = ops.fileModifiedAt(dataDir).isPresent();
+        if (!dbPresent && dirPresent) {
+            throw new ConflictException("Refusing to remove '" + code + "': its data directory exists"
+                    + " but no database was found at " + dbFile + ". That means the path is wrong, not"
+                    + " that the customer has no data, and removing now would leave no copy.");
+        }
+
+        List<String> steps = new ArrayList<>();
+
+        ops.stopAndDisable(row.getServiceName());
+        steps.add("Stopped and disabled " + row.getServiceName() + " (already stopped if it was suspended).");
+
+        String keptBackup = null;
+        if (dbPresent) {
+            keptBackup = StorePaths.removedBackupZip(code, LocalDate.now());
+            ops.zipFileInto(dbFile, keptBackup, "daman_db.sqlite");
+            steps.add("Backed up " + dbFile + " to " + keptBackup + ".");
+        } else {
+            steps.add("No backup taken: the data directory " + dataDir + " is already gone, so an"
+                    + " earlier removal run deleted it.");
+        }
+
+        ops.deleteUnit(row.getServiceName());
+        steps.add("Deleted unit " + row.getServiceName() + " (no error if it was already gone).");
+
+        String ingress = ops.readIngress();
+        String edited = IngressEditor.removeRule(ingress, row.getApiHostname());
+        if (edited.equals(ingress)) {
+            steps.add("Ingress rule for " + row.getApiHostname() + " was already absent.");
+        } else {
+            ops.writeIngress(edited);
+            ops.reloadCloudflared();
+            steps.add("Removed the ingress rule for " + row.getApiHostname() + " and reloaded cloudflared.");
+        }
+
+        ops.deleteTree(dataDir, code);
+        steps.add(dirPresent ? "Deleted data directory " + dataDir + "."
+                : "Data directory " + dataDir + " was already absent.");
+
+        boolean licenceRevoked = revokeLicence(code);
+        steps.add(licenceRevoked ? "Revoked the store's licence." : "No licence row to revoke.");
+
+        repository.delete(row);
+        steps.add("Deleted the registry row.");
+        log.warn("Removed hosted store '{}'. Backup: {}. Steps: {}", code, keptBackup, steps);
+        return new RemoveResult(code, keptBackup, keptBackup == null, licenceRevoked, steps);
+    }
+
+    /** Same selection as {@code LicenseController.revokeByClient}: newest ACTIVE row, else newest row. */
+    private boolean revokeLicence(String clientCode) {
+        List<License> all = licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode);
+        if (all.isEmpty()) {
+            return false;
+        }
+        License license = all.stream()
+                .filter(l -> "ACTIVE".equals(l.getStatus()))
+                .findFirst()
+                .orElse(all.get(0));
+        license.setStatus("REVOKED");
+        license.setRevokedAt(LocalDateTime.now());
+        licenseRepository.save(license);
+        return true;
     }
 
     private HostedInstance find(String clientCode) {

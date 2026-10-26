@@ -30,6 +30,30 @@ public final class StorePaths {
         return path.equals(STORES_ROOT + clientCode) || path.equals(DAMAN_ROOT + clientCode);
     }
 
+    /**
+     * Where the store's SQLite file actually lives. The two store shapes differ, and assuming the
+     * legacy one for a provisioned store makes a backup step find nothing (verified live 2026-10-26):
+     * <ul>
+     *   <li>legacy ({@code /root/.daman/<code>}): {@code <dataDir>/daman_db.sqlite}</li>
+     *   <li>provisioned ({@code /root/stores/<code>}): a unit sets {@code -Duser.home=<dataDir>}, and
+     *       the desktop profile resolves {@code ${user.home}/.daman/${client-code}/daman_db.sqlite},
+     *       so {@code <dataDir>/.daman/<code>/daman_db.sqlite}</li>
+     * </ul>
+     * Throws for any other dataDir rather than guessing a shape.
+     */
+    public static String databaseFile(String dataDir, String clientCode) {
+        if (dataDir == null || clientCode == null || !SAFE_CODE.matcher(clientCode).matches()) {
+            throw new IllegalArgumentException("Cannot derive a database path for " + dataDir + " / " + clientCode);
+        }
+        if (dataDir.equals(DAMAN_ROOT + clientCode)) {
+            return dataDir + "/daman_db.sqlite";
+        }
+        if (dataDir.equals(STORES_ROOT + clientCode)) {
+            return dataDir + "/.daman/" + clientCode + "/daman_db.sqlite";
+        }
+        throw new IllegalArgumentException("Unrecognised data directory shape: " + dataDir);
+    }
+
     /** {@code /root/removed-stores/<clientCode>-<yyyy-MM-dd>.zip}. */
     public static String removedBackupZip(String clientCode, LocalDate date) {
         return REMOVED_ROOT + clientCode + "-" + date + ".zip";

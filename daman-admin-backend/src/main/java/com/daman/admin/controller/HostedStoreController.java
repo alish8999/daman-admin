@@ -333,6 +333,21 @@ public class HostedStoreController {
         return lifecycleCall(() -> lifecycle.restartOne(clientCode));
     }
 
+    /**
+     * Irreversible teardown of a SUSPENDED store, keeping one backup zip. 409 for a store that is
+     * not suspended or whose paths fail the safety checks, 404 for an unknown client.
+     */
+    @PostMapping("/{clientCode}/remove")
+    public ResponseEntity<?> remove(@PathVariable String clientCode) {
+        try {
+            return ResponseEntity.ok(lifecycle.remove(clientCode));
+        } catch (HostedStoreLifecycleService.NotFoundException e) {
+            return error(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (HostedStoreLifecycleService.ConflictException e) {
+            return error(e.getMessage(), HttpStatus.CONFLICT);
+        }
+    }
+
     /** 404 unknown client, 409 wrong status, 502 ran but never healthy (health wait is 75 s max). */
     private ResponseEntity<?> lifecycleCall(java.util.function.Supplier<HostedStoreLifecycleService.LifecycleResult> action) {
         try {
