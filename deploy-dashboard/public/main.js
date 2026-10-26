@@ -1,6 +1,96 @@
 (function () {
   const cards = document.querySelectorAll('.card');
 
+  // ── Token strip ──────────────────────────────────────────────────────────
+  // Two tokens, minted by two different backends, each valid only on its own: 'portal' (a login at
+  // admin.damansoft.com) and 'local' (the local admin backend on :8083). The strip is the only
+  // place either is entered; every card reads it from here. State comes from lib/token-state-core.js
+  // (served as /token-state-core.js): a 401 flips a token to expired, a 2xx back to active, and
+  // nothing else - a 5xx/503/network failure says nothing about the token.
+  const tokenCore = window.tokenStateCore;
+  const tokens = (function () {
+    const kinds = {
+      portal: { storageKey: 'remotePortalToken' },
+      local: { storageKey: 'buildGenericToken' },
+    };
+    Object.keys(kinds).forEach((kind) => {
+      const k = kinds[kind];
+      k.field = document.querySelector('.token-field[data-token-kind="' + kind + '"]');
+      k.input = k.field.querySelector('.token-input');
+      k.stateText = k.field.querySelector('[data-token-state-text]');
+      k.message = k.field.querySelector('[data-token-message]');
+      k.state = 'missing';
+      k.listeners = [];
+      // sessionStorage only: survives a reload of this tab, never touches disk, gone when it closes.
+      try {
+        const saved = sessionStorage.getItem(k.storageKey);
+        if (saved) k.input.value = saved;
+      } catch (err) {
+        // Blocked storage - the token just won't survive a reload.
+      }
+    });
+
+    function render(kind) {
+      const k = kinds[kind];
+      k.field.dataset.state = k.state;
+      k.stateText.textContent = k.state;
+      k.message.textContent = tokenCore.tokenMessage(kind, k.state);
+    }
+
+    function apply(kind, current, lastStatus) {
+      const k = kinds[kind];
+      k.state = tokenCore.nextTokenState(current, { hasValue: k.input.value.trim() !== '', lastStatus });
+      render(kind);
+    }
+
+    Object.keys(kinds).forEach((kind) => {
+      const k = kinds[kind];
+      apply(kind, 'active', null);
+      k.input.addEventListener('input', () => {
+        try {
+          sessionStorage.setItem(k.storageKey, k.input.value);
+        } catch (err) {
+          // Non-fatal.
+        }
+        // A newly pasted value has not been rejected by anything yet, so it starts from 'active'
+        // rather than inheriting the old value's expiry.
+        apply(kind, 'active', null);
+        k.listeners.forEach((fn) => fn());
+      });
+    });
+
+    const api = {
+      input(kind) { return kinds[kind].input; },
+      value(kind) { return kinds[kind].input.value.trim(); },
+      isExpired(kind) { return kinds[kind].state === 'expired'; },
+      // Runs after the strip has updated its own state for a newly pasted/edited value.
+      onInput(kind, fn) { kinds[kind].listeners.push(fn); },
+      observe(kind, status) { apply(kind, kinds[kind].state, status); },
+      // Wrap a fetch made with this token: its HTTP status (or the lack of one) is the evidence.
+      track(kind, request) {
+        return request.then(
+          (r) => { api.observe(kind, r.status); return r; },
+          (err) => { api.observe(kind, null); throw err; }
+        );
+      },
+    };
+    return api;
+  })();
+
+  // Slots whose script needs the portal token. EventSource cannot send an Authorization header and
+  // a token has no business in a URL, so each posts its OWN copy just before its OWN stream opens.
+  const PORTAL_TOKEN_SLOTS = new Set(['store-backend', 'store-deploy-only', 'store-restart-all']);
+
+  const newStoreBtn = document.getElementById('new-store-btn');
+  const newStorePanel = document.getElementById('new-store-panel');
+  if (newStoreBtn && newStorePanel) {
+    newStoreBtn.addEventListener('click', () => {
+      const opening = newStorePanel.hidden;
+      newStorePanel.hidden = !opening;
+      newStoreBtn.setAttribute('aria-expanded', String(opening));
+    });
+  }
+
   // Slots this page itself started (an EventSource is open for them), so the
   // /api/status poll never fights the live stream over the same button.
   const ownedBySource = new Set();
@@ -84,21 +174,6 @@
   pollHealth();
   setInterval(pollHealth, 30000);
 
-  // The hosted-store backend release calls an admin-token-gated route on the REMOTE portal, so
-  // it needs the same Bearer token the Create online client card already holds - there is no
-  // second token to paste. Read straight from that input (it is the live value; the card mirrors
-  // it into sessionStorage on every keystroke) and fall back to the stored copy in case this
-  // runs before that card has initialised.
-  function remotePortalToken() {
-    const input = document.querySelector('.create-token-input');
-    if (input && input.value.trim()) return input.value.trim();
-    try {
-      return (sessionStorage.getItem('remotePortalToken') || '').trim();
-    } catch (err) {
-      return ''; // storage blocked - the pasted value above is the only source
-    }
-  }
-
   cards.forEach((card) => {
     const slot = card.dataset.slot;
     const btn = card.querySelector('.deploy-btn');
@@ -131,10 +206,10 @@
       // so a slot that needs one hands it over in its own POST first and only then opens the
       // stream. Everything after this point is identical for every slot.
       let ready = Promise.resolve();
-      if (slot === 'store-backend') {
-        const token = remotePortalToken();
+      if (PORTAL_TOKEN_SLOTS.has(slot)) {
+        const token = tokens.value('portal');
         if (!token) {
-          footer.textContent = 'Paste the remote portal token in the "Create online client" card first.';
+          footer.textContent = 'Paste the portal token in the token strip first.';
           footer.className = 'footer failure';
           return;
         }
@@ -208,28 +283,10 @@
     const footer = card.querySelector('.footer');
     const versionInput = card.querySelector('.build-version-input');
     const platformChecks = card.querySelectorAll('.build-platform-check');
-    const tokenInput = card.querySelector('.build-token-input');
-
-    // sessionStorage only: survives a reload of this tab but never touches
-    // disk and disappears the moment the tab closes - no password is ever
-    // held here, only the short-lived session token a real admin-portal
-    // login already produced.
-    try {
-      const savedToken = sessionStorage.getItem('buildGenericToken');
-      if (savedToken) tokenInput.value = savedToken;
-    } catch (err) {
-      // Private-browsing/blocked storage - just skip persistence.
-    }
-    tokenInput.addEventListener('input', () => {
-      try {
-        sessionStorage.setItem('buildGenericToken', tokenInput.value);
-      } catch (err) {
-        // Same as above - non-fatal, the token just won't survive a reload.
-      }
-    });
+    const tokenInput = tokens.input('local');
 
     function authHeaders() {
-      const token = tokenInput.value.trim();
+      const token = tokens.value('local');
       return token ? { Authorization: `Bearer ${token}` } : {};
     }
 
@@ -305,7 +362,7 @@
     });
 
     function loadKnownVersions() {
-      return fetch('/api/versions', { headers: authHeaders() })
+      return tokens.track('local', fetch('/api/versions', { headers: authHeaders() }))
         .then((r) => (r.ok ? r.json() : []))
         .then((versions) => {
           knownVersions = Array.isArray(versions) ? versions : [];
@@ -317,7 +374,7 @@
         });
     }
     loadKnownVersions();
-    tokenInput.addEventListener('input', () => { loadKnownVersions(); });
+    tokens.onInput('local', () => { loadKnownVersions(); });
 
     // ── Changelog picker ─────────────────────────────────────────────────────
     let changelogLibrary = [];
@@ -487,11 +544,11 @@
 
     function persistLibrary() {
       modalSaving.hidden = false;
-      fetch('/api/changelog-library', {
+      tokens.track('local', fetch('/api/changelog-library', {
         method: 'PUT',
         headers: authJsonHeaders(),
         body: JSON.stringify(changelogLibrary),
-      })
+      }))
         .then((r) => {
           if (r.ok) return;
           if (r.status === 401) throw new Error('Session token is missing, wrong, or expired - paste a fresh one from the admin portal.');
@@ -517,7 +574,7 @@
       modalNewInputEn.value = '';
       modalNewInputAr.value = '';
       modalBackdrop.hidden = false;
-      fetch('/api/changelog-library', { headers: authHeaders() })
+      tokens.track('local', fetch('/api/changelog-library', { headers: authHeaders() }))
         .then((r) => {
           if (r.ok) return r.json();
           // 401 = bad/expired token (AuthFilter on :8083); 503 = the dashboard's
@@ -605,8 +662,8 @@
         changelogEntryIds: Array.from(changelogSelectedIds),
       };
       const req = existing
-        ? fetch(`/api/versions/${existing.id}`, { method: 'PUT', headers: authJsonHeaders(), body: JSON.stringify(payload) })
-        : fetch('/api/versions', { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) });
+        ? tokens.track('local', fetch(`/api/versions/${existing.id}`, { method: 'PUT', headers: authJsonHeaders(), body: JSON.stringify(payload) }))
+        : tokens.track('local', fetch('/api/versions', { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) }));
       // Best-effort, same as the admin portal's own confirmBuild() - a failure
       // here (e.g. duplicate versionNumber from a race) shouldn't block the build.
       return req.catch(() => {}).then(() => loadKnownVersions());
@@ -646,9 +703,24 @@
       btn.disabled = false;
     }
 
+    class TokenExpired extends Error {}
+
+    function stopPollingExpired() {
+      isPolling = false;
+      btn.disabled = false;
+      footer.textContent = 'Local token expired - stopped watching the build (it may still be running). Paste a fresh token to resume.';
+      footer.className = 'footer failure';
+    }
+
     function poll() {
-      fetch('/api/build/generic/status', { headers: authHeaders() })
-        .then((r) => r.json())
+      // Once the token reads expired the poll stops until a new value is pasted: every further
+      // tick would just be another 401. A build may still be running server-side; the message says so.
+      if (tokens.isExpired('local')) {
+        stopPollingExpired();
+        return;
+      }
+      tokens.track('local', fetch('/api/build/generic/status', { headers: authHeaders() }))
+        .then((r) => (r.status === 401 ? Promise.reject(new TokenExpired()) : r.json()))
         .then((data) => {
           renderNewLines(data.logs);
           if (data.status === 'BUILDING') {
@@ -663,7 +735,8 @@
           isPolling = false;
           btn.disabled = false;
         })
-        .catch(() => {
+        .catch((err) => {
+          if (err instanceof TokenExpired) { stopPollingExpired(); return; }
           footer.textContent = 'Lost contact with local admin-backend';
           footer.className = 'footer failure';
           isPolling = false;
@@ -684,10 +757,10 @@
       footer.textContent = `Building ${platform}...`;
       footer.className = 'footer';
 
-      fetch(`/api/build/generic?version=${encodeURIComponent(queuedVersion)}&platform=${encodeURIComponent(platform)}`, {
+      tokens.track('local', fetch(`/api/build/generic?version=${encodeURIComponent(queuedVersion)}&platform=${encodeURIComponent(platform)}`, {
         method: 'POST',
         headers: authHeaders(),
-      })
+      }))
         .then((r) => r.json().then((body) => ({ ok: r.ok, body })))
         .then(({ ok, body }) => {
           if (!ok) {
@@ -748,8 +821,9 @@
     });
 
     // On load, reflect a build already in progress (e.g. page reloaded mid-build).
-    fetch('/api/build/generic/status', { headers: authHeaders() })
-      .then((r) => r.json())
+    // Nothing to reflect (and nothing worth a 401) without a token.
+    if (tokens.value('local')) tokens.track('local', fetch('/api/build/generic/status', { headers: authHeaders() }))
+      .then((r) => (r.ok ? r.json() : { status: 'IDLE' }))
       .then((data) => {
         if (data.status !== 'BUILDING') return;
         btn.disabled = true;
@@ -773,7 +847,6 @@
     const card = document.querySelector('.card[data-slot="create-store"]');
     if (!card) return;
 
-    const tokenInput = card.querySelector('.create-token-input');
     const clientSelect = card.querySelector('.create-client-select');
     const expiryInput = card.querySelector('.create-expiry-input');
     const subdomainInput = card.querySelector('.create-subdomain-input');
@@ -784,16 +857,8 @@
     const footer = card.querySelector('.footer');
     const SUGGESTED_HINT = '(suggested from the client; editable)';
 
-    // sessionStorage only, same as the build card: gone when the tab closes.
-    try {
-      const saved = sessionStorage.getItem('remotePortalToken');
-      if (saved) tokenInput.value = saved;
-    } catch (err) {
-      // Blocked storage - the token just won't survive a reload.
-    }
-
     function authHeaders() {
-      const token = tokenInput.value.trim();
+      const token = tokens.value('portal');
       return token ? { Authorization: `Bearer ${token}` } : {};
     }
 
@@ -803,9 +868,8 @@
     }
 
     function readError(r, body) {
-      if (r.status === 401 || r.status === 403) {
-        return 'Remote token is missing, wrong, or expired - paste a fresh one from admin.damansoft.com.';
-      }
+      if (r.status === 401) return tokenCore.tokenMessage('portal', 'expired');
+      if (r.status === 403) return 'Forbidden (403): this portal token is not allowed to do that.';
       return (body && body.error) || `Request failed (HTTP ${r.status})`;
     }
 
@@ -814,8 +878,8 @@
     }
 
     function loadClients() {
-      if (!tokenInput.value.trim()) return;
-      fetch('/api/remote/clients', { headers: authHeaders() })
+      if (!tokens.value('portal')) return;
+      tokens.track('portal', fetch('/api/remote/clients', { headers: authHeaders() }))
         .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
         .then(({ r, body }) => {
           if (!r.ok || !Array.isArray(body)) {
@@ -845,12 +909,7 @@
     }
 
     let loadTimer = null;
-    tokenInput.addEventListener('input', () => {
-      try {
-        sessionStorage.setItem('remotePortalToken', tokenInput.value);
-      } catch (err) {
-        // Non-fatal.
-      }
+    tokens.onInput('portal', () => {
       clearTimeout(loadTimer);
       loadTimer = setTimeout(loadClients, 400);
     });
@@ -865,9 +924,9 @@
       subdomainInput.value = '';
       subdomainHint.textContent = SUGGESTED_HINT;
       if (!code) return;
-      fetch(`/api/remote/hosted-stores/suggest-subdomain?clientCode=${encodeURIComponent(code)}`, {
+      tokens.track('portal', fetch(`/api/remote/hosted-stores/suggest-subdomain?clientCode=${encodeURIComponent(code)}`, {
         headers: authHeaders(),
-      })
+      }))
         .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
         .then(({ r, body }) => {
           if (seq !== suggestSeq) return;
@@ -958,7 +1017,15 @@
       };
 
       const tick = () => {
-        fetch('/api/remote/hosted-stores', { headers: authHeaders() })
+        // An expired token stops the poll (every tick would be another 401); the server's
+        // provisioning carries on regardless and the row keeps the truth.
+        if (tokens.isExpired('portal')) {
+          setStatus('Portal token expired - stopped watching the registry. The server is still provisioning; paste a fresh token to resume.', 'failure');
+          appendLine(log, 'Stopped polling: portal token expired. Paste a fresh one, then read GET /api/hosted-stores.');
+          btn.disabled = false;
+          return;
+        }
+        tokens.track('portal', fetch('/api/remote/hosted-stores', { headers: authHeaders() }))
           .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
           .then(({ r, body }) => {
             // Both backend shapes (bare array / { stores }): see registry-rows.js.
@@ -995,7 +1062,7 @@
     btn.addEventListener('click', () => {
       const clientCode = clientSelect.value;
       const subdomain = subdomainInput.value.trim();
-      if (!tokenInput.value.trim()) { setStatus('Paste the remote portal token first.', 'failure'); return; }
+      if (!tokens.value('portal')) { setStatus('Paste the portal token in the token strip first.', 'failure'); return; }
       if (!clientCode) { setStatus('Select a client first.', 'failure'); return; }
       if (!subdomain) { setStatus('Enter a subdomain first.', 'failure'); return; }
 
@@ -1005,11 +1072,11 @@
       setStatus('Running...');
       appendLine(log, `Creating hosted store for ${clientCode} at ${subdomain}...`);
 
-      fetch('/api/remote/hosted-stores', {
+      tokens.track('portal', fetch('/api/remote/hosted-stores', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
         body: JSON.stringify({ clientCode, subdomain, expiresAt: expiryInput.value }),
-      })
+      }))
         .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
         .then(({ r, body }) => {
           const outcome = describe(r.status, body);

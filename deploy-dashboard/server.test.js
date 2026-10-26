@@ -653,3 +653,11 @@ test('an unreachable remote on a lifecycle route is reported as 503, never answe
     restoreRemote();
   }
 });
+
+test('the scripts index.html loads are actually served (registry-rows.js used to 404)', async () => {
+  for (const name of ['main.js', 'registry-rows.js', 'token-state-core.js']) {
+    const res = await get('/' + name);
+    assert.strictEqual(res.statusCode, 200, name);
+    assert.ok(res.body.length > 0, name);
+  }
+});

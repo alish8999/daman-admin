@@ -46,7 +46,95 @@
     </div>
   </section>
 
-  <main class="cards">
+    <section class="token-strip" aria-label="Session tokens">
+    <div class="token-strip-head">
+      <h2 class="section-label">Session tokens</h2>
+      <p class="token-strip-note">Two different backends, two different tokens: one is not valid on the other. Kept for this tab only. Every backend restart ends all sessions, so expect to paste fresh ones after an Admin Backend deploy.</p>
+    </div>
+    <div class="token-strip-fields">
+      <div class="token-field" data-token-kind="portal" data-state="missing">
+        <label for="token-portal-input" class="token-field-label">
+          <span class="token-dot" aria-hidden="true"></span>
+          <span class="token-field-name">Portal token</span>
+          <span class="token-state-text" data-token-state-text>missing</span>
+        </label>
+        <p class="token-field-scope"><code>admin-api.damansoft.com</code> &middot; hosted stores, store-backend deploys</p>
+        <input type="password" id="token-portal-input" class="token-input" placeholder="paste token from a login at admin.damansoft.com" autocomplete="off" spellcheck="false">
+        <p class="token-message" data-token-message role="status"></p>
+      </div>
+      <div class="token-field" data-token-kind="local" data-state="missing">
+        <label for="token-local-input" class="token-field-label">
+          <span class="token-dot" aria-hidden="true"></span>
+          <span class="token-field-name">Local token</span>
+          <span class="token-state-text" data-token-state-text>missing</span>
+        </label>
+        <p class="token-field-scope">local admin backend <code>:8083</code> &middot; Build Generic Installer, versions, changelog</p>
+        <input type="password" id="token-local-input" class="token-input" placeholder="paste token from a login on the local admin portal" autocomplete="off" spellcheck="false">
+        <p class="token-message" data-token-message role="status"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="fleet-section" aria-label="Hosted stores">
+    <div class="section-head">
+      <h2 class="section-label">Hosted stores</h2>
+      <button type="button" class="new-store-btn" id="new-store-btn" aria-expanded="false" aria-controls="new-store-panel">+ New store</button>
+    </div>
+    <!-- The store table is the next task and mounts here. -->
+    <div id="fleet-mount" class="fleet-mount"></div>
+    <div id="new-store-panel" hidden>
+      <section class="card" data-slot="create-store">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Create online client <span class="card-tag">remote</span></h2>
+          <p class="card-desc">Provisions a hosted store on the <strong>server</strong> via <code>admin-api.damansoft.com</code> (unit, tunnel rule, DNS, Pages hostname, licence). Safe to re-run: a failed store resumes where it stopped.</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <div class="build-fields">
+        <label class="version-field">
+          <span>Client</span>
+          <select class="build-platform-select create-client-select"><option value="">Paste a portal token above to load clients&hellip;</option></select>
+        </label>
+        <label class="version-field">
+          <span>Licence expires <span class="token-hint">(optional)</span></span>
+          <input type="date" class="build-version-input create-expiry-input">
+        </label>
+      </div>
+
+      <label class="version-field">
+        <span>Subdomain <span class="token-hint create-subdomain-hint">(suggested from the client; editable)</span></span>
+        <input type="text" class="build-version-input create-subdomain-input" placeholder="e.g. acme" autocomplete="off" spellcheck="false">
+      </label>
+
+      <button class="build-btn create-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Create</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing created yet."></pre>
+      </details>
+    </section>
+    </div>
+  </section>
+
+  <section class="other-deploys" aria-label="Other deploys">
+    <div class="section-head">
+      <h2 class="section-label">Other deploys</h2>
+    </div>
+    <main class="cards cards-compact">
     <section class="card" data-slot="backend">
       <div class="card-head">
         <div class="card-icon" aria-hidden="true">
@@ -105,6 +193,65 @@
       </details>
     </section>
 
+    <section class="card" data-slot="store-backend">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="17" r="1" fill="currentColor"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Hosted Store Backend <span class="card-tag">all stores</span></h2>
+          <p class="card-desc">Build daman-backend, upload the shared <code>daman-store.jar</code> &amp; restart every hosted store one at a time (the walk stops at the first unhealthy one, but the new jar is already on disk and stores not yet reached will load it on restart; previous jar kept as <code>.prev</code>; viora included, and restarted first)</p>
+          <p class="card-desc"><span class="token-hint">Needs the <strong>portal</strong> token in the strip above (the restart route is token-gated).</span></p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+    </section>
+
+    <section class="card" data-slot="store-frontend">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 8.5h18" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="6.25" r="0.75" fill="currentColor"/><circle cx="8.5" cy="6.25" r="0.75" fill="currentColor"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Hosted Store Frontend <span class="card-tag">shared</span></h2>
+          <p class="card-desc">Build the browser app &amp; publish it once to the shared Cloudflare Pages project (<code>daman-store</code>) that every store hostname points at</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+    </section>
+
     <div class="card-group">
     <section class="card" data-slot="build-generic">
       <div class="card-head">
@@ -131,11 +278,6 @@
           </div>
         </div>
       </div>
-
-      <label class="version-field">
-        <span>Session token <span class="token-hint">(from a local admin portal login, kept for this tab only)</span></span>
-        <input type="password" class="build-token-input" placeholder="paste token here" autocomplete="off" spellcheck="false">
-      </label>
 
       <label class="version-field">
         <span>Changelog</span>
@@ -203,118 +345,8 @@
       </details>
     </section>
     </div>
-
-    <div class="card-group">
-    <section class="card" data-slot="create-store">
-      <div class="card-head">
-        <div class="card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </div>
-        <div class="card-title">
-          <h2>Create online client <span class="card-tag">remote</span></h2>
-          <p class="card-desc">Provisions a hosted store on the <strong>server</strong> via <code>admin-api.damansoft.com</code> (unit, tunnel rule, DNS, Pages hostname, licence). Safe to re-run: a failed store resumes where it stopped.</p>
-        </div>
-        <span class="footer"></span>
-      </div>
-
-      <label class="version-field">
-        <span>Remote portal token <span class="token-hint">(Bearer token from a login at admin.damansoft.com, kept for this tab only &mdash; the local token is not valid there)</span></span>
-        <input type="password" class="create-token-input" placeholder="paste remote token here" autocomplete="off" spellcheck="false">
-      </label>
-
-      <div class="build-fields">
-        <label class="version-field">
-          <span>Client</span>
-          <select class="build-platform-select create-client-select"><option value="">Paste a token to load clients&hellip;</option></select>
-        </label>
-        <label class="version-field">
-          <span>Licence expires <span class="token-hint">(optional)</span></span>
-          <input type="date" class="build-version-input create-expiry-input">
-        </label>
-      </div>
-
-      <label class="version-field">
-        <span>Subdomain <span class="token-hint create-subdomain-hint">(suggested from the client; editable)</span></span>
-        <input type="text" class="build-version-input create-subdomain-input" placeholder="e.g. acme" autocomplete="off" spellcheck="false">
-      </label>
-
-      <button class="build-btn create-btn">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Create</span>
-      </button>
-
-      <details class="log-panel">
-        <summary class="log-panel-head">
-          <span class="log-dot" style="--dot-color:#ff5f57"></span>
-          <span class="log-dot" style="--dot-color:#febc2e"></span>
-          <span class="log-dot" style="--dot-color:#28c840"></span>
-          <span class="log-title">output</span>
-          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </summary>
-        <pre class="log" data-empty-text="Nothing created yet."></pre>
-      </details>
-    </section>
-
-    <section class="card" data-slot="store-backend">
-      <div class="card-head">
-        <div class="card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="18" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="17" r="1" fill="currentColor"/></svg>
-        </div>
-        <div class="card-title">
-          <h2>Hosted Store Backend <span class="card-tag">all stores</span></h2>
-          <p class="card-desc">Build daman-backend, upload the shared <code>daman-store.jar</code> &amp; restart every hosted store one at a time (the walk stops at the first unhealthy one, but the new jar is already on disk and stores not yet reached will load it on restart; previous jar kept as <code>.prev</code>; viora included, and restarted first)</p>
-          <p class="card-desc"><span class="token-hint">Uses the remote portal token from the <strong>Create online client</strong> card above &mdash; the restart route is token-gated. Paste it there first.</span></p>
-        </div>
-        <span class="footer"></span>
-      </div>
-
-      <button class="deploy-btn">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Deploy</span>
-      </button>
-
-      <details class="log-panel">
-        <summary class="log-panel-head">
-          <span class="log-dot" style="--dot-color:#ff5f57"></span>
-          <span class="log-dot" style="--dot-color:#febc2e"></span>
-          <span class="log-dot" style="--dot-color:#28c840"></span>
-          <span class="log-title">output</span>
-          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </summary>
-        <pre class="log" data-empty-text="Nothing run yet."></pre>
-      </details>
-    </section>
-
-    <section class="card" data-slot="store-frontend">
-      <div class="card-head">
-        <div class="card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 8.5h18" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="6.25" r="0.75" fill="currentColor"/><circle cx="8.5" cy="6.25" r="0.75" fill="currentColor"/></svg>
-        </div>
-        <div class="card-title">
-          <h2>Hosted Store Frontend <span class="card-tag">shared</span></h2>
-          <p class="card-desc">Build the browser app &amp; publish it once to the shared Cloudflare Pages project (<code>daman-store</code>) that every store hostname points at</p>
-        </div>
-        <span class="footer"></span>
-      </div>
-
-      <button class="deploy-btn">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Deploy</span>
-      </button>
-
-      <details class="log-panel">
-        <summary class="log-panel-head">
-          <span class="log-dot" style="--dot-color:#ff5f57"></span>
-          <span class="log-dot" style="--dot-color:#febc2e"></span>
-          <span class="log-dot" style="--dot-color:#28c840"></span>
-          <span class="log-title">output</span>
-          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </summary>
-        <pre class="log" data-empty-text="Nothing run yet."></pre>
-      </details>
-    </section>
-    </div>
-  </main>
+    </main>
+  </section>
 
   <div class="modal-backdrop" id="changelog-modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-modal-title">
@@ -343,6 +375,7 @@
   </div>
 
   <script src="registry-rows.js"></script>
+  <script src="token-state-core.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

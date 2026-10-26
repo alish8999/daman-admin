@@ -12,6 +12,7 @@ const { runScript } = require('./lib/script-runner');
 const PORT = 5500;
 const HOST = '127.0.0.1';
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const LIB_DIR = path.join(__dirname, 'lib');
 const GENERIC_BUILD_DIR = path.join(__dirname, '..', '..', 'clients-build', 'generic');
 
 // What "/api/health" reports on. Read-only, best-effort - purely informational,
@@ -105,6 +106,11 @@ const STATIC_FILES = {
   '/': { file: 'index.html', type: 'text/html; charset=utf-8' },
   '/main.js': { file: 'main.js', type: 'application/javascript; charset=utf-8' },
   '/style.css': { file: 'style.css', type: 'text/css; charset=utf-8' },
+  // Loaded by index.html BEFORE main.js. registry-rows.js was referenced there but never listed
+  // here, so it 404ed and registryRows was undefined at runtime.
+  '/registry-rows.js': { file: 'registry-rows.js', type: 'application/javascript; charset=utf-8' },
+  // Lives in lib/ so node's tests can require it; served from there rather than copied.
+  '/token-state-core.js': { dir: LIB_DIR, file: 'token-state-core.js', type: 'application/javascript; charset=utf-8' },
 };
 
 // CSRF guard: every endpoint here is side-effecting or local-only, and the
@@ -128,7 +134,7 @@ function isSameOrigin(req) {
 }
 
 function serveStatic(res, entry) {
-  const filePath = path.join(PUBLIC_DIR, entry.file);
+  const filePath = path.join(entry.dir || PUBLIC_DIR, entry.file);
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
