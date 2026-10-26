@@ -1138,6 +1138,7 @@
   (function initFleetTable() {
     const mount = document.getElementById('fleet-mount');
     const meta = document.getElementById('fleet-meta');
+    const boxStrip = document.getElementById('fleet-box');
     if (!mount || !meta) return;
 
     const core = window.storeRowCore;
@@ -1191,6 +1192,8 @@
       const now = Date.now();
       meta.textContent = [core.capacityLabel(lastFleet), 'Jar on disk: ' + core.formatJarTime(lastFleet && lastFleet.jarModifiedAt, now)]
         .filter(Boolean).join(' · ');
+      // '' (no boxStats from the backend) empties the element, which CSS hides: no skeleton.
+      if (boxStrip) boxStrip.textContent = core.boxLabel(lastFleet);
 
       if (lastRows.length === 0) {
         showMessage('No hosted stores yet. Use + New store.');
@@ -1200,7 +1203,9 @@
       const table = el('table', 'fleet-table');
       const thead = el('thead');
       const head = el('tr');
-      ['Store', 'Hostnames', 'Port', 'Status', 'Backup', 'Actions'].forEach((t) => head.append(el('th', null, t)));
+      // The Memory column exists only when the backend reports memoryBytes at all (older ones do not).
+      const showMemory = lastRows.some((s) => s && s.memoryBytes !== undefined);
+      ['Store', 'Hostnames', 'Port', 'Status'].concat(showMemory ? ['Memory'] : [], ['Backup', 'Actions']).forEach((t) => head.append(el('th', null, t)));
       thead.append(head);
       table.append(thead);
 
@@ -1230,6 +1235,8 @@
         if (label.stalenessClass) status.append(el('span', 'pill pill-' + label.stalenessClass, label.stalenessClass));
         if (label.detail) status.append(el('div', 'cell-sub', label.detail));
         tr.append(status);
+
+        if (showMemory) tr.append(el('td', 'cell-backup', core.memoryLabel(store.memoryBytes, store.liveStatus)));
 
         tr.append(el('td', 'cell-backup', core.backupLabel(store, now)));
 

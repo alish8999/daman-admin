@@ -26,10 +26,11 @@ public class HostedStoreStatusService {
 
     /** {@code backupSizeBytes} and {@code startedAt} are null when not known. */
     public record LiveState(String liveStatus, String staleness, Instant startedAt,
-                            String backupAt, Long backupSizeBytes) {}
+                            String backupAt, Long backupSizeBytes, Long memoryBytes) {}
 
     public record FleetState(List<LiveState> states, Instant jarModifiedAt, long totalMemoryMb,
-                             int committedStores, int heapMb, int maxStores) {}
+                             int committedStores, int heapMb, int maxStores,
+                             ServerOps.BoxStats boxStats) {}
 
     private final ServerOps ops;
 
@@ -43,9 +44,11 @@ public class HostedStoreStatusService {
         Instant jarAt = ops.fileModifiedAt(StoreUnitRenderer.SHARED_JAR).orElse(null);
         List<LiveState> states = rows.stream().map(r -> of(r, jarAt)).toList();
         long totalMb = ops.totalMemoryMb();
+        // Empty (unreadable) leaves the rest of the response intact: the strip just does not render.
+        ServerOps.BoxStats box = ops.boxStats().orElse(null);
         return new FleetState(states, jarAt, totalMb, rows.size(), StoreUnitRenderer.HEAP_MB,
                 HostedCapacity.maxStores(totalMb, StoreUnitRenderer.HEAP_MB,
-                        HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
+                        HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB), box);
     }
 
     /**
@@ -58,7 +61,7 @@ public class HostedStoreStatusService {
             return probe(row, sharedJarModifiedAt);
         } catch (RuntimeException e) {
             log.warn("Could not read live state of hosted store '{}': {}", row.getClientCode(), e.toString());
-            return new LiveState(UNKNOWN, UNKNOWN, null, UNKNOWN, null);
+            return new LiveState(UNKNOWN, UNKNOWN, null, UNKNOWN, null, null);
         }
     }
 
@@ -86,7 +89,10 @@ public class HostedStoreStatusService {
             staleness = startedAt.isBefore(sharedJarModifiedAt) ? "stale" : "current";
         }
 
-        return new LiveState(live, staleness, startedAt, backupAt(backup), backupSize(backup));
+        // A stopped unit is charged nothing and 0 would read as a real measurement, so only a unit
+        // that is up is asked; unreadable stays null (unknown).
+        Long memory = "stopped".equals(live) ? null : ops.storeMemoryBytes(row.getServiceName()).orElse(null);
+        return new LiveState(live, staleness, startedAt, backupAt(backup), backupSize(backup), memory);
     }
 
     /** A row with no dataDir yet (early PROVISIONING) has no backups directory to ask about. */
@@ -105,6 +111,6 @@ public class HostedStoreStatusService {
     }
 
     private static LiveState notProbed(String live, Optional<ServerOps.BackupInfo> backup) {
-        return new LiveState(live, UNKNOWN, null, backupAt(backup), backupSize(backup));
+        return new LiveState(live, UNKNOWN, null, backupAt(backup), backupSize(backup), null);
     }
 }

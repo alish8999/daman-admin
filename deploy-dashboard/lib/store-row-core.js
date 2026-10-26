@@ -173,5 +173,63 @@
     return Math.floor(min / 60) + ' h old';
   }
 
-  return { lifecycleRouteFor, readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
+
+  // ── Live server stats ──────────────────────────────────────────────────────
+  // DECIMAL units (1 GB = 1000^3 bytes), deliberately NOT the 1024-based units size() uses for
+  // backups. The Hetzner console advertises this box as 4 GB RAM / 40 GB disk, which is the same
+  // MemTotal / filesystem size in decimal; 1024-based units would read 3.7 / 37 beside it and look
+  // like a fault in the server. Do not "correct" these to 1024.
+  const GB = 1e9;
+  const MB = 1e6;
+
+  function isCount(n) { return typeof n === 'number' && Number.isFinite(n) && n >= 0; }
+
+  function dec(n) { return n < 10 ? n.toFixed(1) : String(Math.round(n)); }
+
+  // "used / total UNIT", in the total's unit so the pair reads on one scale. Null when either is unknown.
+  function pairLabel(used, total) {
+    if (!isCount(used) || !isCount(total) || total <= 0 || used > total) return null;
+    const div = total >= GB ? GB : MB;
+    return dec(used / div) + ' / ' + dec(total / div) + (div === GB ? ' GB' : ' MB');
+  }
+
+  function uptimeLabel(sec) {
+    if (!isCount(sec)) return null;
+    if (sec >= 86400) return 'up ' + Math.floor(sec / 86400) + 'd';
+    if (sec >= 3600) return 'up ' + Math.floor(sec / 3600) + 'h';
+    return 'up ' + Math.floor(sec / 60) + 'm';
+  }
+
+  // The box-health strip. '' (render nothing) when the backend sent no boxStats (older backend, or
+  // the box could not read them). A single unreadable field is omitted, never shown as 0.
+  function boxLabel(fleet) {
+    const b = fleet && typeof fleet === 'object' ? fleet.boxStats : null;
+    if (!b || typeof b !== 'object') return '';
+    const parts = [];
+    const ram = isCount(b.ramTotalBytes) && isCount(b.ramAvailableBytes)
+      ? pairLabel(b.ramTotalBytes - b.ramAvailableBytes, b.ramTotalBytes) : null;
+    if (ram) parts.push('RAM ' + ram);
+    if (isCount(b.load1)) {
+      const cores = Number.isInteger(b.cores) && b.cores > 0 ? ' (' + b.cores + (b.cores === 1 ? ' core)' : ' cores)') : '';
+      parts.push('load ' + b.load1.toFixed(2) + cores);
+    }
+    const disk = isCount(b.diskTotalBytes) && isCount(b.diskUsableBytes)
+      ? pairLabel(b.diskTotalBytes - b.diskUsableBytes, b.diskTotalBytes) : null;
+    if (disk) parts.push('disk ' + disk);
+    const up = uptimeLabel(b.uptimeSeconds);
+    if (up) parts.push(up);
+    return parts.length ? ['box'].concat(parts).join(' · ') : '';
+  }
+
+  // One store's own memory. undefined = backend does not report it -> '' (nothing). A unit that is
+  // not running has no memory to report -> 'not running'. null/garbage for a unit that should be up
+  // -> 'unknown', never 0.
+  function memoryLabel(bytes, liveStatus) {
+    if (bytes === undefined) return '';
+    if (liveStatus === 'stopped' || liveStatus === 'suspended' || liveStatus === 'failed') return 'not running';
+    if (!isCount(bytes)) return 'unknown';
+    return bytes >= GB ? dec(bytes / GB) + ' GB' : Math.round(bytes / MB) + ' MB';
+  }
+
+  return { boxLabel, memoryLabel, lifecycleRouteFor, readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
 });

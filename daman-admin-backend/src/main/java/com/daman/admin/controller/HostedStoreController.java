@@ -113,7 +113,7 @@ public class HostedStoreController {
             String apiHostname, String frontendHostname, String status, String failedStage,
             LocalDateTime createdAt, LocalDateTime updatedAt,
             String liveStatus, String staleness, Instant startedAt,
-            String backupAt, Long backupSizeBytes) {
+            String backupAt, Long backupSizeBytes, Long memoryBytes) {
 
         /** Registry facts only (provision/forget answers): the live fields are not probed here. */
         static HostedStoreDto of(HostedInstance i) {
@@ -128,13 +128,15 @@ public class HostedStoreController {
                     live == null ? null : live.staleness(),
                     live == null ? null : live.startedAt(),
                     live == null ? null : live.backupAt(),
-                    live == null ? null : live.backupSizeBytes());
+                    live == null ? null : live.backupSizeBytes(),
+                    live == null ? null : live.memoryBytes());
         }
     }
 
     /** The list response: the stores plus the fleet-level numbers a dashboard header needs. */
     public record FleetDto(List<HostedStoreDto> stores, Instant jarModifiedAt, long totalMemoryMb,
-                           int committedStores, int heapMb, int maxStores) {}
+                           int committedStores, int heapMb, int maxStores,
+                           ServerOps.BoxStats boxStats) {}
 
     @PostMapping
     public ResponseEntity<?> provision(@RequestBody(required = false) ProvisionBody body) {
@@ -240,7 +242,7 @@ public class HostedStoreController {
             stores.add(HostedStoreDto.of(rows.get(n), fleet.states().get(n)));
         }
         return new FleetDto(stores, fleet.jarModifiedAt(), fleet.totalMemoryMb(),
-                fleet.committedStores(), fleet.heapMb(), fleet.maxStores());
+                fleet.committedStores(), fleet.heapMb(), fleet.maxStores(), fleet.boxStats());
     }
 
     /**

@@ -757,6 +757,14 @@ class HostedStoreProvisioningServiceTest {
             return jarModified;
         }
 
+        @Override public Optional<BoxStats> boxStats() {
+            return Optional.empty();
+        }
+
+        @Override public Optional<Long> storeMemoryBytes(String serviceName) {
+            return Optional.empty();
+        }
+
         @Override public Optional<BackupInfo> newestBackup(String dir) {
             calls.add("newestBackup:" + dir);
             return newestBackup;

@@ -398,6 +398,77 @@ public class SystemdServerOps implements ServerOps {
         }
     }
 
+    static final String PROC = "/proc";
+    static final String CGROUP_SYSTEM_SLICE = "/sys/fs/cgroup/system.slice";
+    static final String DISK_PATH = "/root";
+
+    @Override
+    public Optional<BoxStats> boxStats() {
+        try {
+            long[] mem = parseMeminfo(Files.readString(Path.of(PROC, "meminfo"), StandardCharsets.UTF_8));
+            Double load = parseFirstNumber(Files.readString(Path.of(PROC, "loadavg"), StandardCharsets.UTF_8));
+            Double up = parseFirstNumber(Files.readString(Path.of(PROC, "uptime"), StandardCharsets.UTF_8));
+            java.nio.file.FileStore disk = Files.getFileStore(Path.of(DISK_PATH));
+            long diskTotal = disk.getTotalSpace();
+            long diskUsable = disk.getUsableSpace();
+            if (mem == null || load == null || up == null || diskTotal <= 0 || diskUsable < 0) {
+                return Optional.empty();
+            }
+            return Optional.of(new BoxStats(mem[0], mem[1], load,
+                    Runtime.getRuntime().availableProcessors(), diskTotal, diskUsable, up.longValue()));
+        } catch (IOException | RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<Long> storeMemoryBytes(String serviceName) {
+        try {
+            requireSafeUnitName(serviceName);
+            Path file = Path.of(CGROUP_SYSTEM_SLICE, serviceName + ".service", "memory.current");
+            return parseNonNegativeLong(Files.readString(file, StandardCharsets.UTF_8));
+        } catch (IOException | RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static final Pattern MEMINFO_LINE = Pattern.compile("^(MemTotal|MemAvailable):\\s+(\\d{1,15})\\s*kB\\s*$");
+
+    /** {total, available} in BYTES from /proc/meminfo text (values are kB), or null if either line is absent/garbled. */
+    static long[] parseMeminfo(String text) {
+        Long total = null;
+        Long available = null;
+        for (String line : text.split("\\R")) {
+            Matcher m = MEMINFO_LINE.matcher(line);
+            if (!m.matches()) continue;
+            long bytes = Long.parseLong(m.group(2)) * 1024;
+            if (m.group(1).equals("MemTotal")) total = bytes;
+            else available = bytes;
+        }
+        return (total == null || available == null || total <= 0 || available > total) ? null : new long[] {total, available};
+    }
+
+    /** First whitespace-separated field of a /proc file as a finite non-negative number, else null. */
+    static Double parseFirstNumber(String text) {
+        if (text == null) return null;
+        String[] parts = text.trim().split("\\s+");
+        try {
+            double d = Double.parseDouble(parts[0]);
+            return Double.isFinite(d) && d >= 0 ? d : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    static Optional<Long> parseNonNegativeLong(String text) {
+        try {
+            long v = Long.parseLong(text.trim());
+            return v >= 0 ? Optional.of(v) : Optional.empty();
+        } catch (NumberFormatException | NullPointerException e) {
+            return Optional.empty();
+        }
+    }
+
     @Override
     public long totalMemoryMb() {
         Path meminfo = Path.of("/proc/meminfo");

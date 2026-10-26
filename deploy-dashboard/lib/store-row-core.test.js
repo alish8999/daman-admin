@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor } = require('./store-row-core');
+const { boxLabel, memoryLabel, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor } = require('./store-row-core');
 
 test('an ACTIVE store offers restart and suspend, never remove', () => {
   assert.deepStrictEqual(actionsFor('ACTIVE'), ['restart', 'suspend']);
@@ -196,4 +196,58 @@ test('only the real lifecycle actions map to a route; retry-provisioning and for
   assert.strictEqual(lifecycleRouteFor('retry-provisioning'), null);
   assert.strictEqual(lifecycleRouteFor('forget-row'), null);
   assert.strictEqual(lifecycleRouteFor('nonsense'), null);
+});
+
+// Real readings from the box (decimal units on purpose: they must match the Hetzner console's 4 GB / 40 GB).
+const BOX = { ramTotalBytes: 3906292 * 1024, ramAvailableBytes: 1596532 * 1024, load1: 0.01, cores: 2,
+  diskTotalBytes: 39956590592, diskUsableBytes: 39956590592 - 3871309824, uptimeSeconds: 3687582.7 };
+
+test('boxLabel renders the real box in decimal units', () => {
+  assert.strictEqual(boxLabel({ boxStats: BOX }), 'box · RAM 2.4 / 4.0 GB · load 0.01 (2 cores) · disk 3.9 / 40 GB · up 42d');
+});
+
+test('boxLabel RAM used is total minus AVAILABLE (not free)', () => {
+  const l = boxLabel({ boxStats: Object.assign({}, BOX, { ramAvailableBytes: 3000e6, ramTotalBytes: 4000e6 }) });
+  assert.match(l, /RAM 1\.0 \/ 4\.0 GB/);
+});
+
+test('boxLabel is empty, not a skeleton, when boxStats is absent or null', () => {
+  assert.strictEqual(boxLabel({ stores: [] }), '');
+  assert.strictEqual(boxLabel({ boxStats: null }), '');
+  assert.strictEqual(boxLabel(null), '');
+  assert.strictEqual(boxLabel(undefined), '');
+  assert.strictEqual(boxLabel({ boxStats: {} }), '');
+});
+
+test('boxLabel omits an unreadable field instead of showing 0 or undefined', () => {
+  const l = boxLabel({ boxStats: { load1: 0.5, cores: 1, uptimeSeconds: 7200, ramTotalBytes: 'x' } });
+  assert.strictEqual(l, 'box · load 0.50 (1 core) · up 2h');
+  assert.doesNotMatch(l, /undefined|NaN|RAM|disk/);
+});
+
+test('boxLabel rejects impossible pairs (available > total) rather than render a negative', () => {
+  const l = boxLabel({ boxStats: Object.assign({}, BOX, { ramAvailableBytes: BOX.ramTotalBytes + 1 }) });
+  assert.doesNotMatch(l, /RAM/);
+});
+
+test('boxLabel uptime scales d / h / m', () => {
+  const up = (s) => boxLabel({ boxStats: { uptimeSeconds: s } });
+  assert.strictEqual(up(86400 * 3 + 5), 'box · up 3d');
+  assert.strictEqual(up(5 * 3600 + 59), 'box · up 5h');
+  assert.strictEqual(up(125), 'box · up 2m');
+});
+
+test('memoryLabel is decimal MB / GB', () => {
+  assert.strictEqual(memoryLabel(682250240, 'running'), '682 MB');
+  assert.strictEqual(memoryLabel(759160832, 'running'), '759 MB');
+  assert.strictEqual(memoryLabel(1500000000, 'running'), '1.5 GB');
+});
+
+test('memoryLabel: absent field is blank, null is unknown, never 0', () => {
+  assert.strictEqual(memoryLabel(undefined, 'running'), '');
+  assert.strictEqual(memoryLabel(null, 'running'), 'unknown');
+  assert.strictEqual(memoryLabel(NaN, 'running'), 'unknown');
+  assert.strictEqual(memoryLabel(-1, 'running'), 'unknown');
+  assert.strictEqual(memoryLabel(null, 'suspended'), 'not running');
+  assert.strictEqual(memoryLabel(null, 'stopped'), 'not running');
 });

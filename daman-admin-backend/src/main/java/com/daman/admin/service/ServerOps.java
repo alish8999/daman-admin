@@ -25,6 +25,14 @@ public interface ServerOps {
     /** The newest backup file in a directory: name only (no path), size and last-modified time. */
     record BackupInfo(String name, long sizeBytes, Instant modifiedAt) {}
 
+    /**
+     * Live numbers about the box itself, read from files (no process spawn). Every field is
+     * required: a box that can only report some of them reports none (empty), so a caller never has
+     * to render a half-known strip.
+     */
+    record BoxStats(long ramTotalBytes, long ramAvailableBytes, double load1, int cores,
+                    long diskTotalBytes, long diskUsableBytes, long uptimeSeconds) {}
+
     /** Creates the directory and every missing parent. No-op when it already exists. */
     void mkdir(String path);
 
@@ -91,6 +99,15 @@ public interface ServerOps {
      * reading, which a freshly booted JVM makes look far rosier than it is.
      */
     long totalMemoryMb();
+
+    /** Box RAM/load/disk/uptime from /proc and the filesystem. Empty, never an exception, when unreadable. */
+    Optional<BoxStats> boxStats();
+
+    /**
+     * Memory charged to one store's systemd unit (cgroup v2 {@code memory.current}), in bytes.
+     * Empty, never an exception, when the file is missing or unparseable (cgroup v1, unit not running).
+     */
+    Optional<Long> storeMemoryBytes(String serviceName);
 
     /** {@code systemctl disable --now <serviceName>}: stops it and keeps it from starting on boot. */
     void stopAndDisable(String serviceName);

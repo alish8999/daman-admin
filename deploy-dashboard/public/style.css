@@ -1073,6 +1073,7 @@ body {
 }
 
 .fleet-meta:empty { display: none; }
+.fleet-box { margin-top: -0.4rem; }
 
 .fleet-mount {
   background: var(--surface);

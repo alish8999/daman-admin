@@ -191,4 +191,51 @@ class HostedStoreStatusServiceTest {
         verify(ops, times(1)).totalMemoryMb();
         assertThat(fleet.jarModifiedAt()).isEqualTo(JAR_AT);
     }
+
+    private static final ServerOps.BoxStats BOX = new ServerOps.BoxStats(
+            3906292L * 1024, 1596532L * 1024, 0.01, 2, 39956590592L, 3871309824L, 3687582L);
+
+    @Test
+    void aRunningStoreCarriesItsOwnMemory() {
+        when(ops.storeMemoryBytes("daman-store-acme")).thenReturn(Optional.of(682250240L));
+        assertThat(service.of(row, JAR_AT).memoryBytes()).isEqualTo(682250240L);
+    }
+
+    @Test
+    void anUnreadableMemoryFileIsNullNotZero() {
+        when(ops.storeMemoryBytes(anyString())).thenReturn(Optional.empty());
+        var s = service.of(row, JAR_AT);
+        assertThat(s.liveStatus()).isEqualTo("running");
+        assertThat(s.memoryBytes()).isNull();
+    }
+
+    @Test
+    void aStoppedOrSuspendedStoreIsNotAskedForMemory() {
+        when(ops.unitActive(anyString())).thenReturn(false);
+        assertThat(service.of(row, JAR_AT).memoryBytes()).isNull();
+        assertThat(service.of(row("s", "SUSPENDED"), JAR_AT).memoryBytes()).isNull();
+        verify(ops, never()).storeMemoryBytes(anyString());
+    }
+
+    @Test
+    void aThrowingMemoryReadDegradesOnlyThatRow() {
+        when(ops.storeMemoryBytes("daman-store-bad")).thenThrow(new IllegalStateException("boom"));
+        when(ops.storeMemoryBytes("daman-store-good")).thenReturn(Optional.of(5L));
+        var fleet = service.describe(List.of(row("good", "ACTIVE"), row("bad", "ACTIVE")));
+        assertThat(fleet.states().get(0).memoryBytes()).isEqualTo(5L);
+        assertThat(fleet.states().get(1).liveStatus()).isEqualTo("unknown");
+        assertThat(fleet.states().get(1).memoryBytes()).isNull();
+    }
+
+    @Test
+    void describeCarriesTheBoxStatsAndAnUnreadableBoxLeavesTheRestIntact() {
+        when(ops.boxStats()).thenReturn(Optional.of(BOX));
+        assertThat(service.describe(List.of(row("a", "ACTIVE"))).boxStats()).isEqualTo(BOX);
+
+        when(ops.boxStats()).thenReturn(Optional.empty());
+        var fleet = service.describe(List.of(row("a", "ACTIVE")));
+        assertThat(fleet.boxStats()).isNull();
+        assertThat(fleet.states()).hasSize(1);
+        assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
+    }
 }

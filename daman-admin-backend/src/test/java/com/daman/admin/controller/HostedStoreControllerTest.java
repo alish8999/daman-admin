@@ -311,8 +311,14 @@ class HostedStoreControllerTest {
         when(ops.health(9101)).thenReturn(true);
         when(ops.unitStartedAt("daman-store-abu_ammar"))
                 .thenReturn(Optional.of(jarAt.minusSeconds(60)));
+        when(ops.storeMemoryBytes("daman-store-abu_ammar")).thenReturn(Optional.of(682250240L));
+        ServerOps.BoxStats box = new ServerOps.BoxStats(4000000000L, 1600000000L, 0.01, 2, 40000000000L, 36000000000L, 3687582L);
+        when(ops.boxStats()).thenReturn(Optional.of(box));
 
         HostedStoreController.FleetDto fleet = controller.list();
+        assertThat(fleet.boxStats()).isEqualTo(box);
+        assertThat(fleet.stores().get(0).memoryBytes()).isEqualTo(682250240L);
+        assertThat(fleet.stores().get(1).memoryBytes()).isNull();
 
         assertThat(fleet.jarModifiedAt()).isEqualTo(jarAt);
         assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
