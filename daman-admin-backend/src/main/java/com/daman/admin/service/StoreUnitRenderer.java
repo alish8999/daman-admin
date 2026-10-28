@@ -48,6 +48,12 @@ public final class StoreUnitRenderer {
             // Without a per-store secret the backend falls back to the public default: forgeable tokens.
             throw new IllegalStateException("HostedInstance has no jwtSecret; refusing to render a unit");
         }
+        if (i.getApiHostname() == null || i.getApiHostname().isBlank()) {
+            // It feeds DAMAN_GOOGLE_REDIRECT_URI. Rendering "https://null/..." would start the store
+            // fine and fail only when someone tried to connect Google Drive, with a message pointing
+            // at Google rather than at this.
+            throw new IllegalStateException("HostedInstance has no apiHostname; refusing to render a unit");
+        }
         String home = dataDir(i.getClientCode());
         String unit = """
                 [Unit]
@@ -63,6 +69,20 @@ public final class StoreUnitRenderer {
                 Environment=SPRING_PROFILES_ACTIVE=desktop
                 Environment=DAMAN_JWT_SECRET=%3$s
                 Environment=DAMAN_BACKUP_DIR=%4$s/backups
+                # Google Drive backup: a hosted store runs SPRING_PROFILES_ACTIVE=desktop, so without
+                # this it would inherit application-desktop.yml's http://localhost:<port> default and
+                # Google would send the shop owner's BROWSER to their own machine. Not secret, and it
+                # differs per store, so it belongs in the unit.
+                Environment=DAMAN_GOOGLE_REDIRECT_URI=https://%8$s/api/backup/google-drive/callback
+                # The WEB-type OAuth client id and secret, shared by every store on this host. Kept in
+                # one root-only file rather than copied into each unit: it is a credential, and units
+                # are world-readable. The leading '-' makes it optional, so a host that has never set
+                # up Google Drive backup still starts normally - the add-on simply reports itself as
+                # not configured. Create it as:
+                #   printf 'DAMAN_GOOGLE_CLIENT_ID=...\\nDAMAN_GOOGLE_CLIENT_SECRET=...\\n' > /etc/daman/google.env
+                #   chmod 600 /etc/daman/google.env
+                # A DESKTOP-type client will NOT work here: it cannot register a fixed https redirect.
+                EnvironmentFile=-/etc/daman/google.env
                 ExecStart=/usr/bin/java -Xmx%7$dm -Duser.home=%4$s -jar %5$s
                 # "always", not "on-failure": Settings -> Restore DB (and other in-app restarts) make the backend exit
                 # with status 0 on purpose, expecting Electron's shell to relaunch it. on-failure treats a clean exit
@@ -75,7 +95,7 @@ public final class StoreUnitRenderer {
                 [Install]
                 WantedBy=multi-user.target
                 """.formatted(i.getClientCode(), i.getPort(), i.getJwtSecret(), home, SHARED_JAR,
-                        i.getServiceName(), HEAP_MB);
+                        i.getServiceName(), HEAP_MB, i.getApiHostname());
         return unit.replace("\r\n", "\n");
     }
 }
