@@ -131,6 +131,7 @@ export interface ClientFeatures {
   fixedAssets?: boolean;
   /** Device Repair tickets — standalone repair/service ticket module ($20 add-on). */
   deviceRepair?: boolean;
+  googleDriveBackup?: boolean;
 }
 
 export interface ClientConfig {

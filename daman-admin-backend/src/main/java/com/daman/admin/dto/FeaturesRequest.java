@@ -67,4 +67,6 @@ public class FeaturesRequest {
     private Boolean fixedAssets;
     /** Device Repair tickets — standalone repair/service ticket module. */
     private Boolean deviceRepair;
+    /** Google Drive backup — daily backup also uploaded to the client's own Drive. */
+    private Boolean googleDriveBackup;
 }

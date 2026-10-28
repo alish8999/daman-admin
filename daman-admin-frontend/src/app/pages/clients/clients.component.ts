@@ -249,6 +249,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     consignment:       { label: 'Consignment',    icon: '🚚' },
     shareholders:      { label: 'Shareholders',   icon: '🤝' },
     deviceRepair:      { label: 'Device Repair',  icon: '🔧' },
+    googleDriveBackup: { label: 'Google Drive Backup', icon: '☁️' },
   };
 
   private static readonly PAID_FEATURES_VISIBLE_LIMIT = 3;

@@ -314,6 +314,7 @@ public class ClientConfigService {
             if (patch.getShareholders()         != null) f.setShareholders(patch.getShareholders());
             if (patch.getFixedAssets()          != null) f.setFixedAssets(patch.getFixedAssets());
             if (patch.getDeviceRepair()         != null) f.setDeviceRepair(patch.getDeviceRepair());
+            if (patch.getGoogleDriveBackup()    != null) f.setGoogleDriveBackup(patch.getGoogleDriveBackup());
         }
         try {
             entity.setFeaturesJson(objectMapper.writeValueAsString(f));
@@ -359,6 +360,7 @@ public class ClientConfigService {
                 .shareholders(f.isShareholders())
                 .fixedAssets(f.isFixedAssets())
                 .deviceRepair(f.isDeviceRepair())
+                .googleDriveBackup(f.isGoogleDriveBackup())
                 .build();
     }
 
@@ -399,6 +401,7 @@ public class ClientConfigService {
                 .shareholders(f.isShareholders())
                 .fixedAssets(f.isFixedAssets())
                 .deviceRepair(f.isDeviceRepair())
+                .googleDriveBackup(f.isGoogleDriveBackup())
                 .build();
     }
 

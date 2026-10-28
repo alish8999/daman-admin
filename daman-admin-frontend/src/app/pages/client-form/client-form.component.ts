@@ -214,7 +214,8 @@ export class ClientFormComponent implements OnInit {
         consignment:          [false],
         shareholders:         [false],
         fixedAssets:          [true],
-        deviceRepair:         [false]
+        deviceRepair:         [false],
+        googleDriveBackup:    [false]
       })
     });
     this.passwordVisible = false;
@@ -268,7 +269,8 @@ export class ClientFormComponent implements OnInit {
             consignment:          client.features?.consignment          ?? false,
             shareholders:         client.features?.shareholders         ?? false,
             fixedAssets:          client.features?.fixedAssets          ?? true,
-            deviceRepair:         client.features?.deviceRepair         ?? false
+            deviceRepair:         client.features?.deviceRepair         ?? false,
+            googleDriveBackup:    client.features?.googleDriveBackup    ?? false
           }
         });
       });

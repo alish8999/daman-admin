@@ -406,4 +406,45 @@ class ClientConfigServiceTest {
 
         assertThatThrownBy(() -> f.service().delete("nope")).isInstanceOf(RuntimeException.class);
     }
+
+    @Test
+    void googleDriveBackup_roundTripsCreateToExportWithoutLoss() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+
+        when(repository.existsByClientCode("acme")).thenReturn(false);
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setClientCode("acme");
+        request.setAppName("Acme POS");
+        FeaturesRequest features = new FeaturesRequest();
+        features.setGoogleDriveBackup(true);
+        request.setFeatures(features);
+
+        // merge: request patch -> persisted featuresJson
+        service.create(request);
+        org.mockito.ArgumentCaptor<ClientConfig> captor = org.mockito.ArgumentCaptor.forClass(ClientConfig.class);
+        verify(repository).save(captor.capture());
+        ClientConfig saved = captor.getValue();
+        assertThat(saved.getFeaturesJson()).contains("\"googleDriveBackup\":true");
+
+        // export: persisted featuresJson -> export DTO
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(saved));
+        assertThat(service.export("acme").getFeatures().isGoogleDriveBackup()).isTrue();
+    }
+
+    @Test
+    void googleDriveBackup_defaultsFalseWhenAbsentFromPersistedJson() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setFeaturesJson("{\"fixedAssets\":true}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+
+        assertThat(service.export("acme").getFeatures().isGoogleDriveBackup()).isFalse();
+    }
 }

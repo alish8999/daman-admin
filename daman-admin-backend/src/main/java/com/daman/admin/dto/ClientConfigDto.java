@@ -101,5 +101,7 @@ public class ClientConfigDto {
         private boolean fixedAssets;
         /** Device Repair tickets — standalone repair/service ticket module. */
         private boolean deviceRepair;
+        /** Google Drive backup — daily backup also uploaded to the client's own Drive. */
+        private boolean googleDriveBackup;
     }
 }

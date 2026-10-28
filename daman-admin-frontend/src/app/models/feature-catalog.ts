@@ -73,6 +73,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'shareholders',    group: 'addons', icon: 'bi-person-badge',        price: 20, labelKey: 'featShareholders',   descKey: 'featShareholdersDesc' },
   { key: 'fixedAssets',     group: 'addons', icon: 'bi-building',            price: 0,  labelKey: 'featFixedAssets',    descKey: 'featFixedAssetsDesc' },
   { key: 'deviceRepair',    group: 'addons', icon: 'bi-tools',               price: 20, labelKey: 'featDeviceRepair',    descKey: 'featDeviceRepairDesc' },
+  { key: 'googleDriveBackup', group: 'addons', icon: 'bi-cloud-upload',     price: 10, labelKey: 'featGoogleDriveBackup', descKey: 'featGoogleDriveBackupDesc' },
 
   // ── Developer / testing (not a purchasable client feature) ──────────────
   { key: 'simulatePosMode', group: 'developer', icon: 'bi-window-fullscreen', price: 0, labelKey: 'featSimulatePosMode', descKey: 'featSimulatePosModeDesc' },

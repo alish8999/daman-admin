@@ -98,7 +98,7 @@ class TrialPresetServiceTest {
 
     @Test
     void baseCoversEveryLicenceFlagExceptQuickPickCards() {
-        // 34 flags in ClientConfigExportDto.FeaturesDto minus quickPickCards.
-        assertThat(TrialPresetService.BASE_FEATURES).hasSize(33);
+        // 35 flags in ClientConfigExportDto.FeaturesDto minus quickPickCards.
+        assertThat(TrialPresetService.BASE_FEATURES).hasSize(34);
     }
 }
