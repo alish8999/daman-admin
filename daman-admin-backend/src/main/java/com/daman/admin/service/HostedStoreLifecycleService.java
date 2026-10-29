@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Per-store lifecycle actions on the hosted-store fleet: suspend, resume, restart. Every OS fact
@@ -144,6 +145,117 @@ public class HostedStoreLifecycleService {
                     + " 200 within " + healthAttempts + " polls.");
         }
         return new LifecycleResult(clientCode, ACTIVE, "Restarted and healthy.");
+    }
+
+    /**
+     * Re-renders one ACTIVE store's systemd unit from the registry row and restarts it, so a store
+     * provisioned before a unit-template change picks that change up.
+     *
+     * <p>Why this exists: {@code writeUnit} runs only in the {@code UNIT} provisioning stage, so a
+     * store's unit is frozen at the moment it was created. Deploying a new jar and restarting does
+     * not touch it. When viora needed the Google Drive settings its unit had been written weeks
+     * earlier and had neither {@code DAMAN_GOOGLE_REDIRECT_URI} nor the credentials
+     * {@code EnvironmentFile}, so the feature reported itself unconfigured with nothing in the UI
+     * to fix it — the unit had to be hand-edited over SSH. This is that hand-edit, made repeatable.
+     *
+     * <p>Skips the restart entirely when the rendered unit already matches what is on disk, so it
+     * is safe to run across the fleet: an up-to-date store is left running untouched.
+     *
+     * <p><b>Refuses to rotate the JWT signing secret.</b> The unit carries
+     * {@code DAMAN_JWT_SECRET}, and if the registry row has drifted from the running unit a blind
+     * rewrite would silently sign out every user of that store mid-shift. That is a decision for a
+     * human, so it is a 409 unless {@code allowSecretChange} is explicitly set.
+     *
+     * @param allowSecretChange permit a rewrite that changes {@code DAMAN_JWT_SECRET} (signs
+     *                          everyone out of that store)
+     */
+    public LifecycleResult syncUnit(String clientCode, boolean allowSecretChange) {
+        HostedInstance row = find(clientCode);
+        if (SUSPENDED.equals(row.getStatus())) {
+            throw new ConflictException("Hosted store '" + clientCode + "' is suspended; resume it"
+                    + " first, then sync its config.");
+        }
+        if (!ACTIVE.equals(row.getStatus())) {
+            throw new ConflictException("Hosted store '" + clientCode + "' is " + row.getStatus()
+                    + ", not ACTIVE; only an ACTIVE store's config can be synced.");
+        }
+
+        String rendered = StoreUnitRenderer.render(row);
+        String current = ops.readUnit(row.getServiceName()).orElse(null);
+        if (rendered.equals(current)) {
+            return new LifecycleResult(clientCode, ACTIVE, "Config already up to date; nothing changed.");
+        }
+
+        List<String> changed = changedKeys(current, rendered);
+        // Only a REPLACED secret signs anyone out. A unit that is missing entirely, or that has no
+        // DAMAN_JWT_SECRET line at all, has no live sessions to invalidate — and blocking those
+        // would refuse exactly the broken-unit case this exists to repair.
+        String currentSecret = settings(current).get(JWT_SECRET_KEY);
+        boolean rotatesSecret = currentSecret != null && changed.contains(JWT_SECRET_KEY);
+        if (rotatesSecret && !allowSecretChange) {
+            throw new ConflictException("Syncing '" + clientCode + "' would change its"
+                    + " DAMAN_JWT_SECRET, which signs out everyone currently using that store."
+                    + " Re-run with allowSecretChange=true if that is intended.");
+        }
+
+        ops.writeUnit(row.getServiceName(), rendered);
+        ops.daemonReloadAndStart(row.getServiceName());
+
+        // A restart is only earned by a changed SETTING. The texts can differ while every setting
+        // matches — a reordered line, a reworded comment, or a unit someone hand-edited to the same
+        // effect — and bouncing a live till to converge a comment would be downtime for nothing.
+        // The file is still rewritten above, so the drift is gone either way.
+        if (changed.isEmpty()) {
+            log.info("Synced unit text for hosted store '{}'; no setting changed, so no restart", clientCode);
+            return new LifecycleResult(clientCode, ACTIVE,
+                    "Service file rewritten; no setting changed, so the store was not restarted.");
+        }
+
+        ops.restart(row.getServiceName());
+        String what = String.join(", ", changed);
+        if (!waitHealthy(row.getPort())) {
+            return new LifecycleResult(clientCode, UNHEALTHY, "Config synced (" + what + "), but"
+                    + " /api/health never answered 200 within " + healthAttempts + " polls.");
+        }
+        log.info("Synced unit for hosted store '{}' ({})", clientCode, what);
+        return new LifecycleResult(clientCode, ACTIVE, "Config synced (" + what + ") and healthy.");
+    }
+
+    static final String JWT_SECRET_KEY = "DAMAN_JWT_SECRET";
+
+    /**
+     * The setting NAMES that differ between two unit texts — never their values. The unit holds the
+     * JWT signing secret and this string reaches an HTTP response and the log, so reporting values
+     * would leak it. A key present in one text and absent in the other counts as changed.
+     */
+    private static List<String> changedKeys(String current, String rendered) {
+        Map<String, String> before = settings(current);
+        Map<String, String> after = settings(rendered);
+        java.util.Set<String> keys = new java.util.TreeSet<>(before.keySet());
+        keys.addAll(after.keySet());
+        List<String> changed = new ArrayList<>();
+        for (String k : keys) {
+            if (!java.util.Objects.equals(before.get(k), after.get(k))) changed.add(k);
+        }
+        return changed;
+    }
+
+    /** {@code Environment=K=V} -> {@code K -> V}, plus {@code EnvironmentFile} and {@code ExecStart}. */
+    private static Map<String, String> settings(String unitText) {
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        if (unitText == null) return out;
+        for (String line : unitText.split("\n")) {
+            String s = line.strip();
+            if (s.startsWith("Environment=")) {
+                String kv = s.substring("Environment=".length());
+                int eq = kv.indexOf('=');
+                if (eq > 0) out.put(kv.substring(0, eq), kv.substring(eq + 1));
+            } else if (s.startsWith("EnvironmentFile=") || s.startsWith("ExecStart=")) {
+                int eq = s.indexOf('=');
+                out.put(s.substring(0, eq), s.substring(eq + 1));
+            }
+        }
+        return out;
     }
 
     /**

@@ -669,6 +669,11 @@ class HostedStoreProvisioningServiceTest {
             units.put(serviceName, unitText);
         }
 
+        /** Reads back whatever writeUnit stored, so a re-render sees the same text a real box would. */
+        @Override public java.util.Optional<String> readUnit(String serviceName) {
+            return java.util.Optional.ofNullable(units.get(serviceName));
+        }
+
         @Override public void daemonReloadAndStart(String serviceName) {
             calls.add("start:" + serviceName);
         }

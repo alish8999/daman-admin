@@ -355,6 +355,23 @@ public class HostedStoreController {
     }
 
     /**
+     * Re-renders one ACTIVE store's systemd unit from its registry row and restarts it, so a store
+     * created before a unit-template change picks that change up. A unit is written once, at
+     * provisioning, and a jar redeploy never rewrites it — this is the only way to roll a template
+     * change out to stores that already exist.
+     *
+     * <p>No-op (200, "already up to date") when the rendered unit matches what is on disk, so it is
+     * safe to run against the whole fleet. 409 when it would change {@code DAMAN_JWT_SECRET},
+     * which signs out everyone on that store, unless {@code allowSecretChange=true} says so
+     * deliberately.
+     */
+    @PostMapping("/{clientCode}/sync-unit")
+    public ResponseEntity<?> syncUnit(@PathVariable String clientCode,
+                                      @RequestParam(defaultValue = "false") boolean allowSecretChange) {
+        return lifecycleCall(() -> lifecycle.syncUnit(clientCode, allowSecretChange));
+    }
+
+    /**
      * Irreversible teardown of a SUSPENDED store, keeping one backup zip. 409 for a store that is
      * not suspended or whose paths fail the safety checks, 404 for an unknown client.
      */

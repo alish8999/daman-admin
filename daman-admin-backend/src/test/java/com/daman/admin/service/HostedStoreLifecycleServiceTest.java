@@ -409,4 +409,144 @@ class HostedStoreLifecycleServiceTest {
         o.verify(ops).stopAndDisable("daman-store-acme");
         o.verify(ops).zipFileInto(any(), any(), any());
     }
+
+    // ------------------------------------------------------- syncUnit (unit re-render)
+
+    /** Gives the row what StoreUnitRenderer demands, and returns the text it renders. */
+    private String givenRenderableRow() {
+        row.setJwtSecret("secret-aaa");
+        return StoreUnitRenderer.render(row);
+    }
+
+    @Test
+    void syncUnitDoesNothingWhenTheUnitOnDiskAlreadyMatches() {
+        String rendered = givenRenderableRow();
+        when(ops.readUnit("daman-store-acme")).thenReturn(Optional.of(rendered));
+
+        LifecycleResult r = service.syncUnit("acme", false);
+
+        assertThat(r.status()).isEqualTo("ACTIVE");
+        assertThat(r.message()).contains("already up to date");
+        // The whole point of running this across a fleet: an up-to-date store is never restarted.
+        verify(ops, never()).writeUnit(anyString(), anyString());
+        verify(ops, never()).restart(anyString());
+    }
+
+    @Test
+    void syncUnitRewritesAndRestartsWhenTheUnitIsStale() {
+        givenRenderableRow();
+        when(ops.readUnit("daman-store-acme")).thenReturn(Optional.of("""
+                [Service]
+                Environment=DAMAN_PORT=8091
+                Environment=DAMAN_JWT_SECRET=secret-aaa
+                ExecStart=/usr/bin/java -jar x
+                """));
+        when(ops.health(8091)).thenReturn(true);
+
+        LifecycleResult r = service.syncUnit("acme", false);
+
+        InOrder order = inOrder(ops);
+        order.verify(ops).writeUnit(eq("daman-store-acme"), anyString());
+        order.verify(ops).restart("daman-store-acme");
+        assertThat(r.status()).isEqualTo("ACTIVE");
+        // The Google settings are exactly what viora's frozen unit was missing.
+        assertThat(r.message()).contains("DAMAN_GOOGLE_REDIRECT_URI");
+    }
+
+    /** The message reaches an HTTP response and the log; the unit holds the JWT signing secret. */
+    @Test
+    void syncUnitReportsChangedKeyNamesButNeverTheirValues() {
+        givenRenderableRow();
+        when(ops.readUnit(anyString())).thenReturn(Optional.of("""
+                [Service]
+                ExecStart=/old
+                """));
+        when(ops.health(anyInt())).thenReturn(true);
+
+        LifecycleResult r = service.syncUnit("acme", false);
+
+        assertThat(r.message()).contains("DAMAN_JWT_SECRET");
+        assertThat(r.message()).doesNotContain("secret-aaa");
+    }
+
+    @Test
+    void syncUnitRefusesToRotateTheJwtSecretUnlessAsked() {
+        givenRenderableRow();
+        when(ops.readUnit(anyString())).thenReturn(Optional.of("""
+                [Service]
+                Environment=DAMAN_JWT_SECRET=a-different-secret
+                """));
+
+        assertThatThrownBy(() -> service.syncUnit("acme", false))
+                .isInstanceOf(HostedStoreLifecycleService.ConflictException.class)
+                .hasMessageContaining("signs out everyone");
+        verify(ops, never()).writeUnit(anyString(), anyString());
+        verify(ops, never()).restart(anyString());
+    }
+
+    @Test
+    void syncUnitRotatesTheJwtSecretWhenExplicitlyAllowed() {
+        givenRenderableRow();
+        when(ops.readUnit(anyString())).thenReturn(Optional.of("""
+                [Service]
+                Environment=DAMAN_JWT_SECRET=a-different-secret
+                """));
+        when(ops.health(anyInt())).thenReturn(true);
+
+        LifecycleResult r = service.syncUnit("acme", true);
+
+        assertThat(r.status()).isEqualTo("ACTIVE");
+        verify(ops).writeUnit(eq("daman-store-acme"), anyString());
+    }
+
+    @Test
+    void syncUnitTreatsAMissingUnitAsStaleRatherThanFailing() {
+        givenRenderableRow();
+        when(ops.readUnit(anyString())).thenReturn(Optional.empty());
+        when(ops.health(anyInt())).thenReturn(true);
+
+        assertThat(service.syncUnit("acme", false).status()).isEqualTo("ACTIVE");
+        verify(ops).writeUnit(eq("daman-store-acme"), anyString());
+    }
+
+    /**
+     * viora's real state after its unit was hand-edited over SSH: every setting correct, but the
+     * text differs from the renderer's (different line order, no explanatory comments). Converging
+     * that text must not cost a live till a restart.
+     */
+    @Test
+    void syncUnitRewritesButDoesNotRestartWhenOnlyTheTextDiffers() {
+        String rendered = givenRenderableRow();
+        // Same settings, different presentation: comments stripped and a blank line added.
+        String handEdited = rendered.replace("# ", "## ") + "\n";
+        when(ops.readUnit(anyString())).thenReturn(Optional.of(handEdited));
+
+        LifecycleResult r = service.syncUnit("acme", false);
+
+        assertThat(r.status()).isEqualTo("ACTIVE");
+        assertThat(r.message()).contains("not restarted");
+        verify(ops).writeUnit(eq("daman-store-acme"), anyString());
+        verify(ops, never()).restart(anyString());
+        verify(ops, never()).health(anyInt());
+    }
+
+    @Test
+    void syncUnitRefusesASuspendedStore() {
+        row.setStatus("SUSPENDED");
+
+        assertThatThrownBy(() -> service.syncUnit("acme", false))
+                .isInstanceOf(HostedStoreLifecycleService.ConflictException.class);
+        verify(ops, never()).writeUnit(anyString(), anyString());
+    }
+
+    @Test
+    void syncUnitReportsUnhealthyWhenTheStoreNeverComesBack() {
+        givenRenderableRow();
+        when(ops.readUnit(anyString())).thenReturn(Optional.empty());
+        when(ops.health(anyInt())).thenReturn(false);
+
+        LifecycleResult r = service.syncUnit("acme", false);
+
+        assertThat(r.status()).isEqualTo("UNHEALTHY");
+    }
 }

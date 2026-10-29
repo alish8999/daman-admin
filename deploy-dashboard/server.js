@@ -561,7 +561,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const lifecycleMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)[/](suspend|resume|restart|remove)$/.exec(pathname);
+  const lifecycleMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)[/](suspend|resume|restart|remove|sync-unit)$/.exec(pathname);
   if (req.method === 'POST' && lifecycleMatch) {
     const code = lifecycleMatch[1];
     if (!STORE_CODE_PATTERN.test(code)) {

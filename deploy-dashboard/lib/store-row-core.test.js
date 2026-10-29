@@ -2,9 +2,23 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { boxLabel, memoryLabel, hasMemory, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor } = require('./store-row-core');
 
-test('an ACTIVE store offers restart and suspend, never remove', () => {
-  assert.deepStrictEqual(actionsFor('ACTIVE'), ['restart', 'suspend']);
+test('an ACTIVE store offers restart, sync-unit and suspend, never remove', () => {
+  assert.deepStrictEqual(actionsFor('ACTIVE'), ['restart', 'sync-unit', 'suspend']);
   assert.ok(!actionsFor('ACTIVE').includes('remove'));
+});
+
+// sync-unit rewrites a unit and can restart a live store, so it must never be offered on a status
+// whose backend route would refuse it (the service 409s anything but ACTIVE).
+test('sync-unit is offered only on ACTIVE', () => {
+  for (const s of ['SUSPENDED', 'FAILED', 'PROVISIONING', 'SOMETHING_NEW', undefined]) {
+    assert.ok(!actionsFor(s).includes('sync-unit'), String(s));
+  }
+});
+
+test('sync-unit maps to its own lifecycle route, and unknown actions map to nothing', () => {
+  assert.strictEqual(lifecycleRouteFor('sync-unit'), 'sync-unit');
+  assert.strictEqual(lifecycleRouteFor('retry-provisioning'), null, 'not a lifecycle call');
+  assert.strictEqual(lifecycleRouteFor('forget-row'), null, 'a DELETE, not a POST');
 });
 
 test('a SUSPENDED store offers resume and remove', () => {

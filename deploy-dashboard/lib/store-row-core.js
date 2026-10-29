@@ -15,7 +15,10 @@
   // Per registry status. 'remove' (destroys data, keeps one backup) and 'forget-row' (registry row
   // only) are different operations on different rows and must never be offered together.
   const ACTIONS = {
-    ACTIVE: ['restart', 'suspend'],
+    // 'sync-unit' re-renders the systemd unit from the registry row. A unit is written ONCE, at
+    // provisioning, and a jar redeploy never rewrites it, so a store created before a template
+    // change stays frozen on the old one until this is run. It is a no-op when already current.
+    ACTIVE: ['restart', 'sync-unit', 'suspend'],
     SUSPENDED: ['resume', 'remove'],
     // NOT 'resume': the lifecycle /resume route only un-suspends and 409s on a FAILED row.
     // 'retry-provisioning' re-runs Create (which picks up at failedStage); it is a page action,
@@ -31,7 +34,7 @@
   // The lifecycle routes (POST /api/remote/hosted-stores/{code}/<route>) an action maps to. Actions
   // absent here are NOT lifecycle calls: retry-provisioning opens the New store panel, forget-row
   // is a DELETE. main.js posts only through this map, so an action cannot reach a route by accident.
-  const LIFECYCLE_ROUTE = { restart: 'restart', suspend: 'suspend', resume: 'resume', remove: 'remove' };
+  const LIFECYCLE_ROUTE = { restart: 'restart', 'sync-unit': 'sync-unit', suspend: 'suspend', resume: 'resume', remove: 'remove' };
 
   function lifecycleRouteFor(action) {
     return Object.prototype.hasOwnProperty.call(LIFECYCLE_ROUTE, action) ? LIFECYCLE_ROUTE[action] : null;

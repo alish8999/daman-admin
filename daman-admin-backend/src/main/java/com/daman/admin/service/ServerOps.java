@@ -42,6 +42,13 @@ public interface ServerOps {
      */
     void writeUnit(String serviceName, String unitText);
 
+    /**
+     * The current text of {@code /etc/systemd/system/<serviceName>.service}, or empty when no such
+     * unit exists. Used to tell a unit that is already current from one that has drifted behind the
+     * renderer, so a config sync can skip the restart when nothing would change.
+     */
+    Optional<String> readUnit(String serviceName);
+
     /** {@code systemctl daemon-reload} then {@code systemctl enable --now <serviceName>}. */
     void daemonReloadAndStart(String serviceName);
 

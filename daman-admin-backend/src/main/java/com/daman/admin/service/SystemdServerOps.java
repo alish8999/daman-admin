@@ -102,6 +102,20 @@ public class SystemdServerOps implements ServerOps {
     }
 
     @Override
+    public Optional<String> readUnit(String serviceName) {
+        requireSafeUnitName(serviceName);
+        Path unit = Path.of(unitDir, serviceName + ".service");
+        try {
+            return Files.exists(unit) ? Optional.of(Files.readString(unit)) : Optional.empty();
+        } catch (IOException e) {
+            // Unreadable is reported as absent, never as a failure: the only caller compares the
+            // text to decide whether a rewrite is needed, and "cannot tell" must mean "rewrite it".
+            log.warn("Could not read unit {} - {}", unit, e.toString());
+            return Optional.empty();
+        }
+    }
+
+    @Override
     public void daemonReloadAndStart(String serviceName) {
         requireSafeUnitName(serviceName);
         run("systemctl", "daemon-reload");

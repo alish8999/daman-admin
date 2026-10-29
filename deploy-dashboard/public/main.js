@@ -1144,7 +1144,7 @@
     const core = window.storeRowCore;
     const FLEET_POLL_MS = 10000;
     const ACTION_LABEL = {
-      restart: 'Restart', suspend: 'Suspend', resume: 'Resume', remove: 'Remove…', 'forget-row': 'Forget row',
+      restart: 'Restart', 'sync-unit': 'Sync config', suspend: 'Suspend', resume: 'Resume', remove: 'Remove…', 'forget-row': 'Forget row',
       'retry-provisioning': 'Retry provisioning',
     };
     // Remove and Forget row look and read differently on purpose: Remove destroys a customer's data,
@@ -1418,6 +1418,12 @@
         // Restart bounces a LIVE store: its till is down until the backend answers health again.
         if (!window.confirm('Restart ' + domain + '?\n\nThe store will be briefly unavailable (typically 30 to 60 seconds) while it comes back. Anyone mid-sale on it will be interrupted.')) return;
         runAction(code, 'Restarting', () => post(code, 'restart'));
+      } else if (action === 'sync-unit') {
+        // Rewrites the store's systemd unit from the registry row, so a store created before a
+        // unit-template change picks it up. Costs a restart ONLY when something actually differs;
+        // an already-current store answers "nothing changed" and keeps running untouched.
+        if (!window.confirm('Sync config for ' + domain + '?\n\nRewrites its service file from the registry so it picks up settings added since it was created.\n\nIf anything differs the store restarts and is briefly unavailable (typically 30 to 60 seconds). If it is already up to date, nothing happens at all.')) return;
+        runAction(code, 'Syncing config for', () => post(code, 'sync-unit'));
       } else if (action === 'remove') {
         openRemove(code);
       } else if (action === 'retry-provisioning') {
