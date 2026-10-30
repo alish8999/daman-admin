@@ -57,13 +57,23 @@ public class AuthFilter implements Filter {
      * publishing it to the internet reveals nothing that was not already customer-facing. Note the
      * path is under {@code /api/public/}: the admin portal reads the same body from the SESSION-
      * GATED {@code /api/feature-catalog}, which must never be opened here.
+     *
+     * {@code /api/backup/google-drive/callback} (added 2026-10-30) is the shared Google OAuth
+     * redirect target for every hosted store. It must be anonymous because Google redirects the
+     * shop owner's BROWSER here and a browser carries no admin token. It mints nothing and writes
+     * nothing; it reads the target store out of the OAuth {@code state} and 302s there. Because
+     * that is literally "redirect to a host from a query parameter", it is defended by requiring
+     * the decoded origin to be a bare https scheme+host AND to match an existing
+     * {@code hosted_instances.api_hostname} — anything else gets a page and no Location header.
+     * See {@code GoogleDriveRelayController}.
      */
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/login",
             "/api/licenses/public-key",
             "/api/trial/register",
             "/api/license/renewal",
-            "/api/public/feature-catalog"
+            "/api/public/feature-catalog",
+            "/api/backup/google-drive/callback"
     );
 
     // Mirrors CorsConfig's allowedOrigins. This filter runs before Spring MVC's

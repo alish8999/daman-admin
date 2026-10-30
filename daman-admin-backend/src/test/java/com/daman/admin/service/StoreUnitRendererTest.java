@@ -55,25 +55,34 @@ class StoreUnitRendererTest {
         assertNotEquals("mySecretKey12345678901234567890123456789012345678901234567890", a);
     }
 
-    // ── Google Drive backup redirect (added 2026-10-29) ───────────────────────
+    // ── Google Drive backup redirect (added 2026-10-29, moved to the shared relay 2026-10-30) ──
 
-    @Test void unitPinsThisStoresOwnGoogleRedirect() {
-        // A hosted store runs SPRING_PROFILES_ACTIVE=desktop, so without this it inherits
-        // application-desktop.yml's http://localhost:<port> default and Google sends the shop
-        // owner's browser to their OWN machine. It must be this store's public API origin, https,
-        // and the real callback path.
+    @Test void unitPinsTheSharedRelayRedirect() {
+        // Every store now sends Google to the SAME registered URI. The per-store URI it used to
+        // carry meant each new store needed someone to paste it into the Google Cloud console
+        // before Drive backup worked, and Google has no API for doing that.
         String u = render(instance("alhasan-pharmacy", "alhasan", 8091));
-        assertTrue(u.contains("Environment=DAMAN_GOOGLE_REDIRECT_URI=https://alhasan-api.damansoft.com/api/backup/google-drive/callback"),
-                "unit must pin this store's own https redirect, got:\n" + u);
+        assertTrue(u.contains("Environment=DAMAN_GOOGLE_REDIRECT_URI=https://admin-api.damansoft.com/api/backup/google-drive/callback"),
+                "unit must pin the shared relay redirect, got:\n" + u);
         assertFalse(u.contains("DAMAN_GOOGLE_REDIRECT_URI=http://localhost"),
                 "a hosted store must never carry the desktop loopback default");
+        assertFalse(u.contains("DAMAN_GOOGLE_REDIRECT_URI=https://alhasan-api"),
+                "the per-store redirect was replaced by the relay; a stale one would need a console visit");
     }
 
-    @Test void eachStoreGetsItsOwnRedirectNotAnotherStores() {
+    @Test void unitCarriesThisStoresOwnReturnOrigin() {
+        // The per-store half: the store encodes this into the OAuth `state` so the relay knows
+        // which store to send the code back to.
+        String u = render(instance("alhasan-pharmacy", "alhasan", 8091));
+        assertTrue(u.contains("Environment=DAMAN_GOOGLE_RETURN_ORIGIN=https://alhasan-api.damansoft.com"),
+                "unit must carry this store's own return origin, got:\n" + u);
+    }
+
+    @Test void eachStoreGetsItsOwnReturnOriginNotAnotherStores() {
         String a = render(instance("alhasan-pharmacy", "alhasan", 8091));
         String b = render(instance("bistro-cafe", "bistro", 8092));
-        assertTrue(a.contains("https://alhasan-api.damansoft.com/api/backup/google-drive/callback"));
-        assertTrue(b.contains("https://bistro-api.damansoft.com/api/backup/google-drive/callback"));
+        assertTrue(a.contains("DAMAN_GOOGLE_RETURN_ORIGIN=https://alhasan-api.damansoft.com"));
+        assertTrue(b.contains("DAMAN_GOOGLE_RETURN_ORIGIN=https://bistro-api.damansoft.com"));
         assertFalse(a.contains("bistro-api"), "store units must not cross-reference each other");
     }
 

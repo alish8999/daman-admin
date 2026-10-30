@@ -49,13 +49,21 @@ class AuthFilterPublicPathsTest {
      * one serialisation per call. It discloses add-on prices, which every shop owner already sees
      * in the POS. The admin portal reads the same body from the session-gated
      * {@code /api/feature-catalog}, which is listed under MUST_BE_PROTECTED below.
+     *
+     * <p>{@code /api/backup/google-drive/callback} was added 2026-10-30: the shared Google OAuth
+     * redirect for hosted stores. Anonymous because Google redirects a BROWSER here. It mints and
+     * writes nothing, and although it 302s to a host taken from the OAuth {@code state} — an open
+     * redirect in shape — it only does so for an origin that is a bare https scheme+host AND
+     * matches an existing {@code hosted_instances.api_hostname}. The refusals are pinned by
+     * {@code GoogleDriveRelayControllerTest}, which is the test that actually guards this one.
      */
     private static final List<String> ANONYMOUS = List.of(
             "/api/auth/login",
             "/api/licenses/public-key",
             "/api/trial/register",
             "/api/license/renewal",
-            "/api/public/feature-catalog"
+            "/api/public/feature-catalog",
+            "/api/backup/google-drive/callback"
     );
 
     /**

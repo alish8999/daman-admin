@@ -70,10 +70,21 @@ public final class StoreUnitRenderer {
                 Environment=DAMAN_JWT_SECRET=%3$s
                 Environment=DAMAN_BACKUP_DIR=%4$s/backups
                 # Google Drive backup: a hosted store runs SPRING_PROFILES_ACTIVE=desktop, so without
-                # this it would inherit application-desktop.yml's http://localhost:<port> default and
-                # Google would send the shop owner's BROWSER to their own machine. Not secret, and it
-                # differs per store, so it belongs in the unit.
-                Environment=DAMAN_GOOGLE_REDIRECT_URI=https://%8$s/api/backup/google-drive/callback
+                # these it would inherit application-desktop.yml's http://localhost:<port> default and
+                # Google would send the shop owner's BROWSER to their own machine. Neither is secret.
+                #
+                # The redirect URI is the SAME for every store, and is the only one registered on the
+                # Google OAuth client. It used to be this store's own https origin, which meant every
+                # newly provisioned store needed someone to paste its URI into the Google Cloud
+                # console before Drive backup worked — Google has no API for adding one (the
+                # projects.locations.oauthClients API is Workforce Identity Federation only). The
+                # admin backend now relays instead: it reads the target store out of the OAuth
+                # `state` and 302s there, refusing any host that is not in hosted_instances.
+                # See GoogleDriveRelayController.
+                Environment=DAMAN_GOOGLE_REDIRECT_URI=https://admin-api.damansoft.com/api/backup/google-drive/callback
+                # This store's own origin, which it encodes into `state` so the relay knows where to
+                # send the code back to. This is the per-store half.
+                Environment=DAMAN_GOOGLE_RETURN_ORIGIN=https://%8$s
                 # The WEB-type OAuth client id and secret, shared by every store on this host. Kept in
                 # one root-only file rather than copied into each unit: it is a credential, and units
                 # are world-readable. The leading '-' makes it optional, so a host that has never set
