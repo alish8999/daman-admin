@@ -42,12 +42,20 @@ class AuthFilterPublicPathsTest {
      * rather than the request body — so the only obtainable value is the current key for a
      * machine the caller already holds a licence for. Note it is SINGULAR; the plural
      * {@code /api/licenses/**} family below must stay authenticated.
+     *
+     * <p>{@code /api/public/feature-catalog} was added 2026-10-30. Justification, as this class's
+     * note demands: it reads no request input, mints and writes nothing, touches no row, and
+     * returns one constant built at class-init, so it cannot be aimed at anything and a flood costs
+     * one serialisation per call. It discloses add-on prices, which every shop owner already sees
+     * in the POS. The admin portal reads the same body from the session-gated
+     * {@code /api/feature-catalog}, which is listed under MUST_BE_PROTECTED below.
      */
     private static final List<String> ANONYMOUS = List.of(
             "/api/auth/login",
             "/api/licenses/public-key",
             "/api/trial/register",
-            "/api/license/renewal"
+            "/api/license/renewal",
+            "/api/public/feature-catalog"
     );
 
     /**
@@ -79,7 +87,10 @@ class AuthFilterPublicPathsTest {
             // but listed on its own line because of what it does, not because it was in doubt.
             "/api/hosted-stores/restart-all",
             // Deletes a registry row (refused for an ACTIVE store, but still a write).
-            "/api/hosted-stores/acme"
+            "/api/hosted-stores/acme",
+            // The session-gated twin of /api/public/feature-catalog. Same body today, but keeping
+            // it protected is what stops the public path quietly acquiring an admin-only field.
+            "/api/feature-catalog"
     );
 
     SessionService sessionService;

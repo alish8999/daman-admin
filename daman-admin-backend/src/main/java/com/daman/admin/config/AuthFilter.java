@@ -49,12 +49,21 @@ public class AuthFilter implements Filter {
      * anyone able to call it at all. Note the path is SINGULAR: /api/licenses/** (plural) is
      * the admin-token-gated licence API and must never be opened. See
      * LicenseRenewalController.
+     *
+     * {@code /api/public/feature-catalog} (added 2026-10-30) serves the add-on price list. It
+     * reads no request input, mints nothing, writes nothing, and touches no row: the response is a
+     * single constant built at class-init, so a flood costs one serialisation per call. What it
+     * discloses — what each add-on costs — is already shown to any shop owner who opens the POS, so
+     * publishing it to the internet reveals nothing that was not already customer-facing. Note the
+     * path is under {@code /api/public/}: the admin portal reads the same body from the SESSION-
+     * GATED {@code /api/feature-catalog}, which must never be opened here.
      */
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/login",
             "/api/licenses/public-key",
             "/api/trial/register",
-            "/api/license/renewal"
+            "/api/license/renewal",
+            "/api/public/feature-catalog"
     );
 
     // Mirrors CorsConfig's allowedOrigins. This filter runs before Spring MVC's
