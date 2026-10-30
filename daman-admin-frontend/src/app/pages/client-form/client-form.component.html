@@ -269,10 +269,18 @@
             <h6 class="text-muted mb-1">{{ 'appFeatures' | t }}</h6>
             <p class="text-muted small mb-0">{{ 'appFeaturesHint' | t }}</p>
           </div>
-          <div class="addon-summary text-end">
+          <!-- Prices come from the backend. Until that lands (or if it fails) these numbers are
+               unknown, NOT zero — rendering "$0 / per client" for a client with six paid add-ons
+               would be a confident lie that nobody would think to question. -->
+          <div class="addon-summary text-end" *ngIf="featurePrices.isLoaded; else addonPricesUnavailable">
             <div class="small text-muted">{{ 'addonsEnabled' | t }}: <strong>{{ enabledAddonCount }}</strong></div>
             <div class="fw-bold fs-4 text-success">${{ addonTotalValue }}<span class="small text-muted fw-normal">/{{ 'perClient' | t }}</span></div>
           </div>
+          <ng-template #addonPricesUnavailable>
+            <div class="addon-summary text-end">
+              <div class="small text-muted">{{ 'addonPricesUnavailable' | t }}</div>
+            </div>
+          </ng-template>
         </div>
 
         <div formGroupName="features">
