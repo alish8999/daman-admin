@@ -10,7 +10,8 @@ import { DaysLeftPipe } from '../../pipes/days-left.pipe';
 import { LicenseService, License, GenerateLicenseResponse } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing, BillingRequest } from '../../models/billing.model';
-import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup, addonValue } from '../../models/feature-catalog';
+import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup } from '../../models/feature-catalog';
+import { FeaturePriceService } from '../../services/feature-price.service';
 import { ClientFeatures } from '../../models/client-config.model';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
 import { NOTO_KUFI_ARABIC_BASE64 } from './noto-kufi-arabic-font';
@@ -89,7 +90,9 @@ export class ClientFormComponent implements OnInit {
     return this.featureCatalog.filter(f => f.group === group);
   }
 
-  featureBadge(price: number | null): string | null {
+  /** Badge text for a feature: 'free', a $ price, or null when it carries no price at all. */
+  featureBadge(key: string): string | null {
+    const price = this.featurePrices.priceOf(key);
     if (price === null) return null;
     return price === 0 ? 'free' : `$${price}`;
   }
@@ -97,13 +100,13 @@ export class ClientFormComponent implements OnInit {
   get enabledAddonCount(): number {
     const features = this.form?.get('features')?.value as ClientFeatures | undefined;
     if (!features) return 0;
-    return this.featureCatalog.filter(f => f.group === 'addons' && f.price && features[f.key]).length;
+    return this.featureCatalog.filter(f => f.group === 'addons' && this.featurePrices.isPaid(f.key) && features[f.key]).length;
   }
 
   get addonTotalValue(): number {
     const features = this.form?.get('features')?.value as ClientFeatures | undefined;
     if (!features) return 0;
-    return addonValue(features);
+    return this.featurePrices.addonValue(features as unknown as Record<string, boolean | undefined>);
   }
 
   // Only primary + secondary are client-brandable; success/danger/warning/info
@@ -120,8 +123,13 @@ export class ClientFormComponent implements OnInit {
     private billingService: BillingService,
     private route: ActivatedRoute,
     private router: Router,
-    public translationService: TranslationService
-  ) {}
+    public translationService: TranslationService,
+    public featurePrices: FeaturePriceService
+  ) {
+    // Prices come from the backend now, not from feature-catalog.ts. The getters below read them
+    // synchronously once this resolves; until then a badge is simply absent rather than "$0".
+    this.featurePrices.load();
+  }
 
   ngOnInit(): void {
     this.form = this.fb.group({
@@ -427,7 +435,7 @@ export class ClientFormComponent implements OnInit {
   get licencePreviewSummary(): string {
     const bc = this.form.get('baseCurrency')?.value || 'USD';
     const feats = this.form.get('features')?.value || {};
-    const paidOn = FEATURE_CATALOG.filter(f => f.price && (feats as any)[f.key]).length;
+    const paidOn = FEATURE_CATALOG.filter(f => this.featurePrices.isPaid(f.key) && (feats as any)[f.key]).length;
     return `${bc} · ${paidOn}`;
   }
 

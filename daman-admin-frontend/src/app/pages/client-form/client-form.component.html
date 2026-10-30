@@ -289,7 +289,7 @@
                     <span class="flex-grow-1">
                       <span class="d-flex align-items-center justify-content-between gap-2">
                         <span class="fw-semibold small">{{ f.labelKey | t }}</span>
-                        @if (featureBadge(f.price); as badge) {
+                        @if (featureBadge(f.key); as badge) {
                           <span class="badge" [class.bg-success]="badge === 'free'" [class.bg-primary]="badge !== 'free'">
                             {{ badge === 'free' ? ('free' | t) : badge }}
                           </span>

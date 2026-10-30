@@ -14,6 +14,7 @@ import { computeClientStatus, ClientStatusResult } from '../../models/client-sta
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
 import { ChangelogPickerComponent, ChangelogSelection } from '../../components/changelog-picker/changelog-picker.component';
+import { FeaturePriceService } from '../../services/feature-price.service';
 
 @Component({
   selector: 'app-clients',
@@ -257,7 +258,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
   paidFeatureBadges(client: ClientConfig): { label: string; icon: string }[] {
     const f: Partial<ClientFeatures> = client.features ?? {};
     return FEATURE_CATALOG
-      .filter(entry => entry.group === 'addons' && !!entry.price && !!f[entry.key])
+      .filter(entry => entry.group === 'addons' && this.featurePrices.isPaid(entry.key) && !!f[entry.key])
       .map(entry => ClientsComponent.PAID_FEATURE_LABELS[entry.key] ?? { label: entry.key, icon: '⭐' });
   }
 
@@ -378,10 +379,14 @@ export class ClientsComponent implements OnInit, OnDestroy {
     private licenseService: LicenseService,
     private billingService: BillingService,
     private appVersionService: AppVersionService,
-    private translationService: TranslationService
+    private translationService: TranslationService,
+    public featurePrices: FeaturePriceService
   ) {}
 
   ngOnInit(): void {
+    // Which add-ons are paid is a backend fact now, so the chips below wait on this. Until it
+    // resolves a client shows no add-on chips, which is better than showing the wrong ones.
+    this.featurePrices.load();
     this.load();
     this.loadLicenses();
     this.loadBillings();
