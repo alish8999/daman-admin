@@ -83,6 +83,63 @@
     <p class="fleet-meta" id="fleet-meta" aria-live="polite"></p>
     <p class="fleet-meta fleet-box" id="fleet-box"></p>
     <div id="fleet-mount" class="fleet-mount"><p class="fleet-empty">Paste the portal token above to load the stores.</p></div>
+    <div id="new-store-panel" hidden>
+      <section class="card" data-slot="create-store">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Create online client <span class="card-tag">remote</span></h2>
+          <p class="card-desc">Provisions a hosted store on the <strong>server</strong> via <code>admin-api.damansoft.com</code> (unit, tunnel rule, DNS, Pages hostname, licence). Safe to re-run: a failed store resumes where it stopped.</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <div class="build-fields">
+        <label class="version-field">
+          <span>Client</span>
+          <select class="build-platform-select create-client-select"><option value="">Paste a portal token above to load clients&hellip;</option></select>
+        </label>
+        <label class="version-field">
+          <span>Licence expires <span class="token-hint">(optional)</span></span>
+          <input type="date" class="build-version-input create-expiry-input">
+        </label>
+      </div>
+
+      <!-- Marks the new store as a demo slot, which is the ONLY thing that later lets Reset wipe
+           it. Left on "Real customer store" it provisions exactly as before. -->
+      <label class="version-field">
+        <span>Kind <span class="token-hint">demo slots can be reset; customer stores never can</span></span>
+        <select class="build-version-input create-flavour-select">
+          <option value="">Real customer store</option>
+          <option value="mart">Demo — supermarket (SYP)</option>
+          <option value="mobile">Demo — mobile &amp; electronics (USD)</option>
+        </select>
+      </label>
+
+      <label class="version-field">
+        <span>Subdomain <span class="token-hint create-subdomain-hint">(suggested from the client; editable)</span></span>
+        <input type="text" class="build-version-input create-subdomain-input" placeholder="e.g. acme" autocomplete="off" spellcheck="false">
+      </label>
+
+      <button class="build-btn create-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Create</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing created yet."></pre>
+      </details>
+    </section>
+    </div>
     <!-- ONE card, three actions. These were three separate cards, which read as three unrelated
          things to choose between when they are really one job (ship the shared jar) with a choice
          about restarting. Each action keeps its own data-slot and footer; they share one log,
@@ -180,63 +237,6 @@
       </details>
     </section>
     </main>
-    <div id="new-store-panel" hidden>
-      <section class="card" data-slot="create-store">
-      <div class="card-head">
-        <div class="card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </div>
-        <div class="card-title">
-          <h2>Create online client <span class="card-tag">remote</span></h2>
-          <p class="card-desc">Provisions a hosted store on the <strong>server</strong> via <code>admin-api.damansoft.com</code> (unit, tunnel rule, DNS, Pages hostname, licence). Safe to re-run: a failed store resumes where it stopped.</p>
-        </div>
-        <span class="footer"></span>
-      </div>
-
-      <div class="build-fields">
-        <label class="version-field">
-          <span>Client</span>
-          <select class="build-platform-select create-client-select"><option value="">Paste a portal token above to load clients&hellip;</option></select>
-        </label>
-        <label class="version-field">
-          <span>Licence expires <span class="token-hint">(optional)</span></span>
-          <input type="date" class="build-version-input create-expiry-input">
-        </label>
-      </div>
-
-      <!-- Marks the new store as a demo slot, which is the ONLY thing that later lets Reset wipe
-           it. Left on "Real customer store" it provisions exactly as before. -->
-      <label class="version-field">
-        <span>Kind <span class="token-hint">demo slots can be reset; customer stores never can</span></span>
-        <select class="build-version-input create-flavour-select">
-          <option value="">Real customer store</option>
-          <option value="mart">Demo — supermarket (SYP)</option>
-          <option value="mobile">Demo — mobile &amp; electronics (USD)</option>
-        </select>
-      </label>
-
-      <label class="version-field">
-        <span>Subdomain <span class="token-hint create-subdomain-hint">(suggested from the client; editable)</span></span>
-        <input type="text" class="build-version-input create-subdomain-input" placeholder="e.g. acme" autocomplete="off" spellcheck="false">
-      </label>
-
-      <button class="build-btn create-btn">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Create</span>
-      </button>
-
-      <details class="log-panel">
-        <summary class="log-panel-head">
-          <span class="log-dot" style="--dot-color:#ff5f57"></span>
-          <span class="log-dot" style="--dot-color:#febc2e"></span>
-          <span class="log-dot" style="--dot-color:#28c840"></span>
-          <span class="log-title">output</span>
-          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </summary>
-        <pre class="log" data-empty-text="Nothing created yet."></pre>
-      </details>
-    </section>
-    </div>
   </section>
 
   <section class="other-deploys" aria-label="Admin portal">
