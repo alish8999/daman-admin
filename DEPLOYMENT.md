@@ -791,3 +791,62 @@ Backend deploy this same dashboard runs, which logs you out of the portal. The s
 token's state, and **only a 401 marks one expired**: a 5xx, a timeout or an unreachable backend says
 nothing about the token and leaves it as it was. So "expired" means paste a fresh one; anything else
 is a different problem.
+
+---
+
+## The fleet page and the local build agent (2026-10-31)
+
+The deploy dashboard used to be one locally-bound Node app doing two unrelated jobs. It is now
+split by what the work actually needs:
+
+| | Where | Needs your machine? |
+|---|---|---|
+| Fleet, store lifecycle, create store, reset demo | `https://admin.damansoft.com/fleet` | No |
+| Build and deploy (admin backend/frontend, store jar, generic release) | the local agent | **Yes** |
+
+Both are **the same page**. It is served by the portal as static assets copied from
+`deploy-dashboard/public` and `deploy-dashboard/lib` at build time, and by the agent at
+`http://localhost:5500` as before. `api-base-core.js` decides which it is from `location.origin`
+and routes accordingly: agent mode keeps every path, portal mode rewrites the `/api/remote/*`
+proxy paths to `admin-api` directly.
+
+### Why there is no token to paste any more
+
+In the portal the fleet uses the session you logged in with — the page is the same origin as the
+Angular app, so it reads `localStorage['admin-auth-token']` directly. **If you rename
+`AuthService.storageKey`, rename it in `api-base-core.js` too**; nothing enforces that pairing.
+
+The **local** token field stays. It authorises the local admin backend on `:8083`, a different
+process with its own sessions, where the portal session is not valid. It appears only when the
+agent is reachable, and only the installer-build and changelog cards need it.
+
+### Starting the agent
+
+`cd daman-admin/deploy-dashboard && npm start` — same as before. Without it, every card whose work
+needs your machine greys out with *"Needs the local deploy agent"*, and the fleet is unaffected.
+
+### When the build cards stay greyed even though the agent IS running
+
+Two browser restrictions can block an `https://` page from reaching `http://localhost`, and both
+look identical to "the agent is not running". That is deliberate — the remedy is the same — but
+when debugging, these are the causes:
+
+- **Private Network Access.** Chrome and Edge force the request into a preflight asking for
+  permission to reach a local address, and may show a one-time prompt. The agent answers
+  `Access-Control-Allow-Private-Network: true`; if you declined the prompt, reset the site's
+  permissions and reload.
+- **Mixed content.** Those browsers exempt `localhost` because it is a trustworthy origin, which
+  is why this works at all. It is browser behaviour, not a standard guarantee.
+
+**Fallback either way:** open `http://localhost:5500` directly. The agent still serves the full
+page, builds included.
+
+### The agent only answers the portal
+
+It accepts requests from `https://admin.damansoft.com` and its own localhost origins, and nothing
+else — **not** Cloudflare Pages preview URLs. An absent `Origin` is refused on any route that can
+spawn a script, including `GET /api/deploy/<slot>/stream`, which is a GET that runs PowerShell.
+Read-only routes still answer without one, so `curl` and scripts keep working.
+
+That check is the whole reason it is safe for a web page to talk to a server on your machine:
+without it, any site you happened to visit could POST a deploy to `localhost:5500`.

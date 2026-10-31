@@ -1,3 +1,24 @@
+
+---
+
+## Since 2026-10-31: most of this is now buttons
+
+The manual sequence below still documents what happens underneath, and is the fallback when
+something goes wrong. In normal use:
+
+- **Creating a slot** — the deploy dashboard (at `https://admin.damansoft.com/fleet` or
+  `http://localhost:5500`) has a **Kind** dropdown on the create panel: *Real customer
+  store*, *Demo — supermarket (SYP)*, *Demo — mobile & electronics (USD)*. Choosing a demo marks
+  the row, which is the only thing that later lets Reset touch it.
+- **Resetting one** — demo rows carry a **Reset demo…** button. It stops the store, deletes the
+  WAL, copies the seed, rolls the dates to today and starts it. A suspended slot stays suspended.
+- **Feature defaults for a demo** — everything on except `tableOrders` and
+  `consignment`.
+
+The two traps below (the stale WAL, and the date shapes) are handled inside the Reset action and
+are kept here because they explain why it does what it does, and because anyone doing this by hand
+will hit them.
+
 # Creating a demo slot — runbook
 
 Current state: **manual**. Four steps, two with traps that have already caused a crash-looping
