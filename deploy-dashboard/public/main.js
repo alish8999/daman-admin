@@ -1,5 +1,9 @@
 (function () {
-  const cards = document.querySelectorAll('.card');
+  // Every element carrying a data-slot, which is NOT always a .card any more. The three hosted-store
+  // release actions (deploy & restart all / deploy / restart all) were three separate cards saying
+  // nearly the same thing; they are now three actions inside one card, so a slot is whatever element
+  // declares it. A single-action card still declares its own slot and matches here unchanged.
+  const cards = document.querySelectorAll('[data-slot]');
 
   // ── Token strip ──────────────────────────────────────────────────────────
   // Two tokens, minted by two different backends, each valid only on its own: 'portal' (a login at
@@ -179,8 +183,12 @@
     const btn = card.querySelector('.deploy-btn');
     if (!btn) return; // the build-generic card uses its own logic below, not this SSE flow
 
-    const log = card.querySelector('.log');
-    const logPanel = card.querySelector('.log-panel');
+    // The log lives on the CARD, which several actions may share; the button and footer belong to
+    // the action itself. For a single-action card the slot element is the card, so closest()
+    // returns it and both lookups land exactly where they used to.
+    const host = card.closest('.card') || card;
+    const log = host.querySelector('.log');
+    const logPanel = host.querySelector('.log-panel');
     const footer = card.querySelector('.footer');
     const versionInput = card.querySelector('.version-input');
 
