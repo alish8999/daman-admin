@@ -1,5 +1,9 @@
 (function () {
-  const cards = document.querySelectorAll('.card');
+  // Every element carrying a data-slot, which is NOT always a .card any more. The three hosted-store
+  // release actions (deploy & restart all / deploy / restart all) were three separate cards saying
+  // nearly the same thing; they are now three actions inside one card, so a slot is whatever element
+  // declares it. A single-action card still declares its own slot and matches here unchanged.
+  const cards = document.querySelectorAll('[data-slot]');
 
   // ── Token strip ──────────────────────────────────────────────────────────
   // Two tokens, minted by two different backends, each valid only on its own: 'portal' (a login at
@@ -179,8 +183,12 @@
     const btn = card.querySelector('.deploy-btn');
     if (!btn) return; // the build-generic card uses its own logic below, not this SSE flow
 
-    const log = card.querySelector('.log');
-    const logPanel = card.querySelector('.log-panel');
+    // The log lives on the CARD, which several actions may share; the button and footer belong to
+    // the action itself. For a single-action card the slot element is the card, so closest()
+    // returns it and both lookups land exactly where they used to.
+    const host = card.closest('.card') || card;
+    const log = host.querySelector('.log');
+    const logPanel = host.querySelector('.log-panel');
     const footer = card.querySelector('.footer');
     const versionInput = card.querySelector('.version-input');
 
@@ -850,6 +858,7 @@
     const clientSelect = card.querySelector('.create-client-select');
     const expiryInput = card.querySelector('.create-expiry-input');
     const subdomainInput = card.querySelector('.create-subdomain-input');
+    const flavourSelect = card.querySelector('.create-flavour-select');
     const subdomainHint = card.querySelector('.create-subdomain-hint');
     const btn = card.querySelector('.create-btn');
     const log = card.querySelector('.log');
@@ -1097,7 +1106,8 @@
       tokens.track('portal', fetch('/api/remote/hosted-stores', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
-        body: JSON.stringify({ clientCode, subdomain, expiresAt: expiryInput.value }),
+        body: JSON.stringify({ clientCode, subdomain, expiresAt: expiryInput.value,
+          demoFlavour: flavourSelect ? flavourSelect.value : '' }),
       }))
         .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
         .then(({ r, body }) => {
@@ -1145,11 +1155,13 @@
     const FLEET_POLL_MS = 10000;
     const ACTION_LABEL = {
       restart: 'Restart', 'sync-unit': 'Sync config', suspend: 'Suspend', resume: 'Resume', remove: 'Remove…', 'forget-row': 'Forget row',
-      'retry-provisioning': 'Retry provisioning',
+      'retry-provisioning': 'Retry provisioning', 'reset-demo': 'Reset demo…',
     };
     // Remove and Forget row look and read differently on purpose: Remove destroys a customer's data,
     // Forget row only deletes a registry record.
-    const ACTION_CLASS = { remove: 'row-btn-danger', 'forget-row': 'row-btn-forget' };
+    // Reset destroys a demo's data, so it reads as destructive — but it is NOT the same red as
+    // Remove, which destroys a paying customer's store and is unrecoverable.
+    const ACTION_CLASS = { remove: 'row-btn-danger', 'forget-row': 'row-btn-forget', 'reset-demo': 'row-btn-warn' };
 
     let timer = null;
     let inFlight = false;
@@ -1242,7 +1254,7 @@
 
         const actions = el('td', 'cell-actions');
         const working = busy.has(store.clientCode);
-        core.actionsFor(store.status).forEach((action) => {
+        core.actionsFor(store.status, store).forEach((action) => {
           const b = el('button', 'row-btn ' + (ACTION_CLASS[action] || ''), ACTION_LABEL[action]);
           b.type = 'button';
           b.dataset.action = action;
@@ -1408,6 +1420,18 @@
       const action = btn.dataset.action;
       const store = (lastRows || []).find((s) => s.clientCode === code);
       const domain = (store && store.frontendHostname) || code;
+
+      if (action === 'reset-demo') {
+        // Says what it destroys and what the next person gets. Only ever reaches a row the backend
+        // marked demo; the server refuses anything else regardless of what the page sends.
+        const flavour = (store && store.demoFlavour) || 'demo';
+        if (!window.confirm('Reset ' + domain + ' to a clean ' + flavour + ' demo?\n\n'
+            + 'Everything the last person entered on it is deleted and replaced with the sample shop, '
+            + 'with its dates rolled forward so it looks like it traded today.\n\n'
+            + 'This cannot be undone, and it only ever affects demo slots.')) return;
+        runAction(code, 'Resetting', () => post(code, 'reset-demo'));
+        return;
+      }
 
       if (action === 'suspend') {
         if (!window.confirm('Suspend ' + domain + '?\n\nThe store goes offline and its customer cannot use it until you resume it. Their data is kept.')) return;

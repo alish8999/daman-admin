@@ -279,3 +279,34 @@ test('memoryLabel: failed is not running, like stopped and suspended', () => {
   assert.strictEqual(memoryLabel(null, 'failed'), 'not running');
   assert.strictEqual(memoryLabel(undefined, 'failed'), '');
 });
+
+test('reset-demo is offered only on a row explicitly marked demo', () => {
+  // Reset destroys the store's database. The page deciding what to SHOW is a convenience — the
+  // backend refuses a non-demo row regardless — but offering it on a customer's row at all is a
+  // trap waiting for a tired evening.
+  assert.ok(actionsFor('ACTIVE', { demo: true }).includes('reset-demo'));
+  assert.ok(actionsFor('SUSPENDED', { demo: true }).includes('reset-demo'));
+
+  assert.ok(!actionsFor('ACTIVE', { demo: false }).includes('reset-demo'));
+  assert.ok(!actionsFor('ACTIVE', {}).includes('reset-demo'), 'absent means not a demo');
+  assert.ok(!actionsFor('ACTIVE', null).includes('reset-demo'));
+  assert.ok(!actionsFor('ACTIVE').includes('reset-demo'), 'no store argument at all');
+  // Truthiness is not enough: only a real boolean true marks a demo.
+  assert.ok(!actionsFor('ACTIVE', { demo: 'false' }).includes('reset-demo'));
+});
+
+test('reset-demo is not offered while a slot is half-built', () => {
+  // There is no database to replace yet, and the provisioning stages own the data directory.
+  assert.ok(!actionsFor('PROVISIONING', { demo: true }).includes('reset-demo'));
+  assert.ok(!actionsFor('FAILED', { demo: true }).includes('reset-demo'));
+});
+
+test('a store argument never changes the actions a non-demo row already had', () => {
+  ['ACTIVE', 'SUSPENDED', 'FAILED', 'PROVISIONING'].forEach((s) => {
+    assert.deepStrictEqual(actionsFor(s, { demo: false }), actionsFor(s), s);
+  });
+});
+
+test('reset-demo posts to its own lifecycle route', () => {
+  assert.strictEqual(lifecycleRouteFor('reset-demo'), 'reset-demo');
+});

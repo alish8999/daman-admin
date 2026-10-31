@@ -1193,10 +1193,62 @@ body {
 
 .release-bar-note { margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--text-muted); }
 
-.release-cards {
+/* .release-cards is gone. The three hosted-store release actions used to be three separate cards,
+   which read as three unrelated things to choose between when they are really one job (ship the
+   shared jar) with a decision about restarting. They are now .release-action blocks inside one
+   card, sharing that card's log panel. */
+.release-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.release-action {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem 0.85rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-width: 0;
+}
+
+/* The one that should normally be pressed. */
+.release-action.is-primary {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.release-action-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.release-action-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.release-action-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  opacity: 0.78;
+}
+
+/* Bottom-aligns the buttons so three actions with different text lengths still line up. */
+.release-action .deploy-btn {
+  margin-top: auto;
+}
+
+.card-tag--go {
+  background: rgba(40, 200, 64, 0.14);
+  color: #1a7f37;
 }
 
 .release-warning {
@@ -1206,4 +1258,15 @@ body {
   background: #fffbeb;
   color: #92400e;
   font-size: 0.78rem;
+}
+
+/* Reset wipes a demo's data, so it reads as destructive — but deliberately NOT the same red as
+   Remove, which destroys a paying customer's store and cannot be undone. */
+.row-btn-warn {
+  border-color: #d97706;
+  color: #b45309;
+  font-weight: 600;
+}
+.row-btn-warn:hover:not(:disabled) {
+  background: rgba(217, 119, 6, 0.12);
 }

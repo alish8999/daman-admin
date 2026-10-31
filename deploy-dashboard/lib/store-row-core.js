@@ -27,14 +27,27 @@
     PROVISIONING: [],
   };
 
-  function actionsFor(status) {
-    return Object.prototype.hasOwnProperty.call(ACTIONS, status) ? ACTIONS[status].slice() : [];
+  // Statuses where a demo slot has a database worth replacing. PROVISIONING has none yet and the
+  // stages own the data directory; FAILED is half-built and its row may not even have a port.
+  const RESETTABLE = ['ACTIVE', 'SUSPENDED'];
+
+  /**
+   * `store` is optional and only used to decide whether Reset is offered. It must be a real
+   * boolean `true` — a row that merely has the property, or a string "false" off some older
+   * backend, is not a demo. Reset destroys the store's database, so the page errs toward not
+   * offering it; DemoResetService refuses a non-demo row regardless, and that is the real guard.
+   */
+  function actionsFor(status, store) {
+    const base = Object.prototype.hasOwnProperty.call(ACTIONS, status) ? ACTIONS[status].slice() : [];
+    const isDemo = !!store && store.demo === true;
+    if (isDemo && RESETTABLE.indexOf(status) !== -1) base.push('reset-demo');
+    return base;
   }
 
   // The lifecycle routes (POST /api/remote/hosted-stores/{code}/<route>) an action maps to. Actions
   // absent here are NOT lifecycle calls: retry-provisioning opens the New store panel, forget-row
   // is a DELETE. main.js posts only through this map, so an action cannot reach a route by accident.
-  const LIFECYCLE_ROUTE = { restart: 'restart', 'sync-unit': 'sync-unit', suspend: 'suspend', resume: 'resume', remove: 'remove' };
+  const LIFECYCLE_ROUTE = { restart: 'restart', 'sync-unit': 'sync-unit', suspend: 'suspend', resume: 'resume', remove: 'remove', 'reset-demo': 'reset-demo' };
 
   function lifecycleRouteFor(action) {
     return Object.prototype.hasOwnProperty.call(LIFECYCLE_ROUTE, action) ? LIFECYCLE_ROUTE[action] : null;
