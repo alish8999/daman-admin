@@ -172,7 +172,16 @@ public class HostedStoreProvisioningService {
      * (perpetual) and is authoritative: it is what the minted licence carries, so a resume has to
      * pass the same value it started with.
      */
-    public record ProvisionRequest(String clientCode, String subdomain, String expiresAt) {}
+    /**
+     * {@code demoFlavour} is non-null only for a demo slot: "mart" or "mobile". It sets the row's
+     * demo marker, which is the sole thing that makes Reset willing to wipe that store.
+     */
+    public record ProvisionRequest(String clientCode, String subdomain, String expiresAt,
+                                   String demoFlavour) {
+        public ProvisionRequest(String clientCode, String subdomain, String expiresAt) {
+            this(clientCode, subdomain, expiresAt, null);
+        }
+    }
 
     private final HostedInstanceRepository hostedInstanceRepository;
     private final ClientConfigRepository clientConfigRepository;
@@ -267,6 +276,10 @@ public class HostedStoreProvisioningService {
             // resume for ever.
             requireCapacity();
             instance = newRow(clientCode, subdomain);
+            if (request.demoFlavour() != null && !request.demoFlavour().isBlank()) {
+                instance.setDemo(true);
+                instance.setDemoFlavour(request.demoFlavour().trim().toLowerCase(java.util.Locale.ROOT));
+            }
             resumeFrom = ProvisionStage.ALLOCATE;
         } else {
             instance = existing;

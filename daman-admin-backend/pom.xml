@@ -44,6 +44,13 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Not this backend's own datastore (that is H2). It reads and rewrites the SQLite file a
+             hosted store runs on, to roll a demo slot's dates forward on reset. -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.47.0.0</version>
+        </dependency>
         <!-- Used by DevRunService to sync a dev-run client's identity directly into a
              client's local SQLite file (the same driver version daman-backend uses). -->
         <dependency>

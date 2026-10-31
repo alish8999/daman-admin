@@ -204,6 +204,17 @@
         </label>
       </div>
 
+      <!-- Marks the new store as a demo slot, which is the ONLY thing that later lets Reset wipe
+           it. Left on "Real customer store" it provisions exactly as before. -->
+      <label class="version-field">
+        <span>Kind <span class="token-hint">demo slots can be reset; customer stores never can</span></span>
+        <select class="build-version-input create-flavour-select">
+          <option value="">Real customer store</option>
+          <option value="mart">Demo — supermarket (SYP)</option>
+          <option value="mobile">Demo — mobile &amp; electronics (USD)</option>
+        </select>
+      </label>
+
       <label class="version-field">
         <span>Subdomain <span class="token-hint create-subdomain-hint">(suggested from the client; editable)</span></span>
         <input type="text" class="build-version-input create-subdomain-input" placeholder="e.g. acme" autocomplete="off" spellcheck="false">

@@ -2,6 +2,7 @@ package com.daman.admin.controller;
 
 import com.daman.admin.entity.HostedInstance;
 import com.daman.admin.repository.HostedInstanceRepository;
+import com.daman.admin.service.DemoResetService;
 import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
@@ -62,6 +63,7 @@ public class HostedStoreController {
     private final ServerOps ops;
     private final HostedStoreStatusService statusService;
     private final HostedStoreLifecycleService lifecycle;
+    private final DemoResetService demoReset;
     private final int healthAttempts;
     private final long healthIntervalMs;
 
@@ -69,19 +71,21 @@ public class HostedStoreController {
     public HostedStoreController(HostedStoreProvisionLauncher launcher,
                                  HostedInstanceRepository repository, ServerOps ops,
                                  HostedStoreStatusService statusService,
-                                 HostedStoreLifecycleService lifecycle) {
-        this(launcher, repository, ops, statusService, lifecycle, HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
+                                 HostedStoreLifecycleService lifecycle, DemoResetService demoReset) {
+        this(launcher, repository, ops, statusService, lifecycle, demoReset,
+                HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
     }
 
     HostedStoreController(HostedStoreProvisionLauncher launcher,
                           HostedInstanceRepository repository, ServerOps ops,
                           HostedStoreStatusService statusService, HostedStoreLifecycleService lifecycle,
-                          int healthAttempts, long healthIntervalMs) {
+                          DemoResetService demoReset, int healthAttempts, long healthIntervalMs) {
         this.launcher = launcher;
         this.repository = repository;
         this.ops = ops;
         this.statusService = statusService;
         this.lifecycle = lifecycle;
+        this.demoReset = demoReset;
         this.healthAttempts = healthAttempts;
         this.healthIntervalMs = healthIntervalMs;
     }
@@ -102,7 +106,13 @@ public class HostedStoreController {
      */
     public record RestartReport(List<RestartResult> walked, List<SkippedStore> skipped) {}
 
-    public record ProvisionBody(String clientCode, String subdomain, String expiresAt) {}
+    /** {@code demoFlavour} ("mart" or "mobile") marks the new slot as a demo. Absent = a real store. */
+    public record ProvisionBody(String clientCode, String subdomain, String expiresAt, String demoFlavour) {
+        /** A body without a flavour provisions an ordinary customer store, which is the default. */
+        public ProvisionBody(String clientCode, String subdomain, String expiresAt) {
+            this(clientCode, subdomain, expiresAt, null);
+        }
+    }
 
     /**
      * Response shape for a registry row. Deliberately has no field for the store's JWT signing
@@ -113,7 +123,10 @@ public class HostedStoreController {
             String apiHostname, String frontendHostname, String status, String failedStage,
             LocalDateTime createdAt, LocalDateTime updatedAt,
             String liveStatus, String staleness, Instant startedAt,
-            String backupAt, Long backupSizeBytes, Long memoryBytes) {
+            String backupAt, Long backupSizeBytes, Long memoryBytes,
+            // Carried so the dashboard can offer Reset on demo rows only. The page deciding what to
+            // SHOW is a convenience; DemoResetService refuses a non-demo row regardless.
+            boolean demo, String demoFlavour) {
 
         /** Registry facts only (provision/forget answers): the live fields are not probed here. */
         static HostedStoreDto of(HostedInstance i) {
@@ -129,7 +142,8 @@ public class HostedStoreController {
                     live == null ? null : live.startedAt(),
                     live == null ? null : live.backupAt(),
                     live == null ? null : live.backupSizeBytes(),
-                    live == null ? null : live.memoryBytes());
+                    live == null ? null : live.memoryBytes(),
+                    i.isDemo(), i.getDemoFlavour());
         }
     }
 
@@ -154,7 +168,8 @@ public class HostedStoreController {
             // because holding this response for the full 125-150 s crosses Cloudflare's 100 s
             // origin timeout and reports a 524 failure for a provision that in fact succeeded.
             HostedStoreProvisionLauncher.Started started = launcher.start(
-                    new ProvisionRequest(clientCode, body.subdomain().trim(), body.expiresAt()));
+                    new ProvisionRequest(clientCode, body.subdomain().trim(), body.expiresAt(),
+                            body.demoFlavour()));
             return ResponseEntity
                     .status(started.alreadyActive() ? HttpStatus.CONFLICT : HttpStatus.ACCEPTED)
                     .body(HostedStoreDto.of(started.instance()));
@@ -352,6 +367,26 @@ public class HostedStoreController {
     @PostMapping("/{clientCode}/restart")
     public ResponseEntity<?> restartStore(@PathVariable String clientCode) {
         return lifecycleCall(() -> lifecycle.restartOne(clientCode));
+    }
+
+    /**
+     * Wipes a <b>demo slot</b> back to its seed and rolls its dates to today, so the next prospect
+     * gets a clean shop that looks like it traded this morning.
+     *
+     * <p><b>Destroys that store's database.</b> It is refused for any row not explicitly marked as
+     * a demo — the guard lives in {@link DemoResetService} and is checked before anything is
+     * stopped, so no request can aim this at a paying customer. 400 on a refusal; the body says why.
+     */
+    @PostMapping("/{clientCode}/reset-demo")
+    public ResponseEntity<?> resetDemo(@PathVariable String clientCode) {
+        try {
+            return ResponseEntity.ok(demoReset.reset(clientCode));
+        } catch (DemoResetService.RefusedException e) {
+            return error(e.getMessage(), HttpStatus.BAD_REQUEST);
+        } catch (RuntimeException e) {
+            log.error("Demo reset for '{}' failed", clientCode, e);
+            return error(e.getMessage(), HttpStatus.BAD_GATEWAY);
+        }
     }
 
     /**

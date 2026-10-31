@@ -1259,3 +1259,14 @@ body {
   color: #92400e;
   font-size: 0.78rem;
 }
+
+/* Reset wipes a demo's data, so it reads as destructive — but deliberately NOT the same red as
+   Remove, which destroys a paying customer's store and cannot be undone. */
+.row-btn-warn {
+  border-color: #d97706;
+  color: #b45309;
+  font-weight: 600;
+}
+.row-btn-warn:hover:not(:disabled) {
+  background: rgba(217, 119, 6, 0.12);
+}

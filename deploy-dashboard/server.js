@@ -298,10 +298,20 @@ async function handleRemoteProvision(req, res) {
     sendJson(res, 400, { error: 'clientCode and subdomain are required strings; expiresAt must be a string' });
     return;
   }
-  proxyToRemoteAdminBackend(
-    req, 'POST', '/api/hosted-stores', res,
-    { clientCode, subdomain, expiresAt }, PROVISION_TIMEOUT_MS
-  );
+  // Marks the new slot as a demo, which is what later makes Reset willing to wipe it. Whitelisted
+  // here as well as on the remote: this value decides whether a store is destroyable, so it is
+  // never passed through on trust. Anything else provisions an ordinary customer store.
+  const requested = parsedBody && parsedBody.demoFlavour;
+  const demoFlavour = (requested === 'mart' || requested === 'mobile') ? requested : null;
+  if (requested != null && requested !== '' && demoFlavour === null) {
+    sendJson(res, 400, { error: "demoFlavour must be 'mart' or 'mobile' when present." });
+    return;
+  }
+  // Only sent when there is one, so provisioning a customer store puts exactly the same body on
+  // the wire as before this feature existed.
+  const forwarded = { clientCode, subdomain, expiresAt };
+  if (demoFlavour) forwarded.demoFlavour = demoFlavour;
+  proxyToRemoteAdminBackend(req, 'POST', '/api/hosted-stores', res, forwarded, PROVISION_TIMEOUT_MS);
 }
 
 function handleBuildGenericStart(req, res, query) {
@@ -561,7 +571,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const lifecycleMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)[/](suspend|resume|restart|remove|sync-unit)$/.exec(pathname);
+  const lifecycleMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)[/](suspend|resume|restart|remove|sync-unit|reset-demo)$/.exec(pathname);
   if (req.method === 'POST' && lifecycleMatch) {
     const code = lifecycleMatch[1];
     if (!STORE_CODE_PATTERN.test(code)) {

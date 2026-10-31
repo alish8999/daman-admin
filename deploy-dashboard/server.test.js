@@ -727,3 +727,36 @@ test('forget-row rejects a bad code and a cross-origin request before any proxyi
     fake.close();
   }
 });
+
+test('a demo flavour is forwarded, and anything else is refused before it reaches the remote', async () => {
+  // demoFlavour decides whether a store is later destroyable by Reset, so it is whitelisted here
+  // as well as on the remote rather than passed through on trust.
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const ok = await post('/api/remote/hosted-stores', { clientCode: 'demo2', subdomain: 'demo2', demoFlavour: 'mart' });
+    assert.strictEqual(ok.statusCode, 201);
+    assert.deepStrictEqual(JSON.parse(seen[0].body),
+      { clientCode: 'demo2', subdomain: 'demo2', expiresAt: '', demoFlavour: 'mart' });
+
+    const bad = await post('/api/remote/hosted-stores', { clientCode: 'x', subdomain: 'x', demoFlavour: '../../etc' });
+    assert.strictEqual(bad.statusCode, 400, 'an unknown flavour never reaches the remote');
+    assert.strictEqual(seen.length, 1, 'and nothing more was forwarded');
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});
+
+test('a customer store puts exactly the pre-feature body on the wire', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    await post('/api/remote/hosted-stores', { clientCode: 'acme', subdomain: 'acme', demoFlavour: '' });
+    assert.deepStrictEqual(JSON.parse(seen[0].body), { clientCode: 'acme', subdomain: 'acme', expiresAt: '' },
+      'no demoFlavour key at all when there is no flavour');
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});

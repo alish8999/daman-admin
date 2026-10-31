@@ -50,7 +50,8 @@ class HostedStoreControllerTest {
         // 3 health polls, no sleep: the tests never wait on a real clock.
         controller = new HostedStoreController(launcher, repository, ops,
                 new HostedStoreStatusService(ops),
-                new HostedStoreLifecycleService(repository, ops, mock(com.daman.admin.repository.LicenseRepository.class), 3, 0), 3, 0);
+                new HostedStoreLifecycleService(repository, ops, mock(com.daman.admin.repository.LicenseRepository.class), 3, 0),
+                new com.daman.admin.service.DemoResetService(repository, ops), 3, 0);
     }
 
     /** What the launcher answers for a run it just accepted. */
