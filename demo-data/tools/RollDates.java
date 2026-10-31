@@ -34,6 +34,8 @@ public class RollDates {
             System.out.println("newest sale " + newest + " -> target " + target + "  (shift " + days + " days)");
             if (days == 0) { System.out.println("already current"); return; }
 
+            Map<String, Map<Integer, Integer>> before = shapes(c);
+
             c.setAutoCommit(false);
             int columns = 0, rows = 0;
             for (Map.Entry<String, List<String>> e : dateColumns(c).entrySet()) {
@@ -43,9 +45,27 @@ public class RollDates {
                 }
             }
             c.commit();
+            c.setAutoCommit(true);
             System.out.println("shifted " + rows + " values across " + columns + " columns");
-            LocalDate after = newestSaleDate(c);
-            System.out.println("newest sale is now " + after);
+
+            // A changed shape means a LocalDate column just became a timestamp (or the reverse),
+            // which the entity's converter will reject on the first read — at boot, fatally.
+            Map<String, Map<Integer, Integer>> after = shapes(c);
+            int broken = 0;
+            for (Map.Entry<String, Map<Integer, Integer>> e : before.entrySet()) {
+                Map<Integer, Integer> now = after.get(e.getKey());
+                if (!e.getValue().equals(now)) {
+                    System.out.println("  !! shape changed on " + e.getKey()
+                            + " was " + e.getValue() + " now " + now);
+                    broken++;
+                }
+            }
+            if (broken > 0) {
+                System.out.println("\n" + broken + " column(s) changed shape - DO NOT SHIP");
+                System.exit(1);
+            }
+            System.out.println("stored date shapes preserved on all " + before.size() + " columns");
+            System.out.println("newest sale is now " + newestSaleDate(c));
         }
     }
 
@@ -98,17 +118,49 @@ public class RollDates {
      *
      * <p>The WHERE clause matters: {@code datetime()} returns NULL for a value it cannot parse,
      * so without it a column holding a stray non-date string would be silently nulled.
+     *
+     * <p><b>The stored shape is preserved, and that is not cosmetic.</b> This database keeps two
+     * shapes: {@code yyyy-MM-dd HH:mm:ss} (25,648 values) and bare {@code yyyy-MM-dd} (7,078
+     * values, on {@code acc_journal_entries.entry_date} and three adjustment tables). An earlier
+     * version wrote 19 characters everywhere, which turned a {@code LocalDate} column into
+     * {@code '2026-10-07 00:00:00'} — and the entity's AttributeConverter threw
+     * {@code DateTimeParseException: unparsed text found at index 10} on the first read, crashing
+     * the whole application context at boot. A demo that will not start is worse than a stale one.
      */
     private static int shift(Connection c, String table, String col, long days) {
         String sql = "UPDATE \"" + table + "\" SET \"" + col + "\" = "
-                + "substr(datetime(\"" + col + "\", ?), 1, 19) "
+                + "CASE WHEN length(\"" + col + "\") = 10 "
+                + "     THEN substr(datetime(\"" + col + "\", ?), 1, 10) "
+                + "     ELSE substr(datetime(\"" + col + "\", ?), 1, 19) END "
                 + "WHERE \"" + col + "\" IS NOT NULL AND datetime(\"" + col + "\") IS NOT NULL";
         try (PreparedStatement p = c.prepareStatement(sql)) {
-            p.setString(1, (days >= 0 ? "+" : "") + days + " days");
+            String delta = (days >= 0 ? "+" : "") + days + " days";
+            p.setString(1, delta);
+            p.setString(2, delta);
             return p.executeUpdate();
         } catch (SQLException e) {
             System.out.println("  skipped " + table + "." + col + ": " + e.getMessage());
             return 0;
         }
+    }
+
+    /**
+     * Counts stored string lengths per date column, so the caller can prove the shift preserved
+     * every shape. This is the check whose absence let a boot-crashing database ship once.
+     */
+    private static Map<String, Map<Integer, Integer>> shapes(Connection c) throws SQLException {
+        Map<String, Map<Integer, Integer>> out = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> e : dateColumns(c).entrySet()) {
+            for (String col : e.getValue()) {
+                Map<Integer, Integer> tally = new TreeMap<>();
+                try (Statement s = c.createStatement();
+                     ResultSet r = s.executeQuery("SELECT length(\"" + col + "\") L, COUNT(*) FROM \""
+                             + e.getKey() + "\" WHERE \"" + col + "\" IS NOT NULL GROUP BY L")) {
+                    while (r.next()) tally.put(r.getInt(1), r.getInt(2));
+                } catch (SQLException ignored) { continue; }
+                out.put(e.getKey() + "." + col, tally);
+            }
+        }
+        return out;
     }
 }
