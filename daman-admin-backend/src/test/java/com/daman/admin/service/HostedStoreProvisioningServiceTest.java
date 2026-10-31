@@ -845,4 +845,46 @@ class HostedStoreProvisioningServiceTest {
             pagesDomains.remove(hostname);
         }
     }
+// ── demoFlavour whitelist (added 2026-10-31) ──────────────────────────────
+    //
+    // Until this existed the backend marked a store a demo for ANY non-blank string: the only
+    // whitelist lived in the deploy dashboard proxy, a caller the backend is about to stop having.
+    // DemoResetService.seedFor then refused the bogus flavour at reset time, so the row OFFERED
+    // Reset and could never honour it. A broken row rather than a wiped customer, but the guard
+    // that decides whether a store is destroyable must not depend on who called.
+
+    @Test void blankOrAbsentFlavourMeansAnOrdinaryStore() {
+        assertThat(HostedStoreProvisioningService.normaliseDemoFlavour(null)).isNull();
+        assertThat(HostedStoreProvisioningService.normaliseDemoFlavour("")).isNull();
+        assertThat(HostedStoreProvisioningService.normaliseDemoFlavour("   ")).isNull();
+    }
+
+    @Test void theTwoRealFlavoursAreAcceptedAndNormalised() {
+        assertThat(HostedStoreProvisioningService.normaliseDemoFlavour("mart")).isEqualTo("mart");
+        assertThat(HostedStoreProvisioningService.normaliseDemoFlavour("  MART ")).isEqualTo("mart");
+        assertThat(HostedStoreProvisioningService.normaliseDemoFlavour("Mobile")).isEqualTo("mobile");
+    }
+
+    @Test void anythingElseIsRefusedRatherThanStored() {
+        for (String bad : new String[]{"../../etc/passwd", "mart; rm -rf /", "demo", "MARTIAN", "0"}) {
+            assertThatThrownBy(() -> HostedStoreProvisioningService.normaliseDemoFlavour(bad))
+                    .isInstanceOf(HostedStoreProvisioningService.RefusedException.class)
+                    .hasMessageContaining("mart");
+        }
+    }
+
+    @Test void everyAcceptedFlavourHasASeedPathDemoResetWillAlsoAccept() {
+        // The two whitelists must never drift: one decides what is stored, the other what can be
+        // loaded. A value that passes provisioning but fails reset is a permanently broken row.
+        DemoResetService reset = new DemoResetService(
+                mock(HostedInstanceRepository.class), mock(ServerOps.class));
+        // seedDir is @Value-injected, so a plain constructor leaves it null and seedFor NPEs on
+        // Path.of(null, ...) before it ever reaches the whitelist this test is about.
+        ReflectionTestUtils.setField(reset, "seedDir", "/root/demo-seeds");
+        for (String ok : new String[]{"mart", "mobile"}) {
+            String stored = HostedStoreProvisioningService.normaliseDemoFlavour(ok);
+            org.assertj.core.api.Assertions.assertThatCode(() -> reset.seedFor(stored))
+                    .doesNotThrowAnyException();
+        }
+    }
 }

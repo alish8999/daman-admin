@@ -276,9 +276,10 @@ public class HostedStoreProvisioningService {
             // resume for ever.
             requireCapacity();
             instance = newRow(clientCode, subdomain);
-            if (request.demoFlavour() != null && !request.demoFlavour().isBlank()) {
+            String flavour = normaliseDemoFlavour(request.demoFlavour());
+            if (flavour != null) {
                 instance.setDemo(true);
-                instance.setDemoFlavour(request.demoFlavour().trim().toLowerCase(java.util.Locale.ROOT));
+                instance.setDemoFlavour(flavour);
             }
             resumeFrom = ProvisionStage.ALLOCATE;
         } else {
@@ -752,6 +753,32 @@ public class HostedStoreProvisioningService {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /** The only flavours a demo slot may carry. Mirrored by {@code DemoResetService.seedFor}. */
+    private static final java.util.Set<String> DEMO_FLAVOURS = java.util.Set.of("mart", "mobile");
+
+    /**
+     * The whitelist that decides whether a store becomes destroyable.
+     *
+     * <p>Returns the normalised flavour, or null for blank/absent — which provisions an ordinary
+     * customer store and is the default. Anything else is refused.
+     *
+     * <p>Until 2026-10-31 this check existed <b>only</b> in the deploy dashboard's proxy, and this
+     * service marked a store a demo for any non-blank string. {@code DemoResetService.seedFor} then
+     * refused the bogus flavour at reset time, so the row offered Reset and could never honour it.
+     * A broken row rather than a wiped customer — but the flag that lets Reset destroy a store's
+     * data must not depend on which caller happened to ask. The dashboard keeps its copy as
+     * defence in depth; this is the one that has to be right.
+     */
+    static String normaliseDemoFlavour(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String normalised = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!DEMO_FLAVOURS.contains(normalised)) {
+            throw new RefusedException("Unknown demo flavour '" + raw.trim()
+                    + "'. Expected 'mart' or 'mobile', or nothing at all for a customer store.");
+        }
+        return normalised;
+    }
 
     private HostedInstance newRow(String clientCode, String subdomain) {
         HostedInstance i = new HostedInstance();
