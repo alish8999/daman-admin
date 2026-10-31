@@ -61,8 +61,20 @@ public class HostedInstance {
      * <p>Defaults to false on purpose: a store is a customer's unless something deliberately says
      * otherwise, so an older row created before this column existed is never resettable.
      */
-    @Column(nullable = false)
-    private boolean demo = false;
+    /**
+     * Nullable on purpose, and read through {@link #isDemo()} which treats null as false.
+     *
+     * <p>It was first written as a non-null primitive, which broke the backend on the very first
+     * run: {@code ddl-auto=update} adds the column to a table that already has rows, and
+     * {@code ADD COLUMN demo boolean not null} with no default is rejected. Hibernate logs the
+     * failed ALTER and carries on, so the column silently never exists and the first query for it
+     * dies with {@code Column "DEMO" not found}. A nullable column always adds cleanly, on H2 and
+     * on Postgres, with no reliance on the dialect honouring a DEFAULT in an ALTER.
+     *
+     * <p>Null therefore means "a row that predates this column", which is exactly a store that is
+     * not a demo — the safe reading, since this flag is what lets Reset destroy a store's data.
+     */
+    private Boolean demo;
 
     /**
      * Which seed Reset loads: {@code mart} or {@code mobile}. Null for a non-demo store.
@@ -78,4 +90,17 @@ public class HostedInstance {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    /**
+     * Whether Reset may destroy this store's data. Null (a row from before the column existed) and
+     * false both mean no — the only answer that is ever "yes" is an explicit true, because this is
+     * the single thing standing between Reset and a paying customer's shop.
+     *
+     * <p>Defined by hand rather than left to Lombok, which would generate {@code getDemo()}
+     * returning a {@code Boolean} that is null for most rows and NPEs the moment anything unboxes
+     * it in a condition.
+     */
+    public boolean isDemo() {
+        return Boolean.TRUE.equals(demo);
+    }
 }
