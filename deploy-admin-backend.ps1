@@ -39,8 +39,33 @@ if (-not (Test-Path $JarPath)) { throw "Expected jar not found at $JarPath after
 Write-Host "    Built: $JarPath" -ForegroundColor DarkGray
 
 Write-Host "==> [2/3] Uploading jar to $Server (SSH key auth)..." -ForegroundColor Cyan
-scp $JarPath "${Server}:${RemoteJarPath}"
-if ($LASTEXITCODE -ne 0) { throw "scp upload failed." }
+# Uploaded to a SIDE path and moved into place only once it has arrived whole.
+#
+# scp used to write straight over $RemoteJarPath, which meant an interrupted upload destroyed the
+# running deployment: the unit is Restart=always, so systemd then crash-looped on a truncated jar.
+# That happened on 2026-10-31 -- the transfer stopped 103 bytes short, and because a zip's central
+# directory lives at the END of the file, the Spring Boot launcher started but could not find a
+# single class: NoClassDefFoundError: org/springframework/boot/SpringApplication, 57 restarts, the
+# admin API down. A partial upload must cost nothing, so it lands beside the live jar instead.
+$RemoteTmpPath = "$RemoteJarPath.uploading"
+scp $JarPath "${Server}:${RemoteTmpPath}"
+if ($LASTEXITCODE -ne 0) { throw "scp upload failed - the live jar is untouched, the service is still running." }
+
+# Verify the bytes actually all arrived before anything replaces the working jar. scp can exit 0 on
+# a connection that dropped at the right moment; the size is the thing that proves it.
+$LocalSize = (Get-Item $JarPath).Length
+Write-Host "    Verifying upload ($LocalSize bytes)..." -ForegroundColor DarkGray
+$RemoteSize = (ssh $Server "stat -c %s '$RemoteTmpPath'").Trim()
+if ($LASTEXITCODE -ne 0) { throw "Could not stat the uploaded jar on the server." }
+if ("$RemoteSize" -ne "$LocalSize") {
+    ssh $Server "rm -f '$RemoteTmpPath'" | Out-Null
+    throw "Upload incomplete: $RemoteSize of $LocalSize bytes arrived. The live jar is untouched; re-run this script."
+}
+
+# Atomic within the filesystem, so the service can never see a half-written jar.
+ssh $Server "mv -f '$RemoteTmpPath' '$RemoteJarPath'"
+if ($LASTEXITCODE -ne 0) { throw "Could not move the uploaded jar into place." }
+Write-Host "    Uploaded and moved into place." -ForegroundColor DarkGray
 
 Write-Host "==> [3/3] Restarting service and verifying (SSH key auth)..." -ForegroundColor Cyan
 
