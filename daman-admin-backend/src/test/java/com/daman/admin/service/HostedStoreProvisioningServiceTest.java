@@ -887,4 +887,16 @@ class HostedStoreProvisioningServiceTest {
                     .doesNotThrowAnyException();
         }
     }
+@Test void aBadFlavourIsRefusedBeforeTheCapacityGuardRuns() {
+        // Order matters for the answer the caller gets. The flavour is bad input (400); a full box
+        // is a temporary condition (503). Checking capacity first means a full box masks the typo
+        // and the caller is told to come back later about a request that can never succeed.
+        ops.totalMb = 1800; // same exhausted box as refusesWhenCapacityGuardFails
+
+        assertThatThrownBy(() -> service.provision(
+                new ProvisionRequest("acme", "acme", null, "banana")))
+                .isInstanceOf(HostedStoreProvisioningService.RefusedException.class);
+
+        assertThat(instances).isEmpty();
+    }
 }

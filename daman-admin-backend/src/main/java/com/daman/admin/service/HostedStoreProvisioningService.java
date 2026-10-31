@@ -274,9 +274,12 @@ public class HostedStoreProvisioningService {
             // Only on a fresh provision: a resumed store already has a registry row, so the
             // reserve-based guard is already counting its heap and re-checking it would refuse the
             // resume for ever.
+            // Before the capacity guard, deliberately. A bad flavour is bad input (400); a full
+            // box is a temporary condition (503). Checking capacity first lets a full box mask the
+            // typo, so the caller is told to come back later about a request that can never work.
+            String flavour = normaliseDemoFlavour(request.demoFlavour());
             requireCapacity();
             instance = newRow(clientCode, subdomain);
-            String flavour = normaliseDemoFlavour(request.demoFlavour());
             if (flavour != null) {
                 instance.setDemo(true);
                 instance.setDemoFlavour(flavour);
