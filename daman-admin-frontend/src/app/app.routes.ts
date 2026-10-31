@@ -6,6 +6,7 @@ import { TrialsComponent } from './pages/trials/trials.component';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard } from './guards/auth.guard';
+import { FleetComponent } from './pages/fleet/fleet.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -15,5 +16,8 @@ export const routes: Routes = [
   { path: 'clients/new', component: ClientFormComponent, canActivate: [authGuard] },
   { path: 'clients/:clientCode/edit', component: ClientFormComponent, canActivate: [authGuard] },
   { path: 'versions', component: VersionsComponent, canActivate: [authGuard] },
-  { path: 'trials', component: TrialsComponent, canActivate: [authGuard] }
+  { path: 'trials', component: TrialsComponent, canActivate: [authGuard] },
+  // The fleet page is static assets; authGuard cannot protect a bare file, so it is mounted
+  // behind this component instead. See FleetComponent.
+  { path: 'fleet', component: FleetComponent, canActivate: [authGuard] }
 ];

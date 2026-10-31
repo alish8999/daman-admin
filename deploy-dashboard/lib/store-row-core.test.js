@@ -310,3 +310,37 @@ test('a store argument never changes the actions a non-demo row already had', ()
 test('reset-demo posts to its own lifecycle route', () => {
   assert.strictEqual(lifecycleRouteFor('reset-demo'), 'reset-demo');
 });
+
+// ── Re-proved after the move into the portal (spec §9) ───────────────────────────────────────
+//
+// Moving a control surface is where guards quietly stop applying. These assert the same functions
+// the page has always gone through, which is the point: they prove the move did not route around
+// them. The backend's own refusal (DemoResetService rejecting a non-demo store) is pinned
+// separately by DemoResetServiceTest and is untouched by this work.
+
+test('Reset is still offered only on a row whose demo flag is literally true', () => {
+  assert.ok(actionsFor('ACTIVE', { demo: true }).includes('reset-demo'));
+  assert.ok(!actionsFor('ACTIVE', { demo: 1 }).includes('reset-demo'));
+  assert.ok(!actionsFor('ACTIVE', { demo: 'true' }).includes('reset-demo'));
+});
+
+test('a row with demo absent or null offers no Reset', () => {
+  // Null is what every row created before the column existed carries.
+  assert.ok(!actionsFor('ACTIVE', { demo: null }).includes('reset-demo'));
+  assert.ok(!actionsFor('ACTIVE', {}).includes('reset-demo'));
+  assert.ok(!actionsFor('SUSPENDED', { demo: undefined }).includes('reset-demo'));
+});
+
+test('Remove and Forget row are still distinct actions on different statuses', () => {
+  // They destroy different things and must never be offered together.
+  assert.ok(actionsFor('SUSPENDED').includes('remove'));
+  assert.ok(!actionsFor('SUSPENDED').includes('forget-row'));
+  assert.ok(actionsFor('FAILED').includes('forget-row'));
+  assert.ok(!actionsFor('FAILED').includes('remove'));
+});
+
+test('Remove still maps to its own lifecycle route, separate from reset-demo', () => {
+  assert.strictEqual(lifecycleRouteFor('remove'), 'remove');
+  assert.strictEqual(lifecycleRouteFor('reset-demo'), 'reset-demo');
+  assert.strictEqual(lifecycleRouteFor('forget-row'), null, 'forget-row is a DELETE, not a lifecycle call');
+});

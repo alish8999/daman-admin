@@ -156,7 +156,19 @@
       // Wrap a fetch made with this token: its HTTP status (or the lack of one) is the evidence.
       track(kind, request) {
         return request.then(
-          (r) => { api.observe(kind, r.status); return r; },
+          (r) => {
+            api.observe(kind, r.status);
+            // In portal mode the portal token IS the session, so a 401 on it means the session is
+            // gone — there is no field to paste a fresh one into. Tell the shell, which owns what
+            // happens next. Without this the fleet would poll a dead session for ever, showing an
+            // empty table that reads as "no stores" rather than "log in again".
+            if (r.status === 401 && kind === 'portal'
+                && apiBaseCore.tokenSource(PAGE_MODE, 'portal') === 'storage') {
+              try { window.parent.postMessage('fleet:unauthorised', window.location.origin); }
+              catch (err) { /* not framed, or a different origin: nothing to tell */ }
+            }
+            return r;
+          },
           (err) => { api.observe(kind, null); throw err; }
         );
       },
