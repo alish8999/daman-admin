@@ -86,9 +86,13 @@ function get(pathAndQuery, headers) {
   return getNoOrigin(pathAndQuery, withDefaultOrigin(headers));
 }
 
+// What a BROWSER sends for a same-origin request from the agent page: Sec-Fetch-Site, and no
+// Origin on a GET. An earlier version defaulted an Origin header here instead, which is what let
+// a branch ship where the agent refused its own page while every test stayed green.
 function withDefaultOrigin(headers) {
-  if (headers && Object.keys(headers).some((k) => k.toLowerCase() === 'origin')) return headers;
-  return { ...(headers || {}), Origin: `http://127.0.0.1:${port}` };
+  const keys = Object.keys(headers || {}).map((k) => k.toLowerCase());
+  if (keys.includes('origin') || keys.includes('sec-fetch-site')) return headers;
+  return { ...(headers || {}), 'Sec-Fetch-Site': 'same-origin' };
 }
 
 function getNoOrigin(pathAndQuery, headers) {
@@ -864,4 +868,46 @@ test('a refused origin never reaches a route', async () => {
   assert.strictEqual(res.statusCode, 403);
   assert.match(res.body, /Cross-origin/);
   assert.ok(!(res.headers['content-type'] || '').includes('event-stream'));
+});
+
+// ── C1 regression: a browser omits Origin on a SAME-ORIGIN GET ───────────────────────────────
+//
+// The first version of the origin allowlist refused an absent Origin outright on any route that
+// could spawn, on the premise that "a browser always sends one". That is false: Origin goes on
+// cross-origin requests and on same-origin requests EXCEPT GET/HEAD. The agent therefore refused
+// its own page — the fleet listed nothing and every deploy stream 403'd — and the suite stayed
+// green only because the test helper had been changed to send a header browsers do not send.
+// Sec-Fetch-Site is what distinguishes the two cases, which is why it was in this file already.
+
+test('the agent own page can open a deploy stream: same-origin GET, no Origin', async () => {
+  const res = await getNoOrigin('/api/deploy/spawnfail/stream', { 'Sec-Fetch-Site': 'same-origin' });
+  assert.notStrictEqual(res.statusCode, 403, 'the agent must not refuse its own page');
+});
+
+test('the agent own page can read the fleet: same-origin GET, no Origin', async () => {
+  const res = await getNoOrigin('/api/remote/hosted-stores', { 'Sec-Fetch-Site': 'same-origin' });
+  assert.notStrictEqual(res.statusCode, 403);
+});
+
+test('a cross-site GET with no Origin is still refused', async () => {
+  // The <img src="http://127.0.0.1:5500/api/deploy/..."> attack this guard exists for.
+  const res = await getNoOrigin('/api/deploy/backend/stream', { 'Sec-Fetch-Site': 'cross-site' });
+  assert.strictEqual(res.statusCode, 403);
+});
+
+test('a non-browser with neither header is still refused on a spawning route', async () => {
+  const res = await getNoOrigin('/api/deploy/backend/stream');
+  assert.strictEqual(res.statusCode, 403);
+});
+
+test('a non-browser with neither header still reaches a read-only route', async () => {
+  const res = await getNoOrigin('/api/status');
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('a cross-site request with no Origin is refused even on a read-only route', async () => {
+  // Pins the Sec-Fetch-Site branch itself. Without this nothing proves that header still does
+  // anything, and it is the only thing standing between a cross-site <img> and the agent.
+  const res = await getNoOrigin('/api/status', { 'Sec-Fetch-Site': 'cross-site' });
+  assert.strictEqual(res.statusCode, 403);
 });

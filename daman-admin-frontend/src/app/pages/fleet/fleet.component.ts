@@ -42,7 +42,7 @@ export class FleetComponent {
    * nothing variable to trust.
    */
   readonly src: SafeResourceUrl =
-    inject(DomSanitizer).bypassSecurityTrustResourceUrl('fleet/index.html');
+    inject(DomSanitizer).bypassSecurityTrustResourceUrl('fleet-page/index.html');
 
   /**
    * The page posts here when a call comes back 401, and the portal owns what happens next.
@@ -54,7 +54,12 @@ export class FleetComponent {
   onMessage(event: MessageEvent): void {
     if (event.origin !== window.location.origin) return;   // only our own iframe
     if (event.data === 'fleet:unauthorised') {
-      this.router.navigate(['/login']);
+      // Exactly what authInterceptor does for the rest of the portal. Navigating alone left the
+      // dead token in storage, so authGuard waved the user straight back into /fleet for another
+      // silent 401 — and dropped them on a bare login form with no explanation, because
+      // LoginComponent reads `expired` to say "Your session has expired."
+      localStorage.removeItem('admin-auth-token');
+      this.router.navigate(['/login'], { queryParams: { expired: 1 } });
     }
   }
 }

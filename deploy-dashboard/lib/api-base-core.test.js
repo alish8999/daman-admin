@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { mode, apiUrl, tokenSource, agentReachable, ADMIN_API, PORTAL_ORIGIN } = require('./api-base-core');
+const { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, agentUrl, AGENT_ORIGIN, ADMIN_API, PORTAL_ORIGIN } = require('./api-base-core');
 
 test('a localhost origin is agent mode; the portal origin is portal mode', () => {
   assert.strictEqual(mode('http://localhost:5500'), 'agent');
@@ -74,4 +74,36 @@ test('a probe that answers reports the agent as reachable', async () => {
 test('the probe never rejects', async () => {
   // A broken agent must not break the fleet, which is the half that works from anywhere.
   await assert.doesNotReject(() => agentReachable(() => { throw new Error('sync throw'); }));
+});
+
+test('create-store is NOT agent-only: it is a pure fleet action', () => {
+  // Deriving the set from "/api/deploy/<slot>/stream has no portal equivalent" marked EVERY slot
+  // agent-only, including the Create Hosted Store card — which is a plain /api/remote POST that
+  // works perfectly from the portal. Greying it made the fleet depend on the owner's machine,
+  // which the spec names as a failure condition.
+  assert.strictEqual(isAgentOnlySlot('create-store'), false);
+});
+
+test('the build and release slots ARE agent-only', () => {
+  for (const slot of ['store-backend', 'store-deploy-only', 'store-restart-all', 'backend',
+                      'frontend', 'store-frontend', 'build-generic', 'generic']) {
+    assert.strictEqual(isAgentOnlySlot(slot), true, slot);
+  }
+});
+
+test('an unknown slot is treated as agent-only', () => {
+  // A new build card added later is greyed until someone decides otherwise, rather than silently
+  // enabled in a place it cannot work.
+  assert.strictEqual(isAgentOnlySlot('something-new'), true);
+});
+
+test('agentUrl points at the local agent from the portal, and stays relative on the agent', () => {
+  // Without this the build cards resolved root-absolute against the Pages host: the deploy stream
+  // got index.html from the SPA fallback, and the /token POST sent the portal session to
+  // Cloudflare. It also meant nothing ever called the agent, so its whole CORS + PNA surface --
+  // which the spec called a requirement, not a nicety -- was never exercised.
+  assert.strictEqual(agentUrl('portal', '/api/deploy/backend/stream'),
+    AGENT_ORIGIN + '/api/deploy/backend/stream');
+  assert.strictEqual(agentUrl('portal', '/api/versions'), AGENT_ORIGIN + '/api/versions');
+  assert.strictEqual(agentUrl('agent', '/api/deploy/backend/stream'), '/api/deploy/backend/stream');
 });

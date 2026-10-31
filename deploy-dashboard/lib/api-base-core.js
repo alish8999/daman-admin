@@ -64,6 +64,58 @@
   const PORTAL_TOKEN_STORAGE_KEY = 'admin-auth-token';
 
   /**
+   * Slots whose work can only happen on the owner's machine: they compile from the local repo and
+   * upload from the local disk.
+   *
+   * An explicit list, not derived. The first attempt derived it from "this slot's deploy path has
+   * no hosted equivalent", which is true of EVERY slot — including `create-store`, a plain
+   * /api/remote POST that works perfectly from the portal. Greying that one made the fleet depend
+   * on the owner's machine being switched on, which is the single thing this whole change exists
+   * to stop. A list that has to be edited deliberately is the right amount of clever here.
+   *
+   * An unknown slot counts as agent-only, so a build card added later is greyed in the portal
+   * until someone decides otherwise rather than silently enabled where it cannot work.
+   */
+  const AGENT_ONLY_SLOTS = [
+    'store-backend', 'store-deploy-only', 'store-restart-all',  // the shared store jar
+    'backend', 'frontend',                                      // the admin portal itself
+    'store-frontend',                                           // the shared store Pages project
+    'build-generic', 'generic',                                 // the desktop client
+  ];
+
+  /**
+   * Slots that work anywhere, because their work is a call to admin-api and nothing else.
+   * `create-store` is the whole list today, and it is the one that must never be greyed.
+   */
+  const FLEET_SLOTS = ['create-store'];
+
+  function isAgentOnlySlot(slot) {
+    if (FLEET_SLOTS.indexOf(slot) !== -1) return false;
+    // Known build slot, or an unrecognised one: agent-only either way.
+    return true;
+  }
+
+  /** Where the local build agent listens. Fixed: it is the owner's own machine, not a setting. */
+  const AGENT_ORIGIN = 'http://localhost:5500';
+
+  /**
+   * The URL for a route only the local agent can serve.
+   *
+   * Relative in agent mode — the page is already there. Absolute in portal mode, because the
+   * page's paths are root-absolute and would otherwise resolve against the Pages host: the deploy
+   * stream would get `index.html` from the SPA fallback and the `/token` POST would send the
+   * portal session to Cloudflare.
+   *
+   * This is the call that makes the agent's CORS and Private Network Access handling do anything
+   * at all. Before it existed, the only request that ever crossed to localhost was the
+   * reachability probe.
+   */
+  function agentUrl(currentMode, path) {
+    const p = String(path || '');
+    return currentMode === 'agent' ? p : AGENT_ORIGIN + p;
+  }
+
+  /**
    * Whether the local build agent can be reached, resolving false for every way it cannot.
    *
    * A stopped agent, a declined Private Network Access prompt and a browser that blocks the
@@ -93,6 +145,6 @@
     });
   }
 
-  return { mode, apiUrl, tokenSource, agentReachable,
+  return { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, AGENT_ONLY_SLOTS, agentUrl, AGENT_ORIGIN,
            ADMIN_API, PORTAL_ORIGIN, PORTAL_TOKEN_STORAGE_KEY };
 });

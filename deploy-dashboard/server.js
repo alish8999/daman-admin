@@ -159,20 +159,24 @@ function requiresOrigin(pathname, method) {
 
 function isOriginAllowed(req) {
   const origin = req.headers.origin;
-  if (origin) {
-    if (!allowedOrigins(req).includes(origin)) return false;
-  } else if (requiresOrigin(parsePath(req), req.method)) {
-    // No Origin on a route that can run something: refused. A browser always sends one
-    // cross-origin, so the only callers this turns away on these routes are non-browsers.
-    return false;
-  }
   const fetchSite = req.headers['sec-fetch-site'];
-  // 'cross-site' is still refused outright; the portal's own calls arrive as cross-site WITH an
-  // allowlisted Origin, which the check above has already accepted, so they never reach here.
-  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none' && !req.headers.origin) {
-    return false;
-  }
-  return true;
+
+  // Anything the browser itself calls cross-site is refused outright. The portal's own calls are
+  // cross-site too, but they carry an allowlisted Origin and are accepted below.
+  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none' && !origin) return false;
+
+  if (origin) return allowedOrigins(req).includes(origin);
+
+  // NO ORIGIN. A browser omits it on a same-origin GET/HEAD — which is most of what the agent's
+  // own page does — and says so in Sec-Fetch-Site. An earlier version of this function refused
+  // the absent header outright on the premise that "a browser always sends one"; it does not, and
+  // the agent spent a branch refusing its own page: the fleet listed nothing and every deploy
+  // stream 403'd. Sec-Fetch-Site is exactly the signal that tells the two apart.
+  if (fetchSite === 'same-origin' || fetchSite === 'none') return true;
+
+  // Neither header: not a browser. Allowed on read-only routes so curl, scripts and the page's
+  // reachability probe keep working; refused on anything that can spawn or mutate.
+  return !requiresOrigin(parsePath(req), req.method);
 }
 
 /** The path alone, tolerating the asterisk-form request line (`OPTIONS *`). */

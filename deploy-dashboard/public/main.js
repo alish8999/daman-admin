@@ -15,6 +15,14 @@
     return url;
   }
 
+  // Routes only the local agent can serve: builds, deploys, local versions and changelogs.
+  // Relative on the agent, absolute to localhost from the portal — otherwise these resolve
+  // root-absolute against the Pages host, where the deploy stream gets index.html from the SPA
+  // fallback and the token POST sends the portal session to Cloudflare.
+  function agent(path) {
+    return apiBaseCore.agentUrl(PAGE_MODE, path);
+  }
+
   /**
    * In portal mode, disable everything that needs the local machine until the agent answers.
    *
@@ -22,6 +30,26 @@
    * equivalent — these cards can only ever work at the owner's desk. The fleet is rendered
    * regardless and never waits on this: it is the half that works from anywhere.
    */
+  /**
+   * In portal mode the fleet uses the session the user is already logged in with, so the portal
+   * token field is not just unnecessary — it is actively misleading. Leaving it visible showed
+   * "Portal token — missing" and "Paste the portal token above to load the stores" while the
+   * fleet loaded perfectly from the session behind it.
+   *
+   * The LOCAL field stays: it authorises the local backend on :8083, a different process whose
+   * sessions the portal knows nothing about. It is hidden until the agent answers, because
+   * without an agent there is nothing it could authorise.
+   */
+  function hidePortalTokenFieldInPortalMode() {
+    if (PAGE_MODE !== 'portal') return;
+    const portalField = document.querySelector('.token-field[data-token-kind="portal"]');
+    if (portalField) portalField.hidden = true;
+    const local = document.querySelector('.token-field[data-token-kind="local"]');
+    if (local) local.hidden = true;   // revealed by the probe when an agent answers
+    const empty = document.querySelector('.fleet-empty');
+    if (empty) empty.textContent = 'Loading the stores…';
+  }
+
   function greyAgentOnlyCardsUntilAgentAnswers() {
     if (PAGE_MODE !== 'portal') return;
     const slots = document.querySelectorAll('[data-slot]');
@@ -29,28 +57,33 @@
     slots.forEach(function (el) {
       // A slot whose path has no hosted equivalent is agent-only, by the same rule api() uses —
       // so the list cannot drift from the routing.
-      if (apiBaseCore.apiUrl('portal', '/api/deploy/' + el.dataset.slot + '/stream') === null) {
-        agentOnly.push(el);
-      }
+      if (apiBaseCore.isAgentOnlySlot(el.dataset.slot)) agentOnly.push(el);
     });
     const disable = function (why) {
       agentOnly.forEach(function (el) {
         const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
         if (btn) btn.disabled = true;
         const host = el.closest('.card') || el;
-        if (!host.querySelector('.agent-offline-note')) {
-          const note = document.createElement('p');
+        // Update the text on a note that already exists, rather than skipping. Skipping left the
+        // card frozen on "checking…" for ever, so the permanent state of a correctly greyed card
+        // was a message saying the check was still running.
+        let note = host.querySelector('.agent-offline-note');
+        if (!note) {
+          note = document.createElement('p');
           note.className = 'agent-offline-note';
-          note.textContent = why;
           host.appendChild(note);
         }
+        note.textContent = why;
       });
     };
     disable('Needs the local deploy agent — checking…');
     apiBaseCore.agentReachable(function () {
-      return fetch('http://localhost:5500/api/status', { mode: 'cors' });
+      return fetch(agent('/api/status'), { mode: 'cors' });
     }).then(function (reachable) {
       if (reachable) {
+        // The local token field only makes sense once there is an agent to authorise against.
+        const local = document.querySelector('.token-field[data-token-kind="local"]');
+        if (local) local.hidden = false;
         agentOnly.forEach(function (el) {
           const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
           if (btn) btn.disabled = false;
@@ -214,7 +247,7 @@
     polling.add(slot);
 
     const tick = () => {
-      fetch('/api/status')
+      fetch(agent('/api/status'))
         .then((r) => r.json())
         .then((status) => {
           if (status[slot]) {
@@ -244,7 +277,7 @@
 
   // Shared by the Generic Release card's prefill and the build-info footer,
   // so a slow/unreachable clients-build/ directory only has to be reported once.
-  const latestVersionRequest = fetch('/api/generic/latest-version')
+  const latestVersionRequest = fetch(agent('/api/generic/latest-version'))
     .then((r) => r.json())
     .catch(() => ({ version: null }));
 
@@ -256,7 +289,7 @@
   }
 
   function pollHealth() {
-    fetch('/api/health')
+    fetch(agent('/api/health'))
       .then((r) => r.json())
       .then((health) => {
         document.querySelectorAll('[data-health]').forEach((dot) => {
@@ -294,7 +327,7 @@
     }
 
     btn.addEventListener('click', () => {
-      let streamUrl = `/api/deploy/${slot}/stream`;
+      let streamUrl = agent(`/api/deploy/${slot}/stream`);
       if (slot === 'generic') {
         const version = versionInput.value.trim();
         if (!version) {
@@ -316,7 +349,7 @@
           footer.className = 'footer failure';
           return;
         }
-        ready = fetch(`/api/deploy/${slot}/token`, {
+        ready = fetch(agent(`/api/deploy/${slot}/token`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
@@ -465,7 +498,7 @@
     });
 
     function loadKnownVersions() {
-      return tokens.track('local', fetch('/api/versions', { headers: authHeaders() }))
+      return tokens.track('local', fetch(agent('/api/versions'), { headers: authHeaders() }))
         .then((r) => (r.ok ? r.json() : []))
         .then((versions) => {
           knownVersions = Array.isArray(versions) ? versions : [];
@@ -647,7 +680,7 @@
 
     function persistLibrary() {
       modalSaving.hidden = false;
-      tokens.track('local', fetch('/api/changelog-library', {
+      tokens.track('local', fetch(agent('/api/changelog-library'), {
         method: 'PUT',
         headers: authJsonHeaders(),
         body: JSON.stringify(changelogLibrary),
@@ -677,7 +710,7 @@
       modalNewInputEn.value = '';
       modalNewInputAr.value = '';
       modalBackdrop.hidden = false;
-      tokens.track('local', fetch('/api/changelog-library', { headers: authHeaders() }))
+      tokens.track('local', fetch(agent('/api/changelog-library'), { headers: authHeaders() }))
         .then((r) => {
           if (r.ok) return r.json();
           // 401 = bad/expired token (AuthFilter on :8083); 503 = the dashboard's
@@ -765,8 +798,8 @@
         changelogEntryIds: Array.from(changelogSelectedIds),
       };
       const req = existing
-        ? tokens.track('local', fetch(`/api/versions/${existing.id}`, { method: 'PUT', headers: authJsonHeaders(), body: JSON.stringify(payload) }))
-        : tokens.track('local', fetch('/api/versions', { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) }));
+        ? tokens.track('local', fetch(agent(`/api/versions/${existing.id}`), { method: 'PUT', headers: authJsonHeaders(), body: JSON.stringify(payload) }))
+        : tokens.track('local', fetch(agent('/api/versions'), { method: 'POST', headers: authJsonHeaders(), body: JSON.stringify(payload) }));
       // Best-effort, same as the admin portal's own confirmBuild() - a failure
       // here (e.g. duplicate versionNumber from a race) shouldn't block the build.
       return req.catch(() => {}).then(() => loadKnownVersions());
@@ -822,7 +855,7 @@
         stopPollingExpired();
         return;
       }
-      tokens.track('local', fetch('/api/build/generic/status', { headers: authHeaders() }))
+      tokens.track('local', fetch(agent('/api/build/generic/status'), { headers: authHeaders() }))
         .then((r) => (r.status === 401 ? Promise.reject(new TokenExpired()) : r.json()))
         .then((data) => {
           renderNewLines(data.logs);
@@ -860,7 +893,7 @@
       footer.textContent = `Building ${platform}...`;
       footer.className = 'footer';
 
-      tokens.track('local', fetch(`/api/build/generic?version=${encodeURIComponent(queuedVersion)}&platform=${encodeURIComponent(platform)}`, {
+      tokens.track('local', fetch(agent(`/api/build/generic?version=${encodeURIComponent(queuedVersion)}&platform=${encodeURIComponent(platform)}`), {
         method: 'POST',
         headers: authHeaders(),
       }))
@@ -925,7 +958,7 @@
 
     // On load, reflect a build already in progress (e.g. page reloaded mid-build).
     // Nothing to reflect (and nothing worth a 401) without a token.
-    if (tokens.value('local')) tokens.track('local', fetch('/api/build/generic/status', { headers: authHeaders() }))
+    if (tokens.value('local')) tokens.track('local', fetch(agent('/api/build/generic/status'), { headers: authHeaders() }))
       .then((r) => (r.ok ? r.json() : { status: 'IDLE' }))
       .then((data) => {
         if (data.status !== 'BUILDING') return;
@@ -1572,7 +1605,7 @@
   // On load, reflect anything already running server-side (e.g. the page was
   // reloaded mid-deploy). Re-attaching to the live log is out of scope - this
   // only keeps the button state honest.
-  fetch('/api/status')
+  fetch(agent('/api/status'))
     .then((r) => r.json())
     .then((status) => {
       cards.forEach((card) => {
@@ -1591,5 +1624,6 @@
     })
     .catch(() => {});
 
+  hidePortalTokenFieldInPortalMode();
   greyAgentOnlyCardsUntilAgentAnswers();
 })();

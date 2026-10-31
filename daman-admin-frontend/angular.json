@@ -25,8 +25,8 @@
             "assets": [
               "src/favicon.ico",
               "src/assets",
-              { "glob": "**/*", "input": "../deploy-dashboard/public", "output": "fleet" },
-              { "glob": "*-core.js", "input": "../deploy-dashboard/lib", "output": "fleet" }
+              { "glob": "**/*", "input": "../deploy-dashboard/public", "output": "fleet-page" },
+              { "glob": "*-core.js", "input": "../deploy-dashboard/lib", "output": "fleet-page" }
             ],
             "styles": [
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
