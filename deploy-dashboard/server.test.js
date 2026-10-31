@@ -79,13 +79,41 @@ const PRODUCTION_REMOTE = { ...REMOTE_ADMIN_BACKEND };
 // never collides with a dashboard the developer already has running on 5500.
 let port;
 
+// Sends a same-origin Origin header by default, because a browser always does and the server now
+// refuses an absent one on any route that can spawn a script. Tests that are ABOUT a missing
+// Origin use getNoOrigin / postNoOrigin instead.
 function get(pathAndQuery, headers) {
+  return getNoOrigin(pathAndQuery, withDefaultOrigin(headers));
+}
+
+function withDefaultOrigin(headers) {
+  if (headers && Object.keys(headers).some((k) => k.toLowerCase() === 'origin')) return headers;
+  return { ...(headers || {}), Origin: `http://127.0.0.1:${port}` };
+}
+
+function getNoOrigin(pathAndQuery, headers) {
   return new Promise((resolve, reject) => {
     http.get({ host: '127.0.0.1', port, path: pathAndQuery, headers }, (res) => {
       let body = '';
       res.on('data', (chunk) => { body += chunk; });
-      res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+      res.on('end', () => resolve({ statusCode: res.statusCode, body, headers: res.headers }));
     }).on('error', reject);
+  });
+}
+
+// Preflight. Added with the origin allowlist: a browser sends this before any cross-origin call
+// to the agent, and it is where Private Network Access is granted or withheld.
+function options(pathAndQuery, headers) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      { host: '127.0.0.1', port, path: pathAndQuery, method: 'OPTIONS', headers },
+      (res) => {
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => resolve({ statusCode: res.statusCode, body, headers: res.headers }));
+      });
+    req.on('error', reject);
+    req.end();
   });
 }
 
@@ -118,7 +146,7 @@ test('a cross-origin request to a deploy endpoint is rejected with 403', async (
 });
 
 test('a no-cors style request (Sec-Fetch-Site: cross-site, no Origin) is rejected with 403', async () => {
-  const res = await get('/api/deploy/backend/stream', { 'Sec-Fetch-Site': 'cross-site' });
+  const res = await getNoOrigin('/api/deploy/backend/stream', { 'Sec-Fetch-Site': 'cross-site' });
   assert.strictEqual(res.statusCode, 403);
 });
 
@@ -366,6 +394,10 @@ function restoreRemote() {
 }
 
 function post(pathAndQuery, bodyObj, headers) {
+  return postNoOrigin(pathAndQuery, bodyObj, withDefaultOrigin(headers));
+}
+
+function postNoOrigin(pathAndQuery, bodyObj, headers) {
   const payload = typeof bodyObj === 'string' ? bodyObj : JSON.stringify(bodyObj);
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -397,7 +429,7 @@ test('POST /api/remote/hosted-stores rejects a cross-origin request and never re
     const body = { clientCode: 'acme', subdomain: 'acme', expiresAt: '2027-01-01' };
     const evil = await post('/api/remote/hosted-stores', body, { Origin: 'http://evil.example' });
     assert.strictEqual(evil.statusCode, 403);
-    const noCors = await post('/api/remote/hosted-stores', body, { 'Sec-Fetch-Site': 'cross-site' });
+    const noCors = await postNoOrigin('/api/remote/hosted-stores', body, { 'Sec-Fetch-Site': 'cross-site' });
     assert.strictEqual(noCors.statusCode, 403);
     // The read routes sit behind the same guard.
     const read = await get('/api/remote/clients', { Origin: 'http://evil.example' });
@@ -613,7 +645,7 @@ test('lifecycle routes reject a cross-origin request', async () => {
   try {
     const evil = await post('/api/remote/hosted-stores/acme/remove', '', { Origin: 'http://evil.example' });
     assert.strictEqual(evil.statusCode, 403);
-    const noCors = await post('/api/remote/hosted-stores/acme/remove', '', { 'Sec-Fetch-Site': 'cross-site' });
+    const noCors = await postNoOrigin('/api/remote/hosted-stores/acme/remove', '', { 'Sec-Fetch-Site': 'cross-site' });
     assert.strictEqual(noCors.statusCode, 403);
     assert.strictEqual(seen.length, 0);
   } finally {
@@ -689,6 +721,7 @@ test('the scripts index.html loads are actually served (registry-rows.js used to
 // Registry-only on the remote. Not Remove: that is POST .../remove and destroys the store's data.
 
 function del(pathAndQuery, headers) {
+  headers = withDefaultOrigin(headers);
   return new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port, path: pathAndQuery, method: 'DELETE', headers }, (res) => {
       let body = '';
@@ -759,4 +792,76 @@ test('a customer store puts exactly the pre-feature body on the wire', async () 
     restoreRemote();
     fake.close();
   }
+});
+
+// ── Origin allowlist and PNA preflight (added 2026-10-31) ────────────────────────────────────
+//
+// The agent listens on a port any tab in the owner's browser can address, and GET
+// /api/deploy/<slot>/stream spawns PowerShell. Without these checks, a page on any site could
+// ship a build to production while the owner reads something unrelated. A browser cannot forge
+// Origin, which is what makes an allowlist sufficient against that attack.
+
+test('the portal origin is allowed and answered with CORS headers', async () => {
+  const res = await get('/api/status', { Origin: 'https://admin.damansoft.com' });
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.headers['access-control-allow-origin'], 'https://admin.damansoft.com');
+});
+
+test('a Cloudflare Pages preview origin is refused', async () => {
+  // Deliberately NOT allowlisted (spec 12.3): production custom domain only.
+  const res = await get('/api/status', { Origin: 'https://abc123.daman-admin.pages.dev' });
+  assert.strictEqual(res.statusCode, 403);
+});
+
+test('an arbitrary site is refused', async () => {
+  const res = await get('/api/status', { Origin: 'https://evil.example.com' });
+  assert.strictEqual(res.statusCode, 403);
+});
+
+test('a null origin is refused', async () => {
+  const res = await get('/api/status', { Origin: 'null' });
+  assert.strictEqual(res.statusCode, 403);
+});
+
+test('an absent Origin is refused on a route that can spawn a script', async () => {
+  // This one is a GET, and it runs PowerShell. Keying the rule on "state-changing method" would
+  // leave the single most dangerous route unguarded.
+  const res = await getNoOrigin('/api/deploy/backend/stream');
+  assert.strictEqual(res.statusCode, 403);
+});
+
+test('an absent Origin is still allowed on a read-only route', async () => {
+  // So curl, scripts and the agent-reachability probe keep working.
+  const res = await get('/api/status');
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('OPTIONS preflight from the portal allows private network access', async () => {
+  const res = await options('/api/deploy/backend/stream', {
+    Origin: 'https://admin.damansoft.com',
+    'Access-Control-Request-Method': 'GET',
+    'Access-Control-Request-Private-Network': 'true',
+  });
+  assert.ok(res.statusCode === 204 || res.statusCode === 200, `got ${res.statusCode}`);
+  assert.strictEqual(res.headers['access-control-allow-private-network'], 'true');
+  assert.strictEqual(res.headers['access-control-allow-origin'], 'https://admin.damansoft.com');
+});
+
+test('OPTIONS preflight from a refused origin gets no allow headers at all', async () => {
+  const res = await options('/api/deploy/backend/stream', {
+    Origin: 'https://evil.example.com',
+    'Access-Control-Request-Method': 'GET',
+    'Access-Control-Request-Private-Network': 'true',
+  });
+  assert.strictEqual(res.headers['access-control-allow-origin'], undefined);
+  assert.strictEqual(res.headers['access-control-allow-private-network'], undefined);
+});
+
+test('a refused origin never reaches a route', async () => {
+  // A 403 carrying the refusal body, not an event-stream: proof the request was turned away
+  // before routing rather than handled and then denied.
+  const res = await get('/api/deploy/backend/stream', { Origin: 'https://evil.example.com' });
+  assert.strictEqual(res.statusCode, 403);
+  assert.match(res.body, /Cross-origin/);
+  assert.ok(!(res.headers['content-type'] || '').includes('event-stream'));
 });

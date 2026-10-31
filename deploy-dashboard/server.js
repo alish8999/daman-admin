@@ -126,18 +126,105 @@ const STATIC_FILES = {
 // an <img>/<script>/fetch. Requests with a cross-origin `Origin` are rejected;
 // so are ones whose `Sec-Fetch-Site` says they came from anywhere but this
 // page itself (that header covers no-cors requests, which omit `Origin`).
-function isSameOrigin(req) {
+// The admin portal, which serves the fleet page and must be able to reach this agent for the
+// build cards. The ONLY non-localhost origin allowed, and deliberately not any Cloudflare Pages
+// preview host: a preview build of the page cannot drive deploys on this machine.
+const PORTAL_ORIGIN = 'https://admin.damansoft.com';
+
+function allowedOrigins(req) {
+  // Port comes from the connection itself, not the PORT constant, so the check stays correct
+  // when the server is bound somewhere else (tests).
+  const port = (req.socket && req.socket.localPort) || PORT;
+  return [`http://127.0.0.1:${port}`, `http://localhost:${port}`, PORTAL_ORIGIN];
+}
+
+/**
+ * Routes that can spawn a script or change state, and therefore REQUIRE a real Origin.
+ *
+ * Keyed on effect, not HTTP method, because `GET /api/deploy/<slot>/stream` is a GET that runs
+ * PowerShell. A rule written as "state-changing methods need an Origin" would leave the single
+ * most dangerous route in this server unguarded.
+ *
+ * Read-only routes are deliberately left reachable without an Origin so curl, scripts and the
+ * page's own agent-reachability probe keep working.
+ */
+function requiresOrigin(pathname, method) {
+  if (!pathname) return false;
+  if (pathname.startsWith('/api/deploy/')) return true;   // includes the SSE stream and /token
+  if (pathname.startsWith('/api/remote/')) return true;   // proxied lifecycle and provisioning
+  if (pathname.startsWith('/api/build/')) return true;
+  return method !== 'GET' && method !== 'HEAD';
+}
+
+function isOriginAllowed(req) {
   const origin = req.headers.origin;
   if (origin) {
-    // Port comes from the connection itself, not the PORT constant, so the
-    // check stays correct when the server is bound somewhere else (tests).
-    const port = (req.socket && req.socket.localPort) || PORT;
-    const allowed = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
-    if (!allowed.includes(origin)) return false;
+    if (!allowedOrigins(req).includes(origin)) return false;
+  } else if (requiresOrigin(parsePath(req), req.method)) {
+    // No Origin on a route that can run something: refused. A browser always sends one
+    // cross-origin, so the only callers this turns away on these routes are non-browsers.
+    return false;
   }
   const fetchSite = req.headers['sec-fetch-site'];
-  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') return false;
+  // 'cross-site' is still refused outright; the portal's own calls arrive as cross-site WITH an
+  // allowlisted Origin, which the check above has already accepted, so they never reach here.
+  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none' && !req.headers.origin) {
+    return false;
+  }
   return true;
+}
+
+/** The path alone, tolerating the asterisk-form request line (`OPTIONS *`). */
+function parsePath(req) {
+  try {
+    return new URL(req.url, 'http://localhost').pathname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * CORS + Private Network Access preflight.
+ *
+ * PNA is a second, harsher gate than mixed content: Chrome and Edge force a request from a public
+ * https origin to a local address into a preflight carrying
+ * `Access-Control-Request-Private-Network: true` — including the EventSource GET that opens a
+ * deploy stream — and refuse unless the response grants it. Without this the build cards are
+ * greyed out forever on the owner's own desk, indistinguishable from "the agent is not running".
+ *
+ * Emitted ONLY for an allowed origin: a refused one gets no allow headers at all, so the browser
+ * blocks before the real request is ever sent.
+ */
+function writePreflight(req, res) {
+  const origin = req.headers.origin;
+  if (!origin || !allowedOrigins(req).includes(origin)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Cross-origin requests are not allowed');
+    return;
+  }
+  const headers = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '600',
+  };
+  if (req.headers['access-control-request-private-network'] === 'true') {
+    headers['Access-Control-Allow-Private-Network'] = 'true';
+  }
+  res.writeHead(204, headers);
+  res.end();
+}
+
+/**
+ * The allow-origin header an accepted cross-origin response needs.
+ *
+ * `Vary: Origin` because the answer differs per origin and a cache that ignored it could hand the
+ * portal's allowed response to a request from somewhere else.
+ */
+function corsHeadersFor(req) {
+  const origin = req.headers.origin;
+  if (!origin || !allowedOrigins(req).includes(origin)) return {};
+  return { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' };
 }
 
 function serveStatic(res, entry) {
@@ -476,11 +563,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Preflight first: a browser sends OPTIONS before any cross-origin call, and this is where
+  // Private Network Access is granted. It must answer before the allowlist refusal below, which
+  // would otherwise turn away the very handshake that asks for permission.
+  if (req.method === 'OPTIONS' && pathname && pathname.startsWith('/api/')) {
+    writePreflight(req, res);
+    return;
+  }
+
   // `pathname` is null for an asterisk-form request line (e.g. `OPTIONS *`).
-  if (pathname && pathname.startsWith('/api/') && !isSameOrigin(req)) {
+  if (pathname && pathname.startsWith('/api/') && !isOriginAllowed(req)) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Cross-origin requests are not allowed');
     return;
+  }
+
+  // Every accepted /api response carries the allow-origin header, so the browser hands the body
+  // to the page rather than blocking it after the fact.
+  if (pathname && pathname.startsWith('/api/')) {
+    const cors = corsHeadersFor(req);
+    for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
   }
 
   if (req.method === 'GET' && pathname === '/api/status') {
@@ -616,5 +718,5 @@ if (require.main === module) {
   });
 }
 
-module.exports = { server, runLock, runningPids, killTrackedChildren, isSameOrigin,
+module.exports = { server, runLock, runningPids, killTrackedChildren, isOriginAllowed, requiresOrigin, PORTAL_ORIGIN,
   REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS, LIFECYCLE_PROXY_TIMEOUT_MS, adminTokens };
