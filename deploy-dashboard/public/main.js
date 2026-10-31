@@ -1,4 +1,20 @@
 (function () {
+  // Where this page is running, and therefore who it talks to. Agent mode keeps every path exactly
+  // as it was; portal mode rewrites the /api/remote/* proxy paths to admin-api, which is allowed
+  // to answer us because CorsConfig and AuthFilter.ALLOWED_ORIGINS list admin.damansoft.com.
+  const PAGE_MODE = apiBaseCore.mode(location.origin);
+
+  // The literal proxy paths stay in the source below, because they read as what the page wants;
+  // api() decides where they actually go. A build or status path has no hosted equivalent, and
+  // asking for one throws rather than inventing a URL that would 404 confusingly.
+  function api(path) {
+    const url = apiBaseCore.apiUrl(PAGE_MODE, path);
+    if (url === null) {
+      throw new Error('No hosted equivalent for ' + path + ' — this is an agent-only route.');
+    }
+    return url;
+  }
+
   // Every element carrying a data-slot, which is NOT always a .card any more. The three hosted-store
   // release actions (deploy & restart all / deploy / restart all) were three separate cards saying
   // nearly the same thing; they are now three actions inside one card, so a slot is whatever element
@@ -65,7 +81,25 @@
 
     const api = {
       input(kind) { return kinds[kind].input; },
-      value(kind) { return kinds[kind].input.value.trim(); },
+      /**
+       * The token for a kind.
+       *
+       * In portal mode the 'portal' token IS the session the user already logged in with: the
+       * page is served from the same origin as the Angular app, so localStorage is shared and
+       * there is nothing to paste. The 'local' token is never taken from storage in either mode —
+       * it authorises the local admin backend on :8083, a different process with its own
+       * sessions, where the portal session simply is not valid.
+       */
+      value(kind) {
+        if (apiBaseCore.tokenSource(PAGE_MODE, kind) === 'storage') {
+          try {
+            return (localStorage.getItem(apiBaseCore.PORTAL_TOKEN_STORAGE_KEY) || '').trim();
+          } catch (err) {
+            return ''; // storage blocked; the 401 path then sends the user to log in
+          }
+        }
+        return kinds[kind].input.value.trim();
+      },
       isExpired(kind) { return kinds[kind].state === 'expired'; },
       // Runs after the strip has updated its own state for a newly pasted/edited value.
       onInput(kind, fn) { kinds[kind].listeners.push(fn); },
@@ -888,7 +922,7 @@
 
     function loadClients() {
       if (!tokens.value('portal')) return;
-      tokens.track('portal', fetch('/api/remote/clients', { headers: authHeaders() }))
+      tokens.track('portal', fetch(api('/api/remote/clients'), { headers: authHeaders() }))
         .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
         .then(({ r, body }) => {
           if (!r.ok || !Array.isArray(body)) {
@@ -955,7 +989,7 @@
       subdomainInput.value = '';
       subdomainHint.textContent = SUGGESTED_HINT;
       if (!code) return;
-      tokens.track('portal', fetch(`/api/remote/hosted-stores/suggest-subdomain?clientCode=${encodeURIComponent(code)}`, {
+      tokens.track('portal', fetch(api(`/api/remote/hosted-stores/suggest-subdomain?clientCode=${encodeURIComponent(code)}`), {
         headers: authHeaders(),
       }))
         .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
@@ -1056,7 +1090,7 @@
           btn.disabled = false;
           return;
         }
-        tokens.track('portal', fetch('/api/remote/hosted-stores', { headers: authHeaders() }))
+        tokens.track('portal', fetch(api('/api/remote/hosted-stores'), { headers: authHeaders() }))
           .then((r) => r.text().then((text) => ({ r, body: parseBody(text) })))
           .then(({ r, body }) => {
             // Both backend shapes (bare array / { stores }): see registry-rows.js.
@@ -1103,7 +1137,7 @@
       setStatus('Running...');
       appendLine(log, `Creating hosted store for ${clientCode} at ${subdomain}...`);
 
-      tokens.track('portal', fetch('/api/remote/hosted-stores', {
+      tokens.track('portal', fetch(api('/api/remote/hosted-stores'), {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
         body: JSON.stringify({ clientCode, subdomain, expiresAt: expiryInput.value,
@@ -1304,7 +1338,7 @@
       }
       if (inFlight) return Promise.resolve();
       inFlight = true;
-      return tokens.track('portal', fetch('/api/remote/hosted-stores', { headers: authHeaders() }))
+      return tokens.track('portal', fetch(api('/api/remote/hosted-stores'), { headers: authHeaders() }))
         .then((r) => r.text().then((text) => ({ r, body: parse(text) })))
         .then(({ r, body }) => {
           // Both backend shapes (bare array / { stores }): see registry-rows.js. Not a migration shim.
@@ -1331,14 +1365,14 @@
     function post(code, action) {
       const route = core.lifecycleRouteFor(action);
       if (!route) return Promise.reject(new Error('"' + action + '" is not a lifecycle action'));
-      return tokens.track('portal', fetch('/api/remote/hosted-stores/' + encodeURIComponent(code) + '/' + route, {
+      return tokens.track('portal', fetch(api('/api/remote/hosted-stores/') + encodeURIComponent(code) + '/' + route, {
         method: 'POST',
         headers: authHeaders(),
       }));
     }
 
     function forget(code) {
-      return tokens.track('portal', fetch('/api/remote/hosted-stores/' + encodeURIComponent(code), {
+      return tokens.track('portal', fetch(api('/api/remote/hosted-stores/') + encodeURIComponent(code), {
         method: 'DELETE',
         headers: authHeaders(),
       }));

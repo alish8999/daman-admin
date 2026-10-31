@@ -118,6 +118,7 @@ const STATIC_FILES = {
   // Lives in lib/ so node's tests can require it; served from there rather than copied.
   '/token-state-core.js': { dir: LIB_DIR, file: 'token-state-core.js', type: 'application/javascript; charset=utf-8' },
   '/store-row-core.js': { dir: LIB_DIR, file: 'store-row-core.js', type: 'application/javascript; charset=utf-8' },
+  '/api-base-core.js': { dir: LIB_DIR, file: 'api-base-core.js', type: 'application/javascript; charset=utf-8' },
 };
 
 // CSRF guard: every endpoint here is side-effecting or local-only, and the
