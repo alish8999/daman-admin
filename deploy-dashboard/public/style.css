@@ -1270,3 +1270,16 @@ body {
 .row-btn-warn:hover:not(:disabled) {
   background: rgba(217, 119, 6, 0.12);
 }
+
+/* Shown on a card that can only work at the owner's desk, when the local build agent is not
+   answering. Deliberately the same message for a stopped agent, a declined Private Network Access
+   prompt and a browser blocking the localhost call: three causes, one remedy. */
+.agent-offline-note {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--text-muted, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}

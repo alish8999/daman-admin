@@ -15,6 +15,55 @@
     return url;
   }
 
+  /**
+   * In portal mode, disable everything that needs the local machine until the agent answers.
+   *
+   * Builds compile from the local repo and upload from the local disk, so there is no hosted
+   * equivalent — these cards can only ever work at the owner's desk. The fleet is rendered
+   * regardless and never waits on this: it is the half that works from anywhere.
+   */
+  function greyAgentOnlyCardsUntilAgentAnswers() {
+    if (PAGE_MODE !== 'portal') return;
+    const slots = document.querySelectorAll('[data-slot]');
+    const agentOnly = [];
+    slots.forEach(function (el) {
+      // A slot whose path has no hosted equivalent is agent-only, by the same rule api() uses —
+      // so the list cannot drift from the routing.
+      if (apiBaseCore.apiUrl('portal', '/api/deploy/' + el.dataset.slot + '/stream') === null) {
+        agentOnly.push(el);
+      }
+    });
+    const disable = function (why) {
+      agentOnly.forEach(function (el) {
+        const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
+        if (btn) btn.disabled = true;
+        const host = el.closest('.card') || el;
+        if (!host.querySelector('.agent-offline-note')) {
+          const note = document.createElement('p');
+          note.className = 'agent-offline-note';
+          note.textContent = why;
+          host.appendChild(note);
+        }
+      });
+    };
+    disable('Needs the local deploy agent — checking…');
+    apiBaseCore.agentReachable(function () {
+      return fetch('http://localhost:5500/api/status', { mode: 'cors' });
+    }).then(function (reachable) {
+      if (reachable) {
+        agentOnly.forEach(function (el) {
+          const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
+          if (btn) btn.disabled = false;
+          const host = el.closest('.card') || el;
+          const note = host.querySelector('.agent-offline-note');
+          if (note) note.remove();
+        });
+      } else {
+        disable('Needs the local deploy agent. Start it on your machine, then reload.');
+      }
+    });
+  }
+
   // Every element carrying a data-slot, which is NOT always a .card any more. The three hosted-store
   // release actions (deploy & restart all / deploy / restart all) were three separate cards saying
   // nearly the same thing; they are now three actions inside one card, so a slot is whatever element
@@ -1529,4 +1578,6 @@
       });
     })
     .catch(() => {});
+
+  greyAgentOnlyCardsUntilAgentAnswers();
 })();

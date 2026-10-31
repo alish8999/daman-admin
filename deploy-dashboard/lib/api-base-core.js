@@ -63,5 +63,36 @@
   /** Where the Angular portal keeps its session. Must match AuthService.storageKey. */
   const PORTAL_TOKEN_STORAGE_KEY = 'admin-auth-token';
 
-  return { mode, apiUrl, tokenSource, ADMIN_API, PORTAL_ORIGIN, PORTAL_TOKEN_STORAGE_KEY };
+  /**
+   * Whether the local build agent can be reached, resolving false for every way it cannot.
+   *
+   * A stopped agent, a declined Private Network Access prompt and a browser that blocks the
+   * localhost call as mixed content are three different causes with one effect: the build cards
+   * cannot be used. They are deliberately not distinguished, because the remedy is the same and a
+   * page that guessed would guess wrong.
+   *
+   * Never rejects. The fleet is the half that works from anywhere, and a broken agent must not
+   * take it down.
+   */
+  function agentReachable(probe, timeoutMs) {
+    const limit = typeof timeoutMs === 'number' ? timeoutMs : 1500;
+    return new Promise(function (resolve) {
+      let settled = false;
+      const finish = function (value) {
+        if (!settled) { settled = true; resolve(value); }
+      };
+      const timer = setTimeout(function () { finish(false); }, limit);
+      try {
+        Promise.resolve(probe()).then(
+          function (res) { clearTimeout(timer); finish(!!(res && res.ok)); },
+          function () { clearTimeout(timer); finish(false); });
+      } catch (err) {
+        clearTimeout(timer);
+        finish(false);
+      }
+    });
+  }
+
+  return { mode, apiUrl, tokenSource, agentReachable,
+           ADMIN_API, PORTAL_ORIGIN, PORTAL_TOKEN_STORAGE_KEY };
 });
