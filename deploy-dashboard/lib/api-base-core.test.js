@@ -152,3 +152,24 @@ test('apiUrl builds against the resolved base', () => {
   assert.strictEqual(apiUrl('portal', '/api/remote/hosted-stores', 'http://localhost:8083'),
     'http://localhost:8083/api/hosted-stores');
 });
+
+test('the local token is the session too when the portal talks to the local backend', () => {
+  // In development the portal's own backend IS localhost:8083 -- the same process the local
+  // token authorises -- so the session already in storage is valid for both. Asking the user to
+  // paste a token they are already logged in with is busywork.
+  assert.strictEqual(tokenSource('portal', 'local', 'http://localhost:8083'), 'storage');
+  assert.strictEqual(tokenSource('portal', 'local', 'http://127.0.0.1:8083'), 'storage');
+});
+
+test('the local token stays a paste when the portal talks to the real backend', () => {
+  // In production they are different processes with separate session stores, and the portal
+  // session is simply not valid on :8083.
+  assert.strictEqual(tokenSource('portal', 'local', ADMIN_API), 'strip');
+  assert.strictEqual(tokenSource('portal', 'local', 'https://admin-api.damansoft.com'), 'strip');
+});
+
+test('on the agent own page both tokens still come from the strip', () => {
+  // There is no portal session to borrow: the page was not served by the portal.
+  assert.strictEqual(tokenSource('agent', 'portal'), 'strip');
+  assert.strictEqual(tokenSource('agent', 'local', 'http://localhost:8083'), 'strip');
+});

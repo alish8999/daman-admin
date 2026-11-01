@@ -87,8 +87,16 @@
    * is not valid there. See token-state-core.js, which documents that the two are not
    * interchangeable.
    */
-  function tokenSource(currentMode, kind) {
-    if (kind === 'portal' && currentMode === 'portal') return 'storage';
+  function tokenSource(currentMode, kind, apiBase) {
+    if (currentMode !== 'portal') return 'strip';   // the agent's own page borrows no session
+    if (kind === 'portal') return 'storage';
+    // The 'local' token authorises the local admin backend on :8083. In DEVELOPMENT the portal's
+    // own backend is that same process, so the session already in storage is valid for both and
+    // asking for a paste is busywork. In production they are separate processes with separate
+    // session stores and the portal session is not valid there, so it stays a paste.
+    if (kind === 'local' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(apiBase || ''))) {
+      return 'storage';
+    }
     return 'strip';
   }
 

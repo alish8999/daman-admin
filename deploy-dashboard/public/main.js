@@ -86,9 +86,13 @@
       return fetch(agent('/api/status'), { mode: 'cors' });
     }).then(function (reachable) {
       if (reachable) {
-        // The local token field only makes sense once there is an agent to authorise against.
+        // The local field only makes sense when there is an agent AND the token is something the
+        // user has to supply. In development the portal's backend IS the local one, so the
+        // session already covers it and there is nothing to paste.
         const local = document.querySelector('.token-field[data-token-kind="local"]');
-        if (local) local.hidden = false;
+        if (local) {
+          local.hidden = apiBaseCore.tokenSource(PAGE_MODE, 'local', API_BASE) === 'storage';
+        }
         agentOnly.forEach(function (el) {
           const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
           if (btn) btn.disabled = false;
@@ -178,7 +182,7 @@
        * sessions, where the portal session simply is not valid.
        */
       value(kind) {
-        if (apiBaseCore.tokenSource(PAGE_MODE, kind) === 'storage') {
+        if (apiBaseCore.tokenSource(PAGE_MODE, kind, API_BASE) === 'storage') {
           try {
             return (localStorage.getItem(apiBaseCore.PORTAL_TOKEN_STORAGE_KEY) || '').trim();
           } catch (err) {
@@ -201,7 +205,7 @@
             // happens next. Without this the fleet would poll a dead session for ever, showing an
             // empty table that reads as "no stores" rather than "log in again".
             if (r.status === 401 && kind === 'portal'
-                && apiBaseCore.tokenSource(PAGE_MODE, 'portal') === 'storage') {
+                && apiBaseCore.tokenSource(PAGE_MODE, 'portal', API_BASE) === 'storage') {
               try { window.parent.postMessage('fleet:unauthorised', window.location.origin); }
               catch (err) { /* not framed, or a different origin: nothing to tell */ }
             }
