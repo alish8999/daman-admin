@@ -43,8 +43,21 @@ public class HostedStoreStatusService {
     public FleetState describe(List<HostedInstance> rows) {
         Instant jarAt = ops.fileModifiedAt(StoreUnitRenderer.SHARED_JAR).orElse(null);
         List<LiveState> states = rows.stream().map(r -> of(r, jarAt)).toList();
-        long totalMb = ops.totalMemoryMb();
-        // Empty (unreadable) leaves the rest of the response intact: the strip just does not render.
+        // Unreadable leaves the rest of the response intact, exactly as boxStats does below. This
+        // reads /proc/meminfo, which does not exist on Windows: a developer running the admin
+        // backend locally got a 500 for the whole fleet listing — every store lost because one
+        // decorative number was unavailable. The capacity strip simply does not render.
+        //
+        // PROVISIONING is a different matter and still fails loudly on the same read: a store
+        // cannot be placed safely without knowing the box's RAM, so there the exception is the
+        // right answer. Only this read-only listing degrades.
+        long totalMb;
+        try {
+            totalMb = ops.totalMemoryMb();
+        } catch (RuntimeException e) {
+            log.warn("Could not read the box memory for the fleet listing: {}", e.toString());
+            totalMb = 0;
+        }
         ServerOps.BoxStats box = ops.boxStats().orElse(null);
         return new FleetState(states, jarAt, totalMb, rows.size(), StoreUnitRenderer.HEAP_MB,
                 HostedCapacity.maxStores(totalMb, StoreUnitRenderer.HEAP_MB,

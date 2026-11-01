@@ -240,4 +240,20 @@ class HostedStoreStatusServiceTest {
         assertThat(fleet.states()).hasSize(1);
         assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
     }
+@Test void listingStillWorksWhenTheBoxMemoryCannotBeRead() {
+        // totalMemoryMb() reads /proc/meminfo, which does not exist on Windows. A developer
+        // running the admin backend locally asked for the fleet and got a 500 with
+        // NoSuchFileException: \proc\meminfo -- the whole listing lost because one decorative
+        // number was unavailable. boxStats() one line below already degrades to empty; this must
+        // too. Provisioning is a different matter and still refuses: you cannot safely place a
+        // store without knowing the box RAM.
+        when(ops.totalMemoryMb()).thenThrow(
+                new IllegalStateException("cannot read /proc/meminfo"));
+
+        HostedStoreStatusService.FleetState fleet = service.describe(List.of(row("viora", "ACTIVE")));
+
+        assertThat(fleet.states()).hasSize(1);
+        assertThat(fleet.totalMemoryMb()).isZero();
+        assertThat(fleet.maxStores()).isZero();
+    }
 }
