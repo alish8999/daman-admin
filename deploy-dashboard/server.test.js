@@ -911,3 +911,25 @@ test('a cross-site request with no Origin is refused even on a read-only route',
   const res = await getNoOrigin('/api/status', { 'Sec-Fetch-Site': 'cross-site' });
   assert.strictEqual(res.statusCode, 403);
 });
+
+test('the agent trusts the portal dev server on another localhost port', async () => {
+  // The guard exists to stop a REMOTE site reaching the agent, and a remote site can never have
+  // a loopback Origin. Only something already served from this machine can. Restricting the
+  // allowlist to the agent's own port meant the portal's dev server on :4201 was refused, so the
+  // build cards could never work locally -- greyed with "start the agent" while it was running.
+  const res = await getNoOrigin('/api/status', { Origin: 'http://localhost:4201' });
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('the agent trusts 127.0.0.1 on another port too', async () => {
+  const res = await getNoOrigin('/api/status', { Origin: 'http://127.0.0.1:4201' });
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('a remote origin is still refused, whatever it calls itself', async () => {
+  for (const o of ['https://evil.example.com', 'http://localhost.evil.com',
+                   'https://localhost', 'http://notlocalhost:4201']) {
+    const res = await getNoOrigin('/api/status', { Origin: o });
+    assert.strictEqual(res.statusCode, 403, o);
+  }
+});

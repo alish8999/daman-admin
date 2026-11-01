@@ -132,11 +132,23 @@ const STATIC_FILES = {
 // preview host: a preview build of the page cannot drive deploys on this machine.
 const PORTAL_ORIGIN = 'https://admin.damansoft.com';
 
-function allowedOrigins(req) {
-  // Port comes from the connection itself, not the PORT constant, so the check stays correct
-  // when the server is bound somewhere else (tests).
-  const port = (req.socket && req.socket.localPort) || PORT;
-  return [`http://127.0.0.1:${port}`, `http://localhost:${port}`, PORTAL_ORIGIN];
+/**
+ * A loopback origin on ANY port, or the production portal. Nothing else.
+ *
+ * The port is not pinned because the portal's dev server runs on its own (`:4201`) and the agent
+ * on `:5500`. Restricting it to the agent's own port meant the dev portal was refused outright,
+ * so the build cards were permanently greyed with "start the local deploy agent" while the agent
+ * was running and answering.
+ *
+ * Widening to any loopback port does not weaken what this guard is for. It exists to stop a
+ * REMOTE site in the owner's browser reaching the agent, and a remote site can never present a
+ * loopback Origin — only something already served from this machine can. The regex is anchored on
+ * both ends so `http://localhost.evil.com` and `https://localhost` do not slip through.
+ */
+const LOOPBACK_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
+
+function isAllowedOrigin(origin) {
+  return origin === PORTAL_ORIGIN || LOOPBACK_ORIGIN.test(String(origin || ''));
 }
 
 /**
@@ -165,7 +177,7 @@ function isOriginAllowed(req) {
   // cross-site too, but they carry an allowlisted Origin and are accepted below.
   if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none' && !origin) return false;
 
-  if (origin) return allowedOrigins(req).includes(origin);
+  if (origin) return isAllowedOrigin(origin);
 
   // NO ORIGIN. A browser omits it on a same-origin GET/HEAD — which is most of what the agent's
   // own page does — and says so in Sec-Fetch-Site. An earlier version of this function refused
@@ -202,7 +214,7 @@ function parsePath(req) {
  */
 function writePreflight(req, res) {
   const origin = req.headers.origin;
-  if (!origin || !allowedOrigins(req).includes(origin)) {
+  if (!origin || !isAllowedOrigin(origin)) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Cross-origin requests are not allowed');
     return;
@@ -228,7 +240,7 @@ function writePreflight(req, res) {
  */
 function corsHeadersFor(req) {
   const origin = req.headers.origin;
-  if (!origin || !allowedOrigins(req).includes(origin)) return {};
+  if (!origin || !isAllowedOrigin(origin)) return {};
   return { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' };
 }
 
