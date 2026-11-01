@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, agentUrl, AGENT_ORIGIN, ADMIN_API, PORTAL_ORIGIN } = require('./api-base-core');
+const { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, agentUrl, AGENT_ORIGIN, resolveApiBase, ADMIN_API, PORTAL_ORIGIN } = require('./api-base-core');
 
 test('a localhost origin is agent mode; the portal origin is portal mode', () => {
   assert.strictEqual(mode('http://localhost:5500'), 'agent');
@@ -124,4 +124,31 @@ test('the agent own page is still agent mode', () => {
 test('the deployed portal is portal mode however it is reached', () => {
   assert.strictEqual(mode(PORTAL_ORIGIN, '/fleet-page/index.html'), 'portal');
   assert.strictEqual(mode(PORTAL_ORIGIN, '/'), 'portal');
+});
+
+test('the API base comes from the portal, not a hardcoded production URL', () => {
+  // The portal talks to localhost:8083 in dev and admin-api in production. Hardcoding the
+  // production host meant a dev session called a backend it was never issued for, got a 401,
+  // and the 401 handler then wiped the local token and bounced the user to /login -- a logout
+  // loop caused entirely by calling the wrong server.
+  assert.strictEqual(resolveApiBase('?api=' + encodeURIComponent('http://localhost:8083')),
+    'http://localhost:8083');
+  assert.strictEqual(resolveApiBase('?api=' + encodeURIComponent('https://admin-api.damansoft.com')),
+    'https://admin-api.damansoft.com');
+});
+
+test('a missing or unusable api parameter falls back to production', () => {
+  assert.strictEqual(resolveApiBase(''), ADMIN_API);
+  assert.strictEqual(resolveApiBase('?other=1'), ADMIN_API);
+});
+
+test('an api parameter that is not an http(s) origin is refused', () => {
+  // It reaches a fetch URL, so it is whitelisted by shape rather than trusted.
+  assert.strictEqual(resolveApiBase('?api=' + encodeURIComponent('javascript:alert(1)')), ADMIN_API);
+  assert.strictEqual(resolveApiBase('?api=' + encodeURIComponent('//evil.example.com')), ADMIN_API);
+});
+
+test('apiUrl builds against the resolved base', () => {
+  assert.strictEqual(apiUrl('portal', '/api/remote/hosted-stores', 'http://localhost:8083'),
+    'http://localhost:8083/api/hosted-stores');
 });

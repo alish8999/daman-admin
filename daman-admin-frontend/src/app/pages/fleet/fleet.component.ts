@@ -1,6 +1,7 @@
 import { Component, HostListener, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { environment } from '../../../environments/environment';
 
 /**
  * Hosts the fleet page inside the portal.
@@ -41,8 +42,8 @@ export class FleetComponent {
    * supplied — so the page can read the portal session from localStorage and the sanitizer has
    * nothing variable to trust.
    */
-  readonly src: SafeResourceUrl =
-    inject(DomSanitizer).bypassSecurityTrustResourceUrl('fleet-page/index.html');
+  readonly src: SafeResourceUrl = inject(DomSanitizer).bypassSecurityTrustResourceUrl(
+    'fleet-page/index.html?api=' + encodeURIComponent(environment.apiUrl));
 
   /**
    * The page posts here when a call comes back 401, and the portal owns what happens next.

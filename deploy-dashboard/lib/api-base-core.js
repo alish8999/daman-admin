@@ -48,11 +48,35 @@
    * Whole URLs, not a prefix swap: the page's fetches are root-absolute, so under the portal they
    * would otherwise resolve against the Pages host.
    */
-  function apiUrl(currentMode, path) {
+  function apiUrl(currentMode, path, apiBase) {
     const p = String(path || '');
     if (currentMode === 'agent') return p;
     if (p.indexOf(REMOTE_PREFIX) !== 0) return null;
-    return ADMIN_API + '/api/' + p.slice(REMOTE_PREFIX.length);
+    return (apiBase || ADMIN_API) + '/api/' + p.slice(REMOTE_PREFIX.length);
+  }
+
+  /**
+   * Which admin backend to call, taken from the portal that embedded this page.
+   *
+   * The portal talks to `localhost:8083` in development and `admin-api` in production, and only
+   * it knows which. Hardcoding production meant a dev session called a backend its token was
+   * never issued for, got a 401, and the 401 handler then cleared that token and bounced the user
+   * to /login — a logout loop caused purely by calling the wrong server.
+   *
+   * The value lands in a fetch URL, so it is whitelisted by shape — an absolute http(s) origin —
+   * rather than trusted. Anything else falls back to production.
+   */
+  function resolveApiBase(search) {
+    const raw = /[?&]api=([^&]*)/.exec(String(search || ''));
+    if (!raw) return ADMIN_API;
+    let value;
+    try {
+      value = decodeURIComponent(raw[1]);
+    } catch (err) {
+      return ADMIN_API;
+    }
+    if (!/^https?:\/\/[^/?#]+$/.test(value)) return ADMIN_API;
+    return value;
   }
 
   /**
@@ -153,6 +177,6 @@
     });
   }
 
-  return { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, AGENT_ONLY_SLOTS, agentUrl, AGENT_ORIGIN, PORTAL_MOUNT,
+  return { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, AGENT_ONLY_SLOTS, agentUrl, AGENT_ORIGIN, PORTAL_MOUNT, resolveApiBase,
            ADMIN_API, PORTAL_ORIGIN, PORTAL_TOKEN_STORAGE_KEY };
 });

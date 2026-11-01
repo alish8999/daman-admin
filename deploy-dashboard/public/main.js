@@ -4,11 +4,16 @@
   // to answer us because CorsConfig and AuthFilter.ALLOWED_ORIGINS list admin.damansoft.com.
   const PAGE_MODE = apiBaseCore.mode(location.origin, location.pathname);
 
+  // Which admin backend to call. The portal passes its own on the iframe URL, because only it
+  // knows whether this is development (localhost:8083) or production (admin-api). Hardcoding the
+  // production host made a dev session call a backend its token was never issued for.
+  const API_BASE = apiBaseCore.resolveApiBase(location.search);
+
   // The literal proxy paths stay in the source below, because they read as what the page wants;
   // api() decides where they actually go. A build or status path has no hosted equivalent, and
   // asking for one throws rather than inventing a URL that would 404 confusingly.
   function api(path) {
-    const url = apiBaseCore.apiUrl(PAGE_MODE, path);
+    const url = apiBaseCore.apiUrl(PAGE_MODE, path, API_BASE);
     if (url === null) {
       throw new Error('No hosted equivalent for ' + path + ' — this is an agent-only route.');
     }
