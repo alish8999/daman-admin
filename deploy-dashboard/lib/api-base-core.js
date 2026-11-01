@@ -20,7 +20,15 @@
    * the page try to drive builds through a server that is not there and fail silently; guessing
    * 'portal' greys those cards, which is both honest and recoverable.
    */
-  function mode(origin) {
+  /** Where the portal mounts this page. The agent serves it from the root instead. */
+  const PORTAL_MOUNT = '/fleet-page';
+
+  function mode(origin, pathname) {
+    // The PATH decides first, because the origin cannot tell the portal's dev server apart from
+    // the agent: `ng serve` runs on localhost too. Keying on origin alone made localhost:4201
+    // look like the agent, so the page called the dashboard's proxy routes against the dev
+    // server, where they do not exist — the feature could not be seen locally at all.
+    if (String(pathname || '').indexOf(PORTAL_MOUNT) === 0) return 'portal';
     const o = String(origin || '');
     if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) return 'agent';
     return 'portal';
@@ -145,6 +153,6 @@
     });
   }
 
-  return { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, AGENT_ONLY_SLOTS, agentUrl, AGENT_ORIGIN,
+  return { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, AGENT_ONLY_SLOTS, agentUrl, AGENT_ORIGIN, PORTAL_MOUNT,
            ADMIN_API, PORTAL_ORIGIN, PORTAL_TOKEN_STORAGE_KEY };
 });

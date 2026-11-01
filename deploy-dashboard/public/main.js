@@ -2,7 +2,7 @@
   // Where this page is running, and therefore who it talks to. Agent mode keeps every path exactly
   // as it was; portal mode rewrites the /api/remote/* proxy paths to admin-api, which is allowed
   // to answer us because CorsConfig and AuthFilter.ALLOWED_ORIGINS list admin.damansoft.com.
-  const PAGE_MODE = apiBaseCore.mode(location.origin);
+  const PAGE_MODE = apiBaseCore.mode(location.origin, location.pathname);
 
   // The literal proxy paths stay in the source below, because they read as what the page wants;
   // api() decides where they actually go. A build or status path has no hosted equivalent, and

@@ -107,3 +107,21 @@ test('agentUrl points at the local agent from the portal, and stays relative on 
   assert.strictEqual(agentUrl('portal', '/api/versions'), AGENT_ORIGIN + '/api/versions');
   assert.strictEqual(agentUrl('agent', '/api/deploy/backend/stream'), '/api/deploy/backend/stream');
 });
+
+test('the portal dev server on localhost is portal mode, not agent mode', () => {
+  // The discriminator is the PATH, not the origin. Keying on origin alone made ng serve on
+  // localhost:4201 look like the agent, so the page called the dashboard's proxy routes against
+  // the dev server where they do not exist — and the feature could not be seen locally at all.
+  assert.strictEqual(mode('http://localhost:4201', '/fleet-page/index.html'), 'portal');
+  assert.strictEqual(mode('http://localhost:4201', '/fleet-page/'), 'portal');
+});
+
+test('the agent own page is still agent mode', () => {
+  assert.strictEqual(mode('http://localhost:5500', '/'), 'agent');
+  assert.strictEqual(mode('http://127.0.0.1:5500', '/index.html'), 'agent');
+});
+
+test('the deployed portal is portal mode however it is reached', () => {
+  assert.strictEqual(mode(PORTAL_ORIGIN, '/fleet-page/index.html'), 'portal');
+  assert.strictEqual(mode(PORTAL_ORIGIN, '/'), 'portal');
+});
