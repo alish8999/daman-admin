@@ -716,7 +716,11 @@ export class ClientsComponent implements OnInit, OnDestroy {
             this.startPolling(clientCode);
           });
         } else {
-          alert(`Failed to start build: ${err.error?.message || err.message}`);
+          // `error` is the shape /generic-build returns when it refuses — most often "this version
+          // has no release note", whose text names exactly what to go and fill in. Read it first,
+          // or a message written to be actionable gets replaced by a generic HTTP one.
+          const reason = err.error?.error || err.error?.message || err.message;
+          alert(`Failed to start build: ${reason}`);
         }
       }
     });

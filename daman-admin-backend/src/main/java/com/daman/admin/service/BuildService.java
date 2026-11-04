@@ -124,6 +124,8 @@ public class BuildService {
         if (!generic) {
             clientConfigRepository.findByClientCode(clientCode)
                     .orElseThrow(() -> new RuntimeException("Client not found: " + clientCode));
+        } else {
+            requireReleaseNotes(versionNumber);
         }
 
         BuildStatusDto status = BuildStatusDto.builder()
@@ -139,6 +141,50 @@ public class BuildService {
         buildExecutor.submit(() -> executeBuild(key, platform, versionNumber));
 
         return status;
+    }
+
+    /**
+     * Refuses a generic build whose version has no release note.
+     *
+     * Added 2026-11-04, from a direct report that Settings → What's New was always empty in the
+     * shipped app. Nothing was broken: {@link #writeReleaseNotesAsset} had written
+     * {@code changelogText: ""} because the AppVersion row had none, logged "(no changelog text)"
+     * and carried on. A warning in a build log nobody re-reads is not a guard.
+     *
+     * This one field feeds two separate things a client sees, which is why it is worth failing a
+     * build over rather than warning about:
+     *   - the bundled {@code release-notes.json} behind Settings → What's New, AFTER updating
+     *   - {@code latest.yml}'s releaseNotes, which electron-updater hands over with the
+     *     update-available event, BEFORE updating
+     * Ship without it and a client can neither see what is coming nor what they just received.
+     *
+     * Resolved EXACTLY the way {@code writeReleaseNotesAsset} resolves it — by version number, or
+     * the latest row when the version is blank. Any other lookup could pass on one row and then
+     * ship another's text.
+     *
+     * Generic builds only. Per-client installers are retired and never surfaced this field;
+     * failing them on it would be a surprise with no upside.
+     */
+    private void requireReleaseNotes(String versionNumber) {
+        boolean explicit = versionNumber != null && !versionNumber.isBlank();
+        var versionOpt = explicit
+                ? appVersionRepository.findByVersionNumber(versionNumber)
+                : appVersionRepository.findTopByOrderByReleaseDateDesc();
+
+        String label = explicit ? versionNumber : "the latest version";
+
+        if (versionOpt.isEmpty()) {
+            throw new IllegalStateException(
+                    "No version row exists for " + label + ", so this build would ship with no "
+                    + "release note. Add the version and its release note in Settings → App Versions first.");
+        }
+        String text = versionOpt.get().getChangelogText();
+        if (text == null || text.isBlank()) {
+            throw new IllegalStateException(
+                    "Version " + label + " has no release note, so Settings → What's New would be "
+                    + "empty for every client and the update badge would show nothing before they "
+                    + "update. Fill in the release note for " + label + " before building.");
+        }
     }
 
     private void executeBuild(String clientCode, String platform, String versionNumber) {

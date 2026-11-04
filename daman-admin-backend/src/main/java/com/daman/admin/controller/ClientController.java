@@ -183,11 +183,21 @@ public class ClientController {
     // BuildService.GENERIC sentinel, which BuildService normalises internally.
     // ------------------------------------------------------------------
 
+    /**
+     * A refusal here is usually "this version has no release note" (see
+     * {@code BuildService.requireReleaseNotes}), and that message names exactly what to go and
+     * fill in — so it is returned as a 400 body the dashboard can show, not left to become a
+     * generic 500 the owner has to read the server log to understand.
+     */
     @PostMapping("/generic-build")
-    public ResponseEntity<BuildStatusDto> triggerGenericBuild(
+    public ResponseEntity<?> triggerGenericBuild(
             @RequestParam(defaultValue = "win") String platform,
             @RequestParam(defaultValue = "") String version) {
-        return ResponseEntity.accepted().body(buildService.startBuild(BuildService.GENERIC, platform, version));
+        try {
+            return ResponseEntity.accepted().body(buildService.startBuild(BuildService.GENERIC, platform, version));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", String.valueOf(e.getMessage())));
+        }
     }
 
     @GetMapping("/generic-build/status")

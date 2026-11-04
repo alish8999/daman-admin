@@ -131,6 +131,14 @@ class BuildServiceGenericBranchTest {
 
     @Test
     void startBuild_forGeneric_doesNotRequireAClientConfigRow() {
+        // A release note IS required for a generic build (2026-11-04 — see
+        // BuildServiceRequiresReleaseNotesTest), so stub one. This test is about the ClientConfig
+        // row, and must not pass or fail for release-note reasons.
+        AppVersion v = new AppVersion();
+        v.setVersionNumber("1.0.0");
+        v.setChangelogText("[EN]\n- Something to show the client");
+        when(appVersionRepository.findByVersionNumber("1.0.0")).thenReturn(Optional.of(v));
+
         BuildStatusDto status = buildService.startBuild(BuildService.GENERIC, "win", "1.0.0");
 
         assertThat(status.getStatus()).isEqualTo("BUILDING");
