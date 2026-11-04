@@ -87,6 +87,11 @@ public class AuthFilter implements Filter {
             "http://localhost:4200",
             "http://localhost:3000",
             "http://localhost:5173",
+            // Mirrors CorsConfig — see this field's own note above on why the two must agree.
+            // Added 2026-11-04: the admin frontend served statically from VS Code Live Server
+            // could not read /api/changelog-library.
+            "http://localhost:5500",
+            "http://127.0.0.1:5500",
             "https://admin.damansoft.com"
     );
 
