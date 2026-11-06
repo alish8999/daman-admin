@@ -35,7 +35,25 @@
                 <div class="fw-semibold">{{ t.shopName }}</div>
                 <div class="small text-muted">{{ t.clientCode }}</div>
               </td>
-              <td dir="ltr" class="text-start">{{ t.phone || '—' }}</td>
+              <!-- A trial is a prospect you are trying to reach, so the number is the point of
+                   the row. The button is only offered when the self-registered number has
+                   enough digits to be real — a dead wa.me link reads as a broken page. -->
+              <td dir="ltr" class="text-start">
+                @if (t.phone) {
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="ltr-num">{{ t.phone }}</span>
+                    @if (canMessage(t.phone)) {
+                      <a [href]="whatsappUrl(t.phone)" target="_blank" rel="noopener"
+                         class="btn btn-xs btn-outline-success"
+                         [title]="'WhatsApp ' + t.phone">
+                        <i class="bi bi-whatsapp"></i>
+                      </a>
+                    }
+                  </div>
+                } @else {
+                  <span class="text-muted">—</span>
+                }
+              </td>
               <td>{{ t.storeType ? ('storeType.' + t.storeType | t) : '—' }}</td>
               <td>{{ 'trialDayOf' | t:{ n: t.dayNumber, m: t.totalDays } }}</td>
               <td>
