@@ -15,6 +15,7 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
 import { ChangelogPickerComponent, ChangelogSelection } from '../../components/changelog-picker/changelog-picker.component';
 import { FeaturePriceService } from '../../services/feature-price.service';
+import { ClientHeartbeatService, LatestHeartbeat } from '../../services/client-heartbeat.service';
 
 @Component({
   selector: 'app-clients',
@@ -380,7 +381,8 @@ export class ClientsComponent implements OnInit, OnDestroy {
     private billingService: BillingService,
     private appVersionService: AppVersionService,
     private translationService: TranslationService,
-    public featurePrices: FeaturePriceService
+    public featurePrices: FeaturePriceService,
+    private heartbeatService: ClientHeartbeatService
   ) {}
 
   ngOnInit(): void {
@@ -392,6 +394,63 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.loadBillings();
     this.loadVersions();
     this.loadDevCurrent();
+    this.loadHeartbeats();
+  }
+
+  // ── Client activity ───────────────────────────────────────────────────────
+
+  /** Newest report per client code. Empty until loaded, and on failure. */
+  private heartbeats = new Map<string, LatestHeartbeat>();
+
+  private loadHeartbeats(): void {
+    this.heartbeatService.latest().subscribe({
+      next: rows => {
+        const next = new Map<string, LatestHeartbeat>();
+        for (const r of rows) next.set(r.clientCode, r);
+        this.heartbeats = next;
+      },
+      // Silent: this column is informational, and a failure here must not make the Clients
+      // page — which is how the owner does actual work — look broken.
+      error: () => { this.heartbeats = new Map(); }
+    });
+  }
+
+  heartbeatFor(clientCode: string): LatestHeartbeat | undefined {
+    return this.heartbeats.get(clientCode);
+  }
+
+  /** Whole days between a reported date/time and now. Negative clamped to 0. */
+  private daysSince(iso: string | null): number | null {
+    if (!iso) return null;
+    const then = new Date(iso).getTime();
+    if (isNaN(then)) return null;
+    return Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
+  }
+
+  /**
+   * Plain words, not a computed health verdict.
+   *
+   * The owner has not yet decided what this data is for, so the column reports what was
+   * recorded and leaves the judgement to the person reading it. Bands are deliberately coarse:
+   * the heartbeat is daily, so anything finer would be precision the data does not have.
+   */
+  lastSeenLabel(iso: string | null): string {
+    const days = this.daysSince(iso);
+    if (days === null) return '—';
+    if (days === 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 7) return `${days} days ago`;
+    if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+    return `${Math.floor(days / 30)} months ago`;
+  }
+
+  lastSeenClass(iso: string | null): string {
+    const days = this.daysSince(iso);
+    if (days === null) return 'bg-light text-muted';
+    if (days <= 1) return 'bg-success';
+    if (days <= 7) return 'bg-info text-dark';
+    if (days <= 30) return 'bg-warning text-dark';
+    return 'bg-danger';
   }
 
   loadBillings(): void {

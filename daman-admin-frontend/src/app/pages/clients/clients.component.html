@@ -114,6 +114,7 @@
             <tr>
               <th>Client</th>
               <th>Status</th>
+              <th>Last seen</th>
               <th>Contact</th>
               <th>Paid Features</th>
               <th class="text-end">Total Paid</th>
@@ -161,6 +162,32 @@
                       </span>
                     }
                   </div>
+                </td>
+
+                <!-- Last seen. Shows what was reported and nothing more: during rollout most
+                     clients read "Never", which mostly means "has not taken the update yet"
+                     rather than "has stopped trading". Interpreting that as health would be
+                     wrong for weeks, so the column states the fact and leaves the reading to
+                     whoever is looking. -->
+                <td data-label="Last seen">
+                  @if (heartbeatFor(client.clientCode); as hb) {
+                    <div class="d-flex flex-column">
+                      <span class="badge align-self-start" [ngClass]="lastSeenClass(hb.lastSeenAt)"
+                            style="font-size:0.68rem"
+                            [title]="'Reported ' + hb.lastSeenAt + (hb.appVersion ? ' · v' + hb.appVersion : '')">
+                        {{ lastSeenLabel(hb.lastSeenAt) }}
+                      </span>
+                      <small class="text-muted" style="font-size:0.68rem"
+                             [title]="'The day this till last rang up a sale'">
+                        {{ hb.lastSaleOn ? ('sold ' + lastSeenLabel(hb.lastSaleOn)) : 'no sales yet' }}
+                      </small>
+                    </div>
+                  } @else {
+                    <span class="badge bg-light text-muted" style="font-size:0.68rem"
+                          title="This client has never reported. Most likely it has not updated to a build that does.">
+                      Never
+                    </span>
+                  }
                 </td>
 
                 <!-- Contact -->

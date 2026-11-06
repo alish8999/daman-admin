@@ -73,7 +73,14 @@ public class AuthFilter implements Filter {
             "/api/trial/register",
             "/api/license/renewal",
             "/api/public/feature-catalog",
-            "/api/backup/google-drive/callback"
+            "/api/backup/google-drive/callback",
+            // A shipped POS install holds no admin credential, same reason as the feature
+            // catalog above. Anonymous but NOT unverified: the body carries the licence issued
+            // to that machine, and nothing is recorded unless clientCode + machineId +
+            // licenseKey match an ACTIVE row. It mints nothing, reads nothing back, and answers
+            // 200 to everything — so it is not an oracle for which client codes exist.
+            // See ClientHeartbeatController.
+            "/api/public/client-heartbeat"
     );
 
     // Mirrors CorsConfig's allowedOrigins. This filter runs before Spring MVC's
