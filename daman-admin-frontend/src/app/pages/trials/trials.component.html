@@ -48,6 +48,11 @@
                          [title]="'WhatsApp ' + t.phone">
                         <i class="bi bi-whatsapp"></i>
                       </a>
+                      <a [href]="telegramUrl(t.phone)" target="_blank" rel="noopener"
+                         class="btn btn-xs btn-outline-primary"
+                         [title]="'Telegram ' + t.phone">
+                        <i class="bi bi-telegram"></i>
+                      </a>
                     }
                   </div>
                 } @else {

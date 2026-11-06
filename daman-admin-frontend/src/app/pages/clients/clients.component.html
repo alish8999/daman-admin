@@ -112,13 +112,17 @@
         <table class="table clients-table align-middle mb-0">
           <thead>
             <tr>
+              <!-- License folded into Status (2026-11-06). As its own column it was the
+                   eighth, and eight did not fit: whichever column landed under the pinned
+                   Actions cell was simply invisible, which is how the licence date disappeared
+                   entirely. Status and expiry are the same question anyway — "is this licence
+                   good, and until when" — so they now share a cell and the table fits. -->
               <th>Client</th>
               <th>Status</th>
               <th>Last seen</th>
               <th>Contact</th>
               <th>Paid Features</th>
               <th class="text-end">Total Paid</th>
-              <th>License</th>
               <th class="text-end">Actions</th>
             </tr>
           </thead>
@@ -160,6 +164,16 @@
                       </span>
                     }
                   </div>
+                  <!-- Licence expiry, formerly its own column. -->
+                  @if (primaryLicenseOf(client.clientCode); as lic) {
+                    <div class="small mt-1" [ngClass]="licenseExpiryClass(client.clientCode)">
+                      @if (lic.expiresAt) {
+                        <span class="ltr-num">{{ lic.expiresAt | date:'dd MMM yyyy' }}</span>
+                      } @else {
+                        <span class="text-muted">Perpetual</span>
+                      }
+                    </div>
+                  }
                 </td>
 
                 <!-- Last seen. Shows what was reported and nothing more: during rollout most
@@ -248,20 +262,6 @@
                   }
                 </td>
 
-                <!-- License -->
-                <td data-label="License">
-                  @if (primaryLicenseOf(client.clientCode); as lic) {
-                    @if (lic.expiresAt) {
-                      <span class="small ltr-num" [ngClass]="licenseExpiryClass(client.clientCode)">
-                        {{ lic.expiresAt | date:'dd MMM yyyy' }}
-                      </span>
-                    } @else {
-                      <span class="small text-muted">Perpetual</span>
-                    }
-                  } @else {
-                    <span class="text-muted small">—</span>
-                  }
-                </td>
 
                 <!-- Actions -->
                 <td class="clients-actions-cell">

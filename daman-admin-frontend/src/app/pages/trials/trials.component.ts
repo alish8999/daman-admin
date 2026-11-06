@@ -41,6 +41,18 @@ export class TrialsComponent implements OnInit {
   }
 
   /**
+   * Telegram deep link. Same shape as the Clients page's helper.
+   *
+   * Note the opposite convention to {@link whatsappUrl}: t.me REQUIRES the leading plus and
+   * wa.me rejects it. Stripping separators but keeping (or adding) the plus is the difference,
+   * and getting the two the same way round is why they are written out rather than shared.
+   */
+  telegramUrl(phone: string): string {
+    const clean = phone.replace(/[\s\-()]/g, '');
+    return `https://t.me/${clean.startsWith('+') ? clean : '+' + clean}`;
+  }
+
+  /**
    * Whether a number is worth offering a button for.
    *
    * A trial is self-registered, so the phone field is whatever the prospect typed. Fewer than

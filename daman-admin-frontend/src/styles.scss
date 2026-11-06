@@ -574,38 +574,16 @@ html[dir="rtl"] body {
     vertical-align: middle;
   }
 
-  // ── Actions stay reachable ──────────────────────────────────────────────
-  // Reported 2026-11-06: "no horizontal scroll, actions buttons not appear".
-  // The table is wider than a mid-size window, so the right-hand column sat off
-  // the edge and the only way to reach Edit or Delete was to scroll a container
-  // whose scrollbar was itself easy to miss. Pinning the last column means the
-  // actions are always on screen no matter how far the rest has scrolled —
-  // which is what you want from the column you actually click.
-  th:last-child,
-  td.clients-actions-cell {
-    position: sticky;
-    inset-inline-end: 0;
-    background: var(--admin-surface);
-    z-index: 3;
-  }
-
-  thead th:last-child { background: #fafafd; }
-
-  // A soft edge so the pinned column reads as floating above the scrolled
-  // content rather than being part of it.
-  td.clients-actions-cell::before,
-  th:last-child::before {
-    content: '';
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: 0;
-    width: 12px;
-    transform: translateX(-100%);
-    pointer-events: none;
-    background: linear-gradient(to left, rgba(17, 18, 43, 0.06), transparent);
-  }
-
-  tbody tr:hover td.clients-actions-cell { background: #fafaff; }
+  // The Actions column was pinned here with position: sticky. That is REMOVED, and the
+  // removal is the fix for a bug it caused: a sticky cell does not make room for itself, it
+  // floats over whatever is beneath it. At the table's resting scroll position that was the
+  // License column, so the licence date was not merely hard to find — it was painted over and
+  // completely invisible. Reported 2026-11-06, one round after the pinning was added to solve
+  // the opposite complaint.
+  //
+  // The real problem both times was eight columns in a seven-column space. License now shares
+  // the Status cell and the card layout starts at 1200px, so the table fits where it is shown
+  // and nothing needs to float over anything.
 
   tbody tr:last-child td {
     border-bottom: none;
@@ -621,6 +599,8 @@ html[dir="rtl"] body {
     background: #f7f7ff;
   }
 
+  // Physical, not logical: `box-shadow` has no inline-aware form, so the accent edge has to be
+  // flipped by hand for Arabic or it would sit on the wrong side of every row.
   tbody tr:hover {
     box-shadow: inset 3px 0 0 var(--admin-accent);
   }
@@ -982,4 +962,27 @@ html[dir="rtl"] body {
       border-top: 1px solid var(--admin-border);
     }
   }
+}
+
+// ── Clients table in Arabic ───────────────────────────────────────────────
+// Reported 2026-11-06. Everything in the table that could use a logical property
+// already does (padding, border-inline-start, text-align: start), so what was left
+// is the handful of properties CSS gives no inline-aware form for. Those have to be
+// flipped by hand or they sit on the wrong side of the row in Arabic — the kind of
+// detail that makes a translated page feel like a translation.
+html[dir="rtl"] {
+  .clients-table {
+    // box-shadow takes physical offsets only: the accent edge must move to the right.
+    tbody tr:hover { box-shadow: inset -3px 0 0 var(--admin-accent); }
+
+    // A 90deg gradient runs left-to-right regardless of direction, so the active row's
+    // tint would fade away from the marked edge instead of out from it.
+    tbody tr.row--active td {
+      background: linear-gradient(270deg, rgba(22, 163, 74, 0.04), transparent 40%);
+    }
+  }
+}
+
+@media (max-width: 1200px) {
+  html[dir="rtl"] .clients-table tbody tr.row--active td { background: transparent; }
 }
