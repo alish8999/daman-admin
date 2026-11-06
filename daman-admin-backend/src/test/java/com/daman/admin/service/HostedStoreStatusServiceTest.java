@@ -176,6 +176,19 @@ class HostedStoreStatusServiceTest {
     }
 
     @Test
+    void theCapacityStripDoesNotCountASuspendedStoreAgainstTheBox() {
+        // The same rule the provisioning guard applies, so the strip cannot read "3 / 3 committed"
+        // on a box that would happily accept a fourth store — which is how the operator who hit
+        // this read the dashboard as confirming the refusal rather than contradicting it.
+        var fleet = service.describe(List.of(
+                row("a", "ACTIVE"), row("b", "SUSPENDED"), row("c", "ACTIVE")));
+
+        assertThat(fleet.states()).hasSize(3);           // every row is still listed
+        assertThat(fleet.committedStores()).isEqualTo(2); // but only two hold a heap
+        assertThat(fleet.maxStores()).isEqualTo(3);
+    }
+
+    @Test
     void describeReadsTheJarTimestampOncePerFleetNotOncePerStore() {
         when(ops.fileModifiedAt(StoreUnitRenderer.SHARED_JAR)).thenReturn(Optional.of(JAR_AT));
         var fleet = service.describe(List.of(row("a", "ACTIVE"), row("b", "ACTIVE"), row("c", "ACTIVE")));

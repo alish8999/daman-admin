@@ -36,6 +36,15 @@ class StoreUnitRendererTest {
         assertTrue(u.contains("Environment=DAMAN_BACKUP_DIR=/root/stores/alhasan-pharmacy/backups"));
     }
 
+    @Test void unitMarksTheStoreAsHosted() {
+        // Load-bearing, not decoration: this is the only thing that tells a store's own backend
+        // it is not an installed desktop copy (both run SPRING_PROFILES_ACTIVE=desktop). Without
+        // it the shop owner's Settings page shows an editable backup-path box and the backend
+        // accepts it, on a box where this JVM runs as root beside other tenants.
+        assertTrue(render(instance("alhasan-pharmacy", "alhasan", 8091))
+                .contains("Environment=DAMAN_HOSTED=true"));
+    }
+
     @Test void unitRestartsAlwaysNotOnFailure() {          // in-app restore exits 0 on purpose
         assertTrue(render(instance("c", "s", 8091)).contains("Restart=always"));
     }

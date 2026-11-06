@@ -59,7 +59,12 @@ public class HostedStoreStatusService {
             totalMb = 0;
         }
         ServerOps.BoxStats box = ops.boxStats().orElse(null);
-        return new FleetState(states, jarAt, totalMb, rows.size(), StoreUnitRenderer.HEAP_MB,
+        // Not rows.size(): a SUSPENDED store's unit is stopped and disabled, so it holds no heap
+        // and the provisioning guard does not count it. The strip must count the same way, or it
+        // reads "3 / 3" on a box that would accept a fourth store.
+        long committed = HostedCapacity.committedStores(
+                rows.stream().map(HostedInstance::getStatus).toList());
+        return new FleetState(states, jarAt, totalMb, (int) committed, StoreUnitRenderer.HEAP_MB,
                 HostedCapacity.maxStores(totalMb, StoreUnitRenderer.HEAP_MB,
                         HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB), box);
     }

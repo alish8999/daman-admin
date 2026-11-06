@@ -86,4 +86,38 @@ class HostedCapacityTest {
             assertEquals((int) k, HostedCapacity.maxStores(boundary - 1, 768, 1024, 300));
         }
     }
+
+    // ── Which rows actually hold a heap ───────────────────────────────────────
+
+    @Test void aSuspendedStoreDoesNotHoldItsHeap() {
+        // Suspend is `disable --now` (HostedStoreLifecycleService.suspend): the unit is stopped
+        // AND disabled, so no reboot and no release walk revives it. Its 768 MB are free, and
+        // reserving them against a new store is reserving memory nothing can take.
+        assertFalse(HostedCapacity.holdsHeap("SUSPENDED"));
+
+        // Everything else still counts. A FAILED row is the interesting one: provisioning broke
+        // partway, so its unit may well have been written and enabled already — the conservative
+        // reading is the correct one there, and nothing about this change touches it.
+        assertTrue(HostedCapacity.holdsHeap("ACTIVE"));
+        assertTrue(HostedCapacity.holdsHeap("PROVISIONING"));
+        assertTrue(HostedCapacity.holdsHeap("FAILED"));
+        assertTrue(HostedCapacity.holdsHeap(null), "an unknown status is assumed to hold its heap");
+        assertTrue(HostedCapacity.holdsHeap("suspended"), "status is stored upper-case; no silent case-folding");
+    }
+
+    @Test void committedStoresCountsEveryRowThatHoldsAHeap() {
+        assertEquals(0, HostedCapacity.committedStores(List.of()));
+        assertEquals(3, HostedCapacity.committedStores(List.of("ACTIVE", "ACTIVE", "FAILED")));
+        assertEquals(2, HostedCapacity.committedStores(List.of("ACTIVE", "SUSPENDED", "ACTIVE")));
+        assertEquals(0, HostedCapacity.committedStores(List.of("SUSPENDED", "SUSPENDED")));
+    }
+
+    @Test void suspendingAStoreOnTheFullRealBoxMakesRoomForAnother() {
+        // The reported case, as arithmetic: 3814 MB holds exactly three stores, three rows exist,
+        // one is suspended, so two heaps are committed and a third fits.
+        assertFalse(roomOn3814With(HostedCapacity.committedStores(
+                List.of("ACTIVE", "ACTIVE", "ACTIVE"))));
+        assertTrue(roomOn3814With(HostedCapacity.committedStores(
+                List.of("ACTIVE", "SUSPENDED", "ACTIVE"))));
+    }
 }

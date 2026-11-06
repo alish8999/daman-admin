@@ -323,7 +323,11 @@ class HostedStoreControllerTest {
 
         assertThat(fleet.jarModifiedAt()).isEqualTo(jarAt);
         assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
-        assertThat(fleet.committedStores()).isEqualTo(2);
+        // Two rows, but one is SUSPENDED — stopped and disabled, so it holds no heap. This read 2
+        // until 2026-11-06, which is the dashboard half of the bug: the strip agreed with a
+        // provisioning guard that was itself counting suspended stores.
+        assertThat(fleet.stores()).hasSize(2);
+        assertThat(fleet.committedStores()).isEqualTo(1);
         assertThat(fleet.heapMb()).isEqualTo(768);
         assertThat(fleet.maxStores()).isEqualTo(3);
         HostedStoreController.HostedStoreDto first = fleet.stores().get(0);

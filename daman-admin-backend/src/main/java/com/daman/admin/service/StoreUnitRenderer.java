@@ -69,6 +69,14 @@ public final class StoreUnitRenderer {
                 Environment=SPRING_PROFILES_ACTIVE=desktop
                 Environment=DAMAN_JWT_SECRET=%3$s
                 Environment=DAMAN_BACKUP_DIR=%4$s/backups
+                # Marks this as a store WE host, which the store's own backend cannot otherwise
+                # tell: it runs the same `desktop` profile an installed copy does. It locks the
+                # backup folder — the shop owner's Settings page hides the path control and the
+                # backend refuses PUT /api/backup-settings. Without it the owner could point
+                # their database dumps anywhere on this shared box (this JVM is root), and both
+                # the fleet dashboard's "last backup" and the pre-removal safety backup read
+                # %4$s/backups and would quietly find nothing.
+                Environment=DAMAN_HOSTED=true
                 # Google Drive backup: a hosted store runs SPRING_PROFILES_ACTIVE=desktop, so without
                 # these it would inherit application-desktop.yml's http://localhost:<port> default and
                 # Google would send the shop owner's BROWSER to their own machine. Neither is secret.

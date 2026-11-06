@@ -102,7 +102,7 @@ class HostedStoreProvisioningServiceTest {
             // has been normalised off the reserved list (2026-10-27) — prepare() looks the client
             // up BEFORE checking the reserved set, so a code the fake does not know would fail
             // with "Client not found" and never exercise the guard at all.
-            if (!List.of("acme", "beta", "viora", "admin").contains(code)) return Optional.empty();
+            if (!List.of("acme", "beta", "viora", "gamma", "admin").contains(code)) return Optional.empty();
             ClientConfig c = new ClientConfig();
             c.setClientCode(code);
             c.setAppName(code.toUpperCase() + " Store");
@@ -264,6 +264,42 @@ class HostedStoreProvisioningServiceTest {
 
         assertThat(instances).hasSize(1);
         assertThat(ops.units).containsOnlyKeys("daman-store-acme");
+    }
+
+    @Test
+    void aSuspendedStoreDoesNotHoldItsHeapAgainstANewOne() {
+        // Reported 2026-11-06 by an operator who had suspended a store precisely to make room and
+        // was refused anyway. The real box: 3814 MB holds exactly three stores. Fill it.
+        ops.totalMb = 3814;
+        service.provision(new ProvisionRequest("acme", "acme", null));
+        service.provision(new ProvisionRequest("beta", "beta", null));
+        service.provision(new ProvisionRequest("viora", "viora", null));
+
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("gamma", "gamma", null)))
+                .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class)
+                .hasMessageContaining("3 store(s) already committed");
+
+        // Suspend is `disable --now`: that JVM is gone and no reboot or release walk revives it,
+        // so its 768 MB are genuinely free and the fourth store must now be accepted.
+        instances.get(0).setStatus("SUSPENDED");
+
+        HostedInstance fourth = service.provision(new ProvisionRequest("gamma", "gamma", null));
+        assertThat(fourth.getStatus()).isEqualTo("ACTIVE");
+        assertThat(instances).hasSize(4);
+    }
+
+    @Test
+    void aFailedStoreStillHoldsItsHeap() {
+        // Not symmetric with suspend, and deliberately so: provisioning broke partway, so the unit
+        // may already have been written and enabled. Nothing has disabled it, so the box is still
+        // committed to that heap and the conservative count is the correct one.
+        ops.totalMb = 2600; // room for exactly one store
+        service.provision(new ProvisionRequest("acme", "acme", null));
+        instances.get(0).setStatus("FAILED");
+
+        assertThatThrownBy(() -> service.provision(new ProvisionRequest("beta", "beta", null)))
+                .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class)
+                .hasMessageContaining("1 store(s) already committed");
     }
 
     @Test
