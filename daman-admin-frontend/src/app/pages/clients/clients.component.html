@@ -149,13 +149,11 @@
                         ⚠ Lapsed
                       </span>
                     }
-                    @if (primaryLicenseOf(client.clientCode); as lic) {
-                      <span class="badge" style="font-size:0.68rem"
-                            [class.bg-primary]="lic.payloadVersion === 2"
-                            [class.bg-secondary]="lic.payloadVersion !== 2">
-                        {{ lic.payloadVersion === 2 ? 'v2' : 'v1' }}
-                      </span>
-                    }
+                    <!-- The v1/v2 licence badge was here. Every licence in the fleet is v2
+                         since the Stage-1 re-issue, so it marked every row identically and told
+                         the reader nothing while taking the space of something that might. The
+                         payloadVersion field itself stays — hasActiveV2License still gates the
+                         dev-run button. -->
                     @if (devCurrent?.clientCode === client.clientCode) {
                       <span class="badge bg-dark" style="font-size:0.68rem">
                         ▶ {{ devCurrent?.mode === 'generic' ? ('devCurrentBadgeGeneric' | t) : ('devCurrentBadgePerClient' | t) }}

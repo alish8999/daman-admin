@@ -542,6 +542,9 @@ html[dir="rtl"] body {
   // narrow window just cut the table off. Keep clipping Y, scroll X.
   overflow-x: auto;
   overflow-y: hidden;
+  // Reserve the scrollbar so the table does not jump sideways the moment a column
+  // tips it over the edge.
+  scrollbar-gutter: stable;
 }
 
 .clients-table {
@@ -555,25 +558,82 @@ html[dir="rtl"] body {
     font-weight: 700;
     background: #fafafd;
     border-bottom: 1px solid var(--admin-border);
-    padding: 0.75rem 1rem;
+    // Tightened from 1rem: eight columns at 1rem of horizontal padding each spent
+    // ~128px on whitespace alone, which is most of a column.
+    padding: 0.7rem 0.75rem;
+    // Sticky header: the list is long and scrolling it used to mean losing the
+    // column names entirely.
+    position: sticky;
+    top: 0;
+    z-index: 2;
   }
 
   tbody td {
-    padding: 0.85rem 1rem;
+    padding: 0.7rem 0.75rem;
     border-bottom: 1px solid #f1f1f6;
     vertical-align: middle;
   }
+
+  // ── Actions stay reachable ──────────────────────────────────────────────
+  // Reported 2026-11-06: "no horizontal scroll, actions buttons not appear".
+  // The table is wider than a mid-size window, so the right-hand column sat off
+  // the edge and the only way to reach Edit or Delete was to scroll a container
+  // whose scrollbar was itself easy to miss. Pinning the last column means the
+  // actions are always on screen no matter how far the rest has scrolled —
+  // which is what you want from the column you actually click.
+  th:last-child,
+  td.clients-actions-cell {
+    position: sticky;
+    inset-inline-end: 0;
+    background: var(--admin-surface);
+    z-index: 3;
+  }
+
+  thead th:last-child { background: #fafafd; }
+
+  // A soft edge so the pinned column reads as floating above the scrolled
+  // content rather than being part of it.
+  td.clients-actions-cell::before,
+  th:last-child::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 12px;
+    transform: translateX(-100%);
+    pointer-events: none;
+    background: linear-gradient(to left, rgba(17, 18, 43, 0.06), transparent);
+  }
+
+  tbody tr:hover td.clients-actions-cell { background: #fafaff; }
 
   tbody tr:last-child td {
     border-bottom: none;
   }
 
+  // A row reads as one object: the whole row lifts together on hover rather than
+  // each cell tinting on its own, and the cursor says it is a thing you act on.
+  tbody tr {
+    transition: background 0.12s ease, box-shadow 0.12s ease;
+  }
+
   tbody tr:hover td {
-    background: #fafaff;
+    background: #f7f7ff;
+  }
+
+  tbody tr:hover {
+    box-shadow: inset 3px 0 0 var(--admin-accent);
   }
 
   tbody tr.row--active td {
     background: linear-gradient(90deg, rgba(22, 163, 74, 0.04), transparent 40%);
+  }
+
+  // Numbers line up when they are tabular. Mixed-width digits in a money column
+  // are the single clearest giveaway of an untended table.
+  .ltr-num,
+  td.text-end {
+    font-variant-numeric: tabular-nums;
   }
 
   // Status/license/dev badges keep their existing bg-success/bg-warning/etc.
@@ -814,7 +874,33 @@ html[dir="rtl"] body {
     .form-select { width: 100% !important; max-width: none !important; min-width: 0 !important; }
   }
 
-  // Clients table → one card per client (labels come from the td[data-label]s).
+
+  // Modals: a little breathing room from the screen edge.
+  .modal-dialog { margin: 0.75rem; }
+}
+
+@media (max-width: 480px) {
+  .login-card { padding: 28px 22px; }
+  .page-header > .d-flex { width: 100%; }
+  .page-header > .d-flex > .btn-primary,
+  .page-header > .btn-primary { flex: 1 1 auto; }
+}
+
+// ── Clients table → one card per client ───────────────────────────────────
+// Moved out of the 768px block and raised to 1200px (2026-11-06, reported:
+// "need responsive … no horizontal scroll, actions buttons not appear").
+//
+// At 768px the switch came far too late. A laptop at 1280px, or any window
+// less than maximised, got the full eight-column table squeezed into a
+// container narrower than it needs — so it scrolled sideways, and the column
+// people actually click sat off the right-hand edge behind a scrollbar that is
+// easy not to notice. Cards have no such edge: every field is on screen, and
+// the label comes from the td's own data-label so the markup stays one table.
+//
+// Pinning the actions column (see .clients-table above) fixes the desktop case;
+// this fixes everything below it. The two together mean the buttons are always
+// reachable at every width.
+@media (max-width: 1200px) {
   .clients-table-wrap {
     background: transparent;
     border: none;
@@ -837,6 +923,12 @@ html[dir="rtl"] body {
       border: 1px solid var(--admin-border);
       border-radius: var(--admin-radius-md);
       box-shadow: var(--admin-shadow-sm);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+
+      &:hover {
+        border-color: #d9dbf7;
+        box-shadow: 0 4px 14px rgba(17, 18, 43, 0.07);
+      }
 
       &.row--active { border-inline-start: 3px solid #16a34a; }
     }
@@ -855,6 +947,17 @@ html[dir="rtl"] body {
       box-shadow: none;
     }
 
+    // The sticky pinning from the desktop rules must not survive into card mode,
+    // where there is no horizontal scroll to pin against and it would only take
+    // the cell out of the card's flow.
+    th:last-child,
+    td.clients-actions-cell {
+      position: static;
+      background: transparent;
+    }
+    td.clients-actions-cell::before,
+    th:last-child::before { content: none; }
+
     tbody td[data-label]::before {
       content: attr(data-label);
       flex-shrink: 0;
@@ -867,20 +970,16 @@ html[dir="rtl"] body {
 
     tbody td[data-label] > * { min-width: 0; }
 
+    // The client name cell carries no data-label — it is the card's heading.
+    tbody td.clients-name-cell {
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--admin-border);
+    }
+
     .clients-actions-cell {
       justify-content: flex-end;
       padding-top: 10px;
       border-top: 1px solid var(--admin-border);
     }
   }
-
-  // Modals: a little breathing room from the screen edge.
-  .modal-dialog { margin: 0.75rem; }
-}
-
-@media (max-width: 480px) {
-  .login-card { padding: 28px 22px; }
-  .page-header > .d-flex { width: 100%; }
-  .page-header > .d-flex > .btn-primary,
-  .page-header > .btn-primary { flex: 1 1 auto; }
 }
