@@ -428,7 +428,22 @@
     const footer = card.querySelector('.footer');
     const versionInput = card.querySelector('.build-version-input');
     const platformChecks = card.querySelectorAll('.build-platform-check');
-    const tokenInput = tokens.input('local');
+    /**
+     * Why the guards below ask `tokens.value('local')` and not the token input element.
+     *
+     * They used to read the input element directly, which is wrong in exactly the case the owner
+     * hits most: inside the portal at localhost:4201 the local token comes from the portal
+     * session in storage (see apiBaseCore.tokenSource — in development the portal's backend IS
+     * the local one on :8083, so the session already covers it), and the strip is hidden
+     * entirely. The input is therefore empty while a perfectly good token exists, so the build
+     * refused to start and said "paste a session token" about a field that was not on screen.
+     * Typing anything at all into it satisfied the old check and the build then worked — because
+     * the request never used that value: authHeaders() below has always read tokens.value().
+     *
+     * The guard must ask the same source the request will use, or it is not guarding the request.
+     */
+    const LOCAL_TOKEN_MISSING = 'No session token for the local admin backend. '
+      + 'Log in to the admin portal, or paste one in the token strip.';
 
     function authHeaders() {
       const token = tokens.value('local');
@@ -708,8 +723,8 @@
     }
 
     function openChangelogModal() {
-      if (!tokenInput.value.trim()) {
-        footer.textContent = 'Paste a session token first.';
+      if (!tokens.value('local')) {
+        footer.textContent = LOCAL_TOKEN_MISSING;
         footer.className = 'footer failure';
         return;
       }
@@ -927,8 +942,8 @@
     }
 
     btn.addEventListener('click', () => {
-      if (!tokenInput.value.trim()) {
-        footer.textContent = 'Paste a session token first.';
+      if (!tokens.value('local')) {
+        footer.textContent = LOCAL_TOKEN_MISSING;
         footer.className = 'footer failure';
         return;
       }

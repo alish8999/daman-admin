@@ -329,7 +329,12 @@ function proxyToAdminBackend(target, req, method, targetPath, res, body, timeout
       headers,
     },
     (upstreamRes) => {
+      // setEncoding, NOT `respBody += chunk`. Concatenating a Buffer onto a string decodes
+      // THAT CHUNK on its own, so a UTF-8 character split across a chunk boundary loses both
+      // halves to U+FFFD. setEncoding puts a StringDecoder in front, which holds a partial
+      // multi-byte sequence back until the rest arrives. See readRequestBody for the incident.
       let respBody = '';
+      upstreamRes.setEncoding('utf8');
       upstreamRes.on('data', (chunk) => { respBody += chunk; });
       upstreamRes.on('end', () => {
         if (settled) return;
@@ -357,20 +362,43 @@ function proxyToRemoteAdminBackend(req, method, targetPath, res, body, timeoutMs
 // only the two proxied write endpoints below (versions, changelog-library)
 // ever send one; every other route here takes its input from the query
 // string instead.
+/**
+ * Reads a request body as UTF-8 text.
+ *
+ * Buffers are collected and decoded ONCE at the end. The previous version did `data += chunk`,
+ * which stringifies each Buffer on its own — so any UTF-8 character that happened to straddle
+ * a chunk boundary had each of its bytes decoded separately and replaced with U+FFFD.
+ *
+ * That is not theoretical: it corrupted the Arabic release notes for v1.3.5 on the way to the
+ * admin backend. The word "مرة" arrived as "��رة" — two replacement characters for
+ * the two bytes of one letter — and was stored that way, then written into the shipped
+ * release-notes.json and shown to clients. Nothing logged, because at the byte level nothing
+ * failed; the text simply arrived slightly wrong, in the one script nobody reading the English
+ * side would notice.
+ *
+ * The size cap now counts BYTES, which is what "maxBytes" said all along — the old check
+ * measured the decoded string's length in characters, so a body of Arabic text could be nearly
+ * twice the intended limit before tripping it.
+ */
 function readRequestBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
-    let data = '';
+    const chunks = [];
+    let bytes = 0;
     let tooLarge = false;
     req.on('data', (chunk) => {
       if (tooLarge) return; // keep draining so the 413 can still be written on the open socket
-      data += chunk;
-      if (maxBytes && data.length > maxBytes) {
+      chunks.push(chunk);
+      bytes += chunk.length;
+      if (maxBytes && bytes > maxBytes) {
         tooLarge = true;
-        data = '';
+        chunks.length = 0;
         reject(new Error('Request body too large'));
       }
     });
-    req.on('end', () => resolve(data));
+    req.on('end', () => {
+      if (tooLarge) return; // already rejected
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    });
     req.on('error', reject);
   });
 }
