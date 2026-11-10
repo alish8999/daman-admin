@@ -85,7 +85,9 @@ public final class HostedCapacity {
      *
      * @param totalMb        total RAM on the box
      * @param existingStores stores already committed to a heap (the registry's own count)
-     * @param heapMb         one store's {@code -Xmx} ({@link StoreUnitRenderer#HEAP_MB})
+     * @param heapMb         one store's whole expected footprint, not just its heap
+     *                       ({@link StoreUnitRenderer#MEMORY_BUDGET_MB} — the same number the
+     *                       unit holds it to with {@code MemoryHigh})
      * @param reserveMb      RAM reserved for everything that is not a store (admin backend, OS)
      * @param marginMb       free RAM that must still remain after the new store's heap
      */

@@ -694,16 +694,16 @@ public class HostedStoreProvisioningService {
                 .map(HostedInstance::getStatus).toList();
         long committedStores = HostedCapacity.committedStores(statuses);
         if (!HostedCapacity.hasRoomForAnotherStore(totalMb, committedStores,
-                StoreUnitRenderer.HEAP_MB, NON_STORE_RESERVE_MB, RAM_MARGIN_MB)) {
+                StoreUnitRenderer.MEMORY_BUDGET_MB, NON_STORE_RESERVE_MB, RAM_MARGIN_MB)) {
             long suspended = statuses.size() - committedStores;
             throw new UnavailableException("Not enough RAM for another hosted store: " + totalMb
                     + " MB total, " + committedStores + " store(s) already committed to "
-                    + StoreUnitRenderer.HEAP_MB + " MB of heap each"
+                    + StoreUnitRenderer.MEMORY_BUDGET_MB + " MB each"
                     + (suspended > 0 ? " (" + suspended + " suspended store"
                         + (suspended == 1 ? "" : "s") + " already excluded)" : "")
                     + ", " + NON_STORE_RESERVE_MB
                     + " MB reserved for the admin backend and the OS, and another store needs "
-                    + StoreUnitRenderer.HEAP_MB + " MB plus a " + RAM_MARGIN_MB + " MB margin."
+                    + StoreUnitRenderer.MEMORY_BUDGET_MB + " MB plus a " + RAM_MARGIN_MB + " MB margin."
                     + " The fix is a bigger server, not a smaller margin.");
         }
     }

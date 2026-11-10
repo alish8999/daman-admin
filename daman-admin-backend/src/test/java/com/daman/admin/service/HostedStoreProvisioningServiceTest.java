@@ -249,11 +249,13 @@ class HostedStoreProvisioningServiceTest {
 
     @Test
     void theCapacityGuardReservesEachExistingStoresHeapNotItsCurrentUsage() {
-        // 2600 MB total leaves room for exactly ONE store (2600 - 1024 = 1576 >= 768 + 300).
-        // The second request must be refused on the strength of the first ROW existing, not on a
-        // free-memory reading that a freshly booted JVM makes look fine — that is the overcommit
-        // the spec's anti-goal names, and it needs no clock to reproduce here.
-        ops.totalMb = 2600;
+        // Sized from the constants, not a literal: a box with room for exactly ONE store, so the
+        // second request must be refused on the strength of the first ROW existing rather than on a
+        // free-memory reading that a freshly booted JVM makes look fine — the overcommit the spec's
+        // anti-goal names. Written this way so changing the per-store budget cannot quietly turn
+        // this test into a test of something else (it did, when the budget went 768 -> 480).
+        ops.totalMb = HostedCapacity.NON_STORE_RESERVE_MB + HostedCapacity.RAM_MARGIN_MB
+                + StoreUnitRenderer.MEMORY_BUDGET_MB;
 
         HostedInstance first = service.provision(new ProvisionRequest("acme", "acme", null));
         assertThat(first.getStatus()).isEqualTo("ACTIVE");
@@ -269,8 +271,9 @@ class HostedStoreProvisioningServiceTest {
     @Test
     void aSuspendedStoreDoesNotHoldItsHeapAgainstANewOne() {
         // Reported 2026-11-06 by an operator who had suspended a store precisely to make room and
-        // was refused anyway. The real box: 3814 MB holds exactly three stores. Fill it.
-        ops.totalMb = 3814;
+        // was refused anyway. Sized from the constants for exactly THREE stores, then filled.
+        ops.totalMb = HostedCapacity.NON_STORE_RESERVE_MB + HostedCapacity.RAM_MARGIN_MB
+                + 3 * StoreUnitRenderer.MEMORY_BUDGET_MB;
         service.provision(new ProvisionRequest("acme", "acme", null));
         service.provision(new ProvisionRequest("beta", "beta", null));
         service.provision(new ProvisionRequest("viora", "viora", null));
@@ -280,7 +283,7 @@ class HostedStoreProvisioningServiceTest {
                 .hasMessageContaining("3 store(s) already committed");
 
         // Suspend is `disable --now`: that JVM is gone and no reboot or release walk revives it,
-        // so its 768 MB are genuinely free and the fourth store must now be accepted.
+        // so its whole budget is genuinely free and the fourth store must now be accepted.
         instances.get(0).setStatus("SUSPENDED");
 
         HostedInstance fourth = service.provision(new ProvisionRequest("gamma", "gamma", null));
@@ -293,7 +296,8 @@ class HostedStoreProvisioningServiceTest {
         // Not symmetric with suspend, and deliberately so: provisioning broke partway, so the unit
         // may already have been written and enabled. Nothing has disabled it, so the box is still
         // committed to that heap and the conservative count is the correct one.
-        ops.totalMb = 2600; // room for exactly one store
+        ops.totalMb = HostedCapacity.NON_STORE_RESERVE_MB + HostedCapacity.RAM_MARGIN_MB
+                + StoreUnitRenderer.MEMORY_BUDGET_MB; // room for exactly one store
         service.provision(new ProvisionRequest("acme", "acme", null));
         instances.get(0).setStatus("FAILED");
 
@@ -310,7 +314,8 @@ class HostedStoreProvisioningServiceTest {
         assertThatThrownBy(() -> service.provision(new ProvisionRequest("acme", "acme", null)))
                 .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class);
 
-        ops.totalMb = 3814;
+        ops.totalMb = HostedCapacity.NON_STORE_RESERVE_MB + HostedCapacity.RAM_MARGIN_MB
+                + 3 * StoreUnitRenderer.MEMORY_BUDGET_MB;
         ReflectionTestUtils.setField(service, "cloudflareZoneId", "");
         assertThatThrownBy(() -> service.provision(new ProvisionRequest("acme", "acme", null)))
                 .isInstanceOf(HostedStoreProvisioningService.UnavailableException.class)

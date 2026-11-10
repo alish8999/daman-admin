@@ -6,6 +6,7 @@ import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreStatusService;
+import com.daman.admin.service.StoreUnitRenderer;
 import com.daman.admin.service.ServerOps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -328,8 +329,9 @@ class HostedStoreControllerTest {
         // provisioning guard that was itself counting suspended stores.
         assertThat(fleet.stores()).hasSize(2);
         assertThat(fleet.committedStores()).isEqualTo(1);
-        assertThat(fleet.heapMb()).isEqualTo(768);
-        assertThat(fleet.maxStores()).isEqualTo(3);
+        assertThat(fleet.heapMb()).isEqualTo(StoreUnitRenderer.MEMORY_BUDGET_MB);
+        // (3814 - 1024 reserve - 300 margin) / 480 budget = 5.
+        assertThat(fleet.maxStores()).isEqualTo(5);
         HostedStoreController.HostedStoreDto first = fleet.stores().get(0);
         assertThat(first.liveStatus()).isEqualTo("running");
         assertThat(first.staleness()).isEqualTo("stale");

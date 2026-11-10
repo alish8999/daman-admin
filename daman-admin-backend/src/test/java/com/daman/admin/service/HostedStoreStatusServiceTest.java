@@ -185,7 +185,8 @@ class HostedStoreStatusServiceTest {
 
         assertThat(fleet.states()).hasSize(3);           // every row is still listed
         assertThat(fleet.committedStores()).isEqualTo(2); // but only two hold a heap
-        assertThat(fleet.maxStores()).isEqualTo(3);
+        // 3814 MB at the measured per-store budget: (3814 - 1024 - 300) / 480 = 5.
+        assertThat(fleet.maxStores()).isEqualTo(5);
     }
 
     @Test
@@ -196,10 +197,11 @@ class HostedStoreStatusServiceTest {
         assertThat(fleet.states()).hasSize(3);
         assertThat(fleet.committedStores()).isEqualTo(3);
         assertThat(fleet.totalMemoryMb()).isEqualTo(3814L);
-        assertThat(fleet.heapMb()).isEqualTo(StoreUnitRenderer.HEAP_MB);
-        assertThat(fleet.maxStores()).isEqualTo(HostedCapacity.maxStores(3814L, StoreUnitRenderer.HEAP_MB,
+        assertThat(fleet.heapMb()).isEqualTo(StoreUnitRenderer.MEMORY_BUDGET_MB);
+        assertThat(fleet.maxStores()).isEqualTo(HostedCapacity.maxStores(3814L, StoreUnitRenderer.MEMORY_BUDGET_MB,
                 HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB));
-        assertThat(fleet.maxStores()).isEqualTo(3);
+        // 3814 MB at the measured per-store budget: (3814 - 1024 - 300) / 480 = 5.
+        assertThat(fleet.maxStores()).isEqualTo(5);
         // One reading feeds both fields: two shell-outs could disagree with each other.
         verify(ops, times(1)).totalMemoryMb();
         assertThat(fleet.jarModifiedAt()).isEqualTo(JAR_AT);

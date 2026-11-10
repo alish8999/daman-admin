@@ -16,11 +16,41 @@ public final class StoreUnitRenderer {
     /**
      * Per-store JVM heap, in MB — the single definition of it. The unit template below formats this
      * value into its own {@code -Xmx}, and {@code HostedStoreProvisioningService}'s capacity guard
-     * reserves it per existing store, so the number the guard reasons about and the number the JVM
-     * is actually launched with cannot drift apart. It used to be a literal {@code -Xmx768m} here
-     * and a separate {@code 768} constant there, held together by a comment.
+     * reserves {@link #MEMORY_BUDGET_MB} per existing store, so the number the guard reasons about
+     * and the number the JVM is actually launched with cannot drift apart.
+     *
+     * <p><b>768 -> 320 (2026-11-08), from measurement on the live box.</b> Three stores for three
+     * different businesses were each sitting at 674 / 719 / 758 MB of ANONYMOUS memory (cgroup
+     * {@code memory.stat}; the page-cache share was 1-7 MB, so this was real memory, not file
+     * cache). Usage that uniform across shops of different sizes is not data-driven — it is G1
+     * expanding the heap toward whatever ceiling it is given and never returning it, with
+     * {@code peak == current} on all three. The ceiling was the cause, not the symptom.
+     *
+     * <p>A single shop's working set here is small: one SQLite file, one cashier screen, a few
+     * reports. What does push real bytes through the heap is invoice/PDF generation and product
+     * images (stored as data URLs), so this is deliberately NOT cut to the bone — 320 MB with
+     * SerialGC, then measured again before anyone goes lower.
      */
-    public static final int HEAP_MB = 768;
+    public static final int HEAP_MB = 320;
+
+    /**
+     * What one store is expected to cost the host in total, in MB: the heap plus metaspace, code
+     * cache, thread stacks and native buffers. The provisioning capacity guard and the fleet
+     * dashboard's capacity strip BOTH reserve this, so a store can never be admitted on a budget
+     * the dashboard did not report.
+     *
+     * <p>Measured, not guessed (2026-11-08, on the live box, the test store under the flags above):
+     * 391 MB anonymous at idle and after exercise, peak 401 MB. 480 leaves ~90 MB of headroom for
+     * the things that genuinely spike — invoice/PDF generation and product images, which are stored
+     * as data URLs and pass through the heap.
+     *
+     * <p>No {@code MemoryHigh=}/{@code MemoryMax=} in the unit, deliberately. These cgroups are
+     * almost pure anonymous memory (page cache measured at 1-7 MB) and the box has no swap, so
+     * there is nothing for the kernel to reclaim: a soft limit would stall the store in a reclaim
+     * loop rather than trim it, and a hard one plus {@code Restart=always} is a restart loop in the
+     * middle of a trading day. The budget is enforced by refusing the next store, not by the kernel.
+     */
+    public static final int MEMORY_BUDGET_MB = 480;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -102,7 +132,16 @@ public final class StoreUnitRenderer {
                 #   chmod 600 /etc/daman/google.env
                 # A DESKTOP-type client will NOT work here: it cannot register a fixed https redirect.
                 EnvironmentFile=-/etc/daman/google.env
-                ExecStart=/usr/bin/java -Xmx%7$dm -Duser.home=%4$s -jar %5$s
+                # The desktop app has launched this same jar this way for years (electron/main.js):
+                # TieredStopAtLevel=1 + SerialGC + a small -Xms. A hosted store is the same thing —
+                # one shop, one process — and the server was the only place still on the G1 default,
+                # which is what grew each store to ~700 MB. Measured on the box 2026-11-08: 747 MB
+                # anon before, 391 MB after. NO MaxMetaspaceSize: capping it at 96m OOM-killed the
+                # store on boot (Spring + Hibernate need far more). The GC log is how used-vs-
+                # committed heap can be read at all on a box with a JRE and no jcmd.
+                ExecStart=/usr/bin/java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Xms64m -Xmx%7$dm -Xss512k \
+                    -Xlog:gc+heap=info:file=/var/log/%6$s-gc.log:time,uptime:filecount=3,filesize=5M \
+                    -Duser.home=%4$s -jar %5$s
                 # "always", not "on-failure": Settings -> Restore DB (and other in-app restarts) make the backend exit
                 # with status 0 on purpose, expecting Electron's shell to relaunch it. on-failure treats a clean exit
                 # as "done" and leaves the service dead. A manual 'systemctl stop' is still respected.

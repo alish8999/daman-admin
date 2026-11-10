@@ -64,8 +64,11 @@ public class HostedStoreStatusService {
         // reads "3 / 3" on a box that would accept a fourth store.
         long committed = HostedCapacity.committedStores(
                 rows.stream().map(HostedInstance::getStatus).toList());
-        return new FleetState(states, jarAt, totalMb, (int) committed, StoreUnitRenderer.HEAP_MB,
-                HostedCapacity.maxStores(totalMb, StoreUnitRenderer.HEAP_MB,
+        // The strip and the guard must reserve the SAME number, and that number is the whole
+        // per-store footprint (MEMORY_BUDGET_MB), not just its heap: reporting the heap here while
+        // the guard reserves the budget would have the dashboard promise room the guard refuses.
+        return new FleetState(states, jarAt, totalMb, (int) committed, StoreUnitRenderer.MEMORY_BUDGET_MB,
+                HostedCapacity.maxStores(totalMb, StoreUnitRenderer.MEMORY_BUDGET_MB,
                         HostedCapacity.NON_STORE_RESERVE_MB, HostedCapacity.RAM_MARGIN_MB), box);
     }
 
