@@ -30,6 +30,15 @@ test('both FleetComponent routes declare a view', () => {
 
 test('the iframe src stays a relative, literal-built path', () => {
   assert.match(FLEET, /'fleet-page\/index\.html\?api='/);
-  assert.match(FLEET, /&view=/);
+  assert.match(FLEET, /'&view='\s*\+\s*this\.view/);
   assert.ok(!/'\/fleet-page/.test(FLEET), 'a leading slash breaks the asset mount');
+});
+
+test('no route nests FleetComponent through children or loadChildren', () => {
+  // A nested PARENT is the same landmine as a nested path: { path: 'admin', children: [{ path:
+  // 'deployment', component: FleetComponent }] } still captures the flat segment 'deployment',
+  // but the page is served at /admin/deployment, so the relative 'fleet-page/index.html' resolves
+  // under /admin/, misses the asset and renders the whole portal inside its own iframe.
+  assert.ok(!/\bchildren\s*:/.test(ROUTES), 'app.routes.ts must not use children:');
+  assert.ok(!/\bloadChildren\s*:/.test(ROUTES), 'app.routes.ts must not use loadChildren:');
 });
