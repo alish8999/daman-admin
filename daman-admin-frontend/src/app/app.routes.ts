@@ -19,5 +19,11 @@ export const routes: Routes = [
   { path: 'trials', component: TrialsComponent, canActivate: [authGuard] },
   // The fleet page is static assets; authGuard cannot protect a bare file, so it is mounted
   // behind this component instead. See FleetComponent.
-  { path: 'fleet', component: FleetComponent, canActivate: [authGuard] }
+  // Every route here MUST be ONE flat segment (no '/', no trailing slash): the component iframes
+  // the RELATIVE 'fleet-page/index.html', which under a nested route resolves beneath it, misses
+  // the asset and renders the whole portal inside its own iframe. Pinned by
+  // deploy-dashboard/lib/portal-route-flatness.test.js, whose regexes also fix the property
+  // order: component, then data, then canActivate.
+  { path: 'fleet', component: FleetComponent, data: { view: 'stores' }, canActivate: [authGuard] },
+  { path: 'deployment', component: FleetComponent, data: { view: 'deploy' }, canActivate: [authGuard] }
 ];

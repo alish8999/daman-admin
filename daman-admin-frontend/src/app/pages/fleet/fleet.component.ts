@@ -1,5 +1,5 @@
 import { Component, HostListener, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { environment } from '../../../environments/environment';
 
@@ -38,12 +38,24 @@ export class FleetComponent {
   private readonly router = inject(Router);
 
   /**
+   * Which of the page's two views this route shows. It comes from the route table's `data` — a
+   * literal written in app.routes.ts — and is narrowed here to one of two constants, so nothing a
+   * caller supplied (URL, query string) can reach the sanitizer.
+   */
+  private readonly view: 'stores' | 'deploy' =
+    inject(ActivatedRoute).snapshot.data['view'] === 'deploy' ? 'deploy' : 'stores';
+
+  /**
    * Same-origin by construction — a relative path, never a URL built from anything a caller
    * supplied — so the page can read the portal session from localStorage and the sanitizer has
-   * nothing variable to trust.
+   * nothing variable to trust. The view is a route-table literal (see above), not caller input.
+   *
+   * The path must stay RELATIVE, which is why every route hosting this component has to be one flat
+   * segment: under a nested route it resolves beneath the route, misses the asset and renders the
+   * whole portal inside its own iframe.
    */
   readonly src: SafeResourceUrl = inject(DomSanitizer).bypassSecurityTrustResourceUrl(
-    'fleet-page/index.html?api=' + encodeURIComponent(environment.apiUrl));
+    'fleet-page/index.html?api=' + encodeURIComponent(environment.apiUrl) + '&view=' + this.view);
 
   /**
    * The page posts here when a call comes back 401, and the portal owns what happens next.
