@@ -120,6 +120,7 @@ const STATIC_FILES = {
   '/store-row-core.js': { dir: LIB_DIR, file: 'store-row-core.js', type: 'application/javascript; charset=utf-8' },
   '/api-base-core.js': { dir: LIB_DIR, file: 'api-base-core.js', type: 'application/javascript; charset=utf-8' },
   // Reads apiBaseCore at load, so index.html must list it after api-base-core.js.
+  '/restart-run-core.js': { dir: LIB_DIR, file: 'restart-run-core.js', type: 'application/javascript; charset=utf-8' },
   '/page-view-core.js': { dir: LIB_DIR, file: 'page-view-core.js', type: 'application/javascript; charset=utf-8' },
 };
 

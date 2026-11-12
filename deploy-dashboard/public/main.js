@@ -1669,34 +1669,15 @@
       restartTimer = null;
       restartWatching = false;
       if (restartBtn) restartBtn.disabled = false;
+      // A fleet-table refresh that failed earlier left pollNotice set, and the next good refresh
+      // would then blank this notice. HALTED/NOOP must not vanish unread.
+      pollNotice = false;
       if (text) setNotice(text, kind);
       return refresh();   // the table now reflects the restarted stores
     }
 
-    // Pure on a RestartRun: returns { done, text, kind }. done=false means keep polling.
-    function describeRestartRun(run) {
-      const walked = Array.isArray(run && run.walked) ? run.walked : [];
-      const state = run && run.state;
-      if (state === 'RUNNING') {
-        const cur = run.currentClientCode;
-        return { done: false, kind: '', text: 'Restarting all stores' + (cur ? ': ' + cur + ' now' : '') + ' (' + walked.length + ' done so far)… one at a time, this can take several minutes.' };
-      }
-      if (state === 'DONE') {
-        const n = walked.filter((w) => w && w.restarted).length;
-        const skipped = Array.isArray(run.skipped) ? run.skipped.length : 0;
-        return { done: true, kind: 'success', text: 'Restart all: done. ' + n + (n === 1 ? ' store' : ' stores') + ' restarted' + (skipped ? ', ' + skipped + ' skipped' : '') + '.' };
-      }
-      if (state === 'HALTED') {
-        const bad = walked.filter((w) => w && !w.healthy).pop();
-        const reason = bad && bad.error ? ' (' + bad.error + ')' : '';
-        return { done: true, kind: 'failure', text: 'Restart all HALTED at ' + (bad ? bad.clientCode : 'an unknown store') + reason + '. ' + walked.length + ' stores were reached; the stores after it were NOT restarted.' };
-      }
-      if (state === 'NOOP') {
-        return { done: true, kind: 'failure', text: 'Restart all restarted NOTHING: there were no stores eligible to restart. Check the registry and the box; this is not a success.' };
-      }
-      // IDLE (the backend restarted mid-walk and forgot it) or anything unrecognised: not a success.
-      return { done: true, kind: 'failure', text: 'Restart all: the backend reports no walk running and no result (state ' + (state || 'unknown') + '). It may have been restarted mid-walk; check the table.' };
-    }
+    // The wording of every outcome lives in lib/restart-run-core.js (tested); this only displays it.
+    const describeRestartRun = window.restartRunCore.describeRestartRun;
 
     function pollRestart() {
       restartTimer = null;
@@ -1717,6 +1698,7 @@
           restartFailedPolls = 0;
           const out = describeRestartRun(body);
           if (out.done) return stopRestartWatch(out.text, out.kind);
+          pollNotice = false;
           setNotice(out.text, out.kind);
           restartTimer = setTimeout(pollRestart, RESTART_POLL_MS);
         })
