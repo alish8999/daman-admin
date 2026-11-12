@@ -69,6 +69,14 @@ public class HostedStoreRestartService {
      * over, with the reason. An empty {@code walked} list means the release restarted <b>nothing</b>.
      */
     public RestartReport walk() {
+        return walk(clientCode -> {});
+    }
+
+    /**
+     * As {@link #walk()}, calling {@code onStoreStarting} with a store's client code just before
+     * that store is restarted, so a caller can show which store a long walk is on.
+     */
+    public RestartReport walk(java.util.function.Consumer<String> onStoreStarting) {
         List<HostedInstance> rows = repository.findAll().stream()
                 .sorted(java.util.Comparator.comparing(HostedInstance::getId,
                         java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
@@ -81,6 +89,7 @@ public class HostedStoreRestartService {
                 skipped.add(new SkippedStore(i.getClientCode(), skipReason));
                 continue;
             }
+            onStoreStarting.accept(i.getClientCode());
             RestartResult r = restartOne(i);
             walked.add(r);
             if (!r.healthy()) {

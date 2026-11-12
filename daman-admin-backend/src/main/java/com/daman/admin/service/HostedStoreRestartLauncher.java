@@ -29,8 +29,9 @@ import java.util.concurrent.Executors;
  * held in a volatile field and replaced whole; {@link #start()} and the completion step are
  * synchronized, so a reader never sees a half-written state.
  *
- * <p>The walk is a single call that returns when finished, so there is no per-store progress:
- * {@code currentClientCode} is null throughout and the lists fill in on completion.
+ * <p>Progress: the service reports each store just before restarting it, and that republishes the
+ * snapshot as RUNNING with {@code currentClientCode} set, so a poller can see which store a
+ * 120 s-per-store walk is on. {@code walked} and {@code skipped} fill in on completion.
  */
 @Slf4j
 @Service
@@ -99,23 +100,41 @@ public class HostedStoreRestartLauncher {
 
     private void runWalk() {
         Instant startedAt = current.startedAt();
-        RestartRun finished;
+        RestartRun finished = null;
         try {
-            RestartReport report = service.walk();
+            RestartReport report = service.walk(this::onStoreStarting);
             List<RestartResult> walked = List.copyOf(report.walked());
             State state = walked.isEmpty() ? State.NOOP
                     : walked.stream().anyMatch(r -> !r.healthy()) ? State.HALTED : State.DONE;
             finished = new RestartRun(state, null, walked, List.copyOf(report.skipped()),
                     startedAt, Instant.now());
-        } catch (RuntimeException e) {
-            // walk() reports per-store failures in its result, so reaching here is something
-            // outside that. Free the guard and say HALTED rather than leave RUNNING forever.
-            log.error("Restart-all walk ended abnormally", e);
-            finished = new RestartRun(State.HALTED, null, List.of(), List.of(), startedAt, Instant.now());
+        } catch (Throwable t) {
+            // walk() reports per-store failures in its result, so reaching here is something outside
+            // that. Surface the cause as an unhealthy entry (the record shape is fixed), naming the
+            // store the walk was on, so the report reads HALTED and says why.
+            log.error("Restart-all walk ended abnormally", t);
+            finished = new RestartRun(State.HALTED, null,
+                    List.of(new RestartResult(current.currentClientCode(), false, false,
+                            t.getClass().getSimpleName() + ": " + t.getMessage())),
+                    List.of(), startedAt, Instant.now());
+            if (t instanceof Error error && !(t instanceof AssertionError)) {
+                throw error;
+            }
+        } finally {
+            // Unmissable: whatever happened above, RUNNING must not outlive the walk.
+            RestartRun terminal = finished != null ? finished
+                    : new RestartRun(State.HALTED, null, List.of(), List.of(), startedAt, Instant.now());
+            synchronized (this) {
+                current = terminal;
+            }
         }
-        synchronized (this) {
-            current = finished;
-        }
+    }
+
+    /** Republishes the snapshot (whole, never mutated) with the store the walk is now on. */
+    private synchronized void onStoreStarting(String clientCode) {
+        RestartRun now = current;
+        current = new RestartRun(State.RUNNING, clientCode, now.walked(), now.skipped(),
+                now.startedAt(), null);
     }
 
     @PreDestroy

@@ -37,6 +37,7 @@ class HostedStoreControllerTest {
     private static final String SECRET = "super-secret-signing-key-do-not-leak";
 
     private HostedStoreProvisionLauncher launcher;
+    private com.daman.admin.service.HostedStoreRestartLauncher restartLauncher;
     private HostedInstanceRepository repository;
     private ServerOps ops;
     private HostedStoreController controller;
@@ -45,6 +46,7 @@ class HostedStoreControllerTest {
     @BeforeEach
     void setUp() {
         launcher = mock(HostedStoreProvisionLauncher.class);
+        restartLauncher = mock(com.daman.admin.service.HostedStoreRestartLauncher.class);
         repository = mock(HostedInstanceRepository.class);
         when(repository.findByClientCode(any())).thenReturn(Optional.empty());
         ops = mock(ServerOps.class);
@@ -55,7 +57,7 @@ class HostedStoreControllerTest {
                 new HostedStoreLifecycleService(repository, ops, mock(com.daman.admin.repository.LicenseRepository.class), 3, 0),
                 new com.daman.admin.service.DemoResetService(repository, ops),
                 new HostedStoreRestartService(repository, ops, 3, 0),
-                mock(com.daman.admin.service.HostedStoreRestartLauncher.class));
+                restartLauncher);
     }
 
     /** What the launcher answers for a run it just accepted. */
@@ -622,5 +624,44 @@ class HostedStoreControllerTest {
         assertThat(controller.remove("abu_amar").getStatusCode().value()).isEqualTo(409);
         verify(ops, never()).deleteTree(any(), any());
         verify(repository, never()).delete(any());
+    }
+
+    private static com.daman.admin.service.HostedStoreRestartLauncher.RestartRun runningOn(String code) {
+        return new com.daman.admin.service.HostedStoreRestartLauncher.RestartRun(
+                com.daman.admin.service.HostedStoreRestartLauncher.State.RUNNING, code,
+                java.util.List.of(), java.util.List.of(), java.time.Instant.now(), null);
+    }
+
+    @Test
+    void restartAllAsyncAnswers202WithTheRunningSnapshot() {
+        var run = runningOn(null);
+        when(restartLauncher.start()).thenReturn(run);
+
+        var response = controller.restartAllAsync();
+
+        assertThat(response.getStatusCode().value()).isEqualTo(202);
+        assertThat(response.getBody()).isSameAs(run);
+    }
+
+    @Test
+    void restartAllAsyncAnswers409WithTheRunningSnapshotWhenAWalkIsInFlight() {
+        var run = runningOn("acme");
+        when(restartLauncher.start()).thenThrow(
+                new com.daman.admin.service.HostedStoreRestartLauncher.AlreadyRunningException("busy"));
+        when(restartLauncher.current()).thenReturn(run);
+
+        var response = controller.restartAllAsync();
+
+        assertThat(response.getStatusCode().value()).isEqualTo(409);
+        assertThat(response.getBody()).isSameAs(run);
+        assertThat(response.getBody().currentClientCode()).isEqualTo("acme");
+    }
+
+    @Test
+    void restartAllStatusReturnsTheCurrentSnapshot() {
+        var run = runningOn("acme");
+        when(restartLauncher.current()).thenReturn(run);
+
+        assertThat(controller.restartAllStatus()).isSameAs(run);
     }
 }

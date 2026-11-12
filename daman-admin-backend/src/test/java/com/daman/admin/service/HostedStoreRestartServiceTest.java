@@ -10,6 +10,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -73,5 +75,23 @@ class HostedStoreRestartServiceTest {
         assertThat(report.skipped().get(0).reason()).isNotBlank();
         assertThat(report.walked()).extracting(HostedStoreRestartService.RestartResult::clientCode)
                 .containsExactly("live");
+    }
+
+    @Test
+    void walkReportsEachStoreJustBeforeRestartingItAndNeverASkippedOne() {
+        when(repository.findAll()).thenReturn(List.of(
+                store(1, "sleeping", 9101, "SUSPENDED"), store(2, "a", 9102, "ACTIVE"),
+                store(3, "b", 9103, "ACTIVE")));
+        when(ops.health(anyInt())).thenReturn(true);
+        List<String> announced = new java.util.ArrayList<>();
+        doAnswer(inv -> {
+            // The announcement must precede that store's restart.
+            assertThat(announced).hasSize(inv.getArgument(0).equals("daman-store-a") ? 1 : 2);
+            return null;
+        }).when(ops).restart(anyString());
+
+        service.walk(announced::add);
+
+        assertThat(announced).containsExactly("a", "b");
     }
 }

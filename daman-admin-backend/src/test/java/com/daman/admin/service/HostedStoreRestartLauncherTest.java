@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -33,7 +34,7 @@ class HostedStoreRestartLauncherTest {
 
     @Test
     void startRunsTheWalkAndEndsInDone() {
-        when(service.walk()).thenReturn(new RestartReport(List.of(ok("a"), ok("b")), List.of()));
+        when(service.walk(any())).thenReturn(new RestartReport(List.of(ok("a"), ok("b")), List.of()));
         HostedStoreRestartLauncher launcher = onCallingThread();
 
         launcher.start();
@@ -69,7 +70,7 @@ class HostedStoreRestartLauncherTest {
 
     @Test
     void aHaltedWalkEndsInHalted() {
-        when(service.walk()).thenReturn(new RestartReport(List.of(ok("a"), unhealthy("b")), List.of()));
+        when(service.walk(any())).thenReturn(new RestartReport(List.of(ok("a"), unhealthy("b")), List.of()));
         HostedStoreRestartLauncher launcher = onCallingThread();
 
         launcher.start();
@@ -79,7 +80,7 @@ class HostedStoreRestartLauncherTest {
 
     @Test
     void anEmptyWalkEndsInNoop() {
-        when(service.walk()).thenReturn(new RestartReport(List.of(), List.of()));
+        when(service.walk(any())).thenReturn(new RestartReport(List.of(), List.of()));
         HostedStoreRestartLauncher launcher = onCallingThread();
 
         launcher.start();
@@ -89,12 +90,67 @@ class HostedStoreRestartLauncherTest {
 
     @Test
     void aFinishedRunFreesTheGuardForTheNextOne() {
-        when(service.walk()).thenReturn(new RestartReport(List.of(ok("a")), List.of()));
+        when(service.walk(any())).thenReturn(new RestartReport(List.of(ok("a")), List.of()));
         HostedStoreRestartLauncher launcher = onCallingThread();
 
         launcher.start();
         launcher.start();
 
+        assertThat(launcher.current().state()).isEqualTo(State.DONE);
+    }
+
+    @Test
+    void theSnapshotNamesTheStoreTheWalkIsCurrentlyOn() {
+        AtomicReference<String> seenWhileWalking = new AtomicReference<>();
+        HostedStoreRestartLauncher[] box = new HostedStoreRestartLauncher[1];
+        when(service.walk(any())).thenAnswer(inv -> {
+            java.util.function.Consumer<String> cb = inv.getArgument(0);
+            cb.accept("a");
+            seenWhileWalking.set(box[0].current().currentClientCode() + "/" + box[0].current().state());
+            return new RestartReport(List.of(ok("a")), List.of());
+        });
+        box[0] = onCallingThread();
+
+        box[0].start();
+
+        assertThat(seenWhileWalking.get()).isEqualTo("a/RUNNING");
+        assertThat(box[0].current().currentClientCode()).isNull();
+        assertThat(box[0].current().state()).isEqualTo(State.DONE);
+    }
+
+    @Test
+    void aWalkThatThrowsEndsInHaltedNamesTheCauseAndFreesTheGuard() {
+        when(service.walk(any())).thenAnswer(inv -> {
+            java.util.function.Consumer<String> cb = inv.getArgument(0);
+            cb.accept("b");
+            throw new IllegalStateException("ssh gone");
+        }).thenReturn(new RestartReport(List.of(ok("a")), List.of()));
+        HostedStoreRestartLauncher launcher = onCallingThread();
+
+        launcher.start();
+
+        RestartRun run = launcher.current();
+        assertThat(run.state()).isEqualTo(State.HALTED);
+        assertThat(run.walked()).hasSize(1);
+        RestartResult cause = run.walked().get(0);
+        assertThat(cause.clientCode()).isEqualTo("b");
+        assertThat(cause.healthy()).isFalse();
+        assertThat(cause.error()).contains("IllegalStateException").contains("ssh gone");
+
+        launcher.start(); // guard freed
+        assertThat(launcher.current().state()).isEqualTo(State.DONE);
+    }
+
+    @Test
+    void anErrorThrownByTheWalkStillFreesTheGuard() {
+        when(service.walk(any())).thenThrow(new NoClassDefFoundError("x"))
+                .thenReturn(new RestartReport(List.of(ok("a")), List.of()));
+        HostedStoreRestartLauncher launcher = onCallingThread();
+
+        assertThrows(NoClassDefFoundError.class, launcher::start);
+
+        assertThat(launcher.current().state()).isEqualTo(State.HALTED);
+        launcher.start();
         assertThat(launcher.current().state()).isEqualTo(State.DONE);
     }
 }
