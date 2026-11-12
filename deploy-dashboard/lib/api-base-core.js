@@ -185,6 +185,6 @@
     });
   }
 
-  return { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, AGENT_ONLY_SLOTS, agentUrl, AGENT_ORIGIN, PORTAL_MOUNT, resolveApiBase,
+  return { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, AGENT_ONLY_SLOTS, FLEET_SLOTS, agentUrl, AGENT_ORIGIN, PORTAL_MOUNT, resolveApiBase,
            ADMIN_API, PORTAL_ORIGIN, PORTAL_TOKEN_STORAGE_KEY };
 });
