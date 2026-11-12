@@ -7,6 +7,7 @@ import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreProvisioningService.ProvisionRequest;
+import com.daman.admin.service.HostedStoreRestartLauncher;
 import com.daman.admin.service.HostedStoreRestartService;
 import com.daman.admin.service.HostedStoreRestartService.RestartReport;
 import com.daman.admin.service.HostedStoreStatusService;
@@ -63,19 +64,22 @@ public class HostedStoreController {
     private final HostedStoreLifecycleService lifecycle;
     private final DemoResetService demoReset;
     private final HostedStoreRestartService restartService;
+    private final HostedStoreRestartLauncher restartLauncher;
 
     @Autowired
     public HostedStoreController(HostedStoreProvisionLauncher launcher,
                                  HostedInstanceRepository repository,
                                  HostedStoreStatusService statusService,
                                  HostedStoreLifecycleService lifecycle, DemoResetService demoReset,
-                                 HostedStoreRestartService restartService) {
+                                 HostedStoreRestartService restartService,
+                                 HostedStoreRestartLauncher restartLauncher) {
         this.launcher = launcher;
         this.repository = repository;
         this.statusService = statusService;
         this.lifecycle = lifecycle;
         this.demoReset = demoReset;
         this.restartService = restartService;
+        this.restartLauncher = restartLauncher;
     }
 
     /** {@code demoFlavour} ("mart" or "mobile") marks the new slot as a demo. Absent = a real store. */
@@ -243,6 +247,27 @@ public class HostedStoreController {
         RestartReport report = restartService.walk();
         boolean halted = report.walked().stream().anyMatch(r -> !r.healthy());
         return ResponseEntity.status(halted ? HttpStatus.BAD_GATEWAY : HttpStatus.OK).body(report);
+    }
+
+    /**
+     * Browser-safe twin of {@code /restart-all}: starts the same walk on a background thread and
+     * answers 202 with the RUNNING snapshot at once, because one walk can outrun Cloudflare's 100 s
+     * edge timeout. 409 (with the running snapshot) when a walk is already in flight. Poll
+     * {@code /restart-all/status}.
+     */
+    @PostMapping("/restart-all/async")
+    public ResponseEntity<HostedStoreRestartLauncher.RestartRun> restartAllAsync() {
+        try {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(restartLauncher.start());
+        } catch (HostedStoreRestartLauncher.AlreadyRunningException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(restartLauncher.current());
+        }
+    }
+
+    /** The current or last restart-all walk; IDLE with empty lists when none has run. */
+    @GetMapping("/restart-all/status")
+    public HostedStoreRestartLauncher.RestartRun restartAllStatus() {
+        return restartLauncher.current();
     }
 
 

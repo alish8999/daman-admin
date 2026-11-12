@@ -54,7 +54,8 @@ class HostedStoreControllerTest {
                 new HostedStoreStatusService(ops),
                 new HostedStoreLifecycleService(repository, ops, mock(com.daman.admin.repository.LicenseRepository.class), 3, 0),
                 new com.daman.admin.service.DemoResetService(repository, ops),
-                new HostedStoreRestartService(repository, ops, 3, 0));
+                new HostedStoreRestartService(repository, ops, 3, 0),
+                mock(com.daman.admin.service.HostedStoreRestartLauncher.class));
     }
 
     /** What the launcher answers for a run it just accepted. */
