@@ -35,8 +35,14 @@
           <a routerLink="/fleet" routerLinkActive="admin-sidebar-link--active" class="admin-sidebar-link">
             <i class="bi bi-hdd-stack-fill"></i>{{ 'navFleet' | t }}
           </a>
-          <a routerLink="/deployment" routerLinkActive="admin-sidebar-link--active" class="admin-sidebar-link">
-            <i class="bi bi-rocket-takeoff-fill"></i>{{ 'navDeployment' | t }}
+          <a routerLink="/deployment" routerLinkActive="admin-sidebar-link--active" class="admin-sidebar-link"
+             [class.admin-sidebar-link--away]="agentStatus.agentReachable() === false">
+            <i class="bi bi-rocket-takeoff-fill"></i>
+            <span class="admin-sidebar-link-text">{{ 'navDeployment' | t }}
+              @if (agentStatus.agentReachable() === false) {
+                <small class="admin-sidebar-link-caption">{{ 'navDeploymentNeedsMachine' | t }}</small>
+              }
+            </span>
           </a>
         </nav>
 

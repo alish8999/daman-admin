@@ -1,7 +1,8 @@
-import { Component, HostListener, inject } from '@angular/core';
+import { Component, HostListener, OnDestroy, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { environment } from '../../../environments/environment';
+import { AgentStatusService } from '../../services/agent-status.service';
 
 /**
  * Hosts the fleet page inside the portal.
@@ -34,8 +35,14 @@ import { environment } from '../../../environments/environment';
     .fleet-frame { width: 100%; height: calc(100vh - 56px); border: 0; display: block; }
   `],
 })
-export class FleetComponent {
+export class FleetComponent implements OnDestroy {
   private readonly router = inject(Router);
+  private readonly agentStatus = inject(AgentStatusService);
+
+  /** Leaving the fleet pages drops the sidebar's answer: it is absent, not stale. */
+  ngOnDestroy(): void {
+    this.agentStatus.clear();
+  }
 
   /**
    * Which of the page's two views this route shows. It comes from the route table's `data` — a
@@ -73,6 +80,10 @@ export class FleetComponent {
       // LoginComponent reads `expired` to say "Your session has expired."
       localStorage.removeItem('admin-auth-token');
       this.router.navigate(['/login'], { queryParams: { expired: 1 } });
+      return;
     }
+    // Object shape: {type:'fleet:agent', reachable}. Parsing lives in the service, which ignores
+    // anything else, so the string message above and this one cannot be mistaken for each other.
+    this.agentStatus.handleMessage(event.data);
   }
 }

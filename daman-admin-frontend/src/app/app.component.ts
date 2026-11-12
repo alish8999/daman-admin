@@ -4,6 +4,7 @@ import { AsyncPipe } from '@angular/common';
 import { TranslationService, Language } from './services/translation.service';
 import { TranslatePipe } from './pipes/translate.pipe';
 import { AuthService } from './services/auth.service';
+import { AgentStatusService } from './services/agent-status.service';
 
 @Component({
   selector: 'app-root',
@@ -19,6 +20,7 @@ export class AppComponent {
   constructor(
     public translationService: TranslationService,
     public authService: AuthService,
+    public agentStatus: AgentStatusService,
     private router: Router
   ) {
     this.showShell = this.router.url !== '/login';

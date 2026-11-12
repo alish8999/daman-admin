@@ -182,6 +182,11 @@ html[dir="rtl"] body {
   padding: 14px 12px 6px;
 }
 
+// The local deploy agent is not answering: dim, but stay clickable (the page explains itself).
+.admin-sidebar-link--away { opacity: 0.55; }
+.admin-sidebar-link-text { display: flex; flex-direction: column; line-height: 1.2; }
+.admin-sidebar-link-caption { font-size: 0.7rem; font-weight: 400; opacity: 0.85; }
+
 .admin-sidebar-link {
   display: flex;
   align-items: center;

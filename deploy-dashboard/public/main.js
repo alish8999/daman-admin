@@ -71,6 +71,17 @@
     if (empty) empty.textContent = 'Loading the stores…';
   }
 
+  // Tell the portal shell (which owns the sidebar) what this page's one probe found, so the
+  // Deployment entry can dim from anywhere. Not a second probe: the sidebar never touches :5500.
+  // Sent at most once per page load, only inside the portal's iframe, only to our own origin.
+  let agentStatusSent = false;
+  function tellPortalAgentStatus(reachable) {
+    if (PAGE_MODE !== 'portal' || agentStatusSent) return;
+    if (window.parent === window) return;   // not framed: there is no portal to tell
+    agentStatusSent = true;
+    window.parent.postMessage({ type: 'fleet:agent', reachable: reachable }, location.origin);
+  }
+
   function greyAgentOnlyCardsUntilAgentAnswers() {
     if (PAGE_MODE !== 'portal') return;
     const slots = document.querySelectorAll('[data-slot]');
@@ -113,6 +124,7 @@
     apiBaseCore.agentReachable(function () {
       return fetch(agent('/api/status'), { mode: 'cors' });
     }).then(function (reachable) {
+      tellPortalAgentStatus(reachable === true);
       if (reachable) {
         // The local field only makes sense when there is an agent AND the token is something the
         // user has to supply. In development the portal's backend IS the local one, so the
