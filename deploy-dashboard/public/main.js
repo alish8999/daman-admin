@@ -9,6 +9,22 @@
   // production host made a dev session call a backend its token was never issued for.
   const API_BASE = apiBaseCore.resolveApiBase(location.search);
 
+  // Which half of the page to show. Forced to null outside portal mode, which means "show
+  // everything" - that is what keeps localhost:5500 whole whatever query string is on the URL.
+  const pageViewCore = window.pageViewCore;
+  const PAGE_VIEW = PAGE_MODE === 'portal' ? pageViewCore.resolveView(location.search) : null;
+
+  /**
+   * Hide the blocks that belong to the other view. Only ever sets hidden = true: a block that is
+   * hidden for its own reasons (the agent banner, the new-store panel) must not be revealed here.
+   */
+  function applyPageView() {
+    if (PAGE_VIEW === null) return;
+    document.querySelectorAll('[data-view]').forEach(function (el) {
+      if (!pageViewCore.isBlockVisible(el.dataset.view, PAGE_VIEW)) el.hidden = true;
+    });
+  }
+
   // The literal proxy paths stay in the source below, because they read as what the page wants;
   // api() decides where they actually go. A build or status path has no hosted equivalent, and
   // asking for one throws rather than inventing a URL that would 404 confusingly.
@@ -64,7 +80,19 @@
       // so the list cannot drift from the routing.
       if (apiBaseCore.isAgentOnlySlot(el.dataset.slot)) agentOnly.push(el);
     });
-    const disable = function (why) {
+    const banner = document.getElementById('deploy-agent-banner');
+    const useBanner = PAGE_VIEW === pageViewCore.VIEW_DEPLOY && banner !== null;
+    const disable = function (why, bannerText) {
+      if (useBanner) {
+        // One banner instead of a note on every card; the buttons are still disabled.
+        agentOnly.forEach(function (el) {
+          const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
+          if (btn) btn.disabled = true;
+        });
+        banner.textContent = bannerText;
+        banner.hidden = false;
+        return;
+      }
       agentOnly.forEach(function (el) {
         const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
         if (btn) btn.disabled = true;
@@ -81,7 +109,7 @@
         note.textContent = why;
       });
     };
-    disable('Needs the local deploy agent — checking…');
+    disable('Needs the local deploy agent — checking…', 'Checking for the local deploy agent…');
     apiBaseCore.agentReachable(function () {
       return fetch(agent('/api/status'), { mode: 'cors' });
     }).then(function (reachable) {
@@ -93,6 +121,10 @@
         if (local) {
           local.hidden = apiBaseCore.tokenSource(PAGE_MODE, 'local', API_BASE) === 'storage';
         }
+        if (useBanner) {
+          banner.textContent = '';
+          banner.hidden = true;
+        }
         agentOnly.forEach(function (el) {
           const btn = el.querySelector('.deploy-btn, .create-btn, .build-btn');
           if (btn) btn.disabled = false;
@@ -101,7 +133,8 @@
           if (note) note.remove();
         });
       } else {
-        disable('Needs the local deploy agent. Start it on your machine, then reload.');
+        disable('Needs the local deploy agent. Start it on your machine, then reload.',
+          'These actions build code on your own machine — Maven, Angular CLI, electron-builder — so they need the local deploy agent. Start it on your machine, then reload.');
       }
     });
   }
@@ -1648,6 +1681,7 @@
     })
     .catch(() => {});
 
+  applyPageView();
   hidePortalTokenFieldInPortalMode();
   greyAgentOnlyCardsUntilAgentAnswers();
 })();
