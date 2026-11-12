@@ -1283,3 +1283,15 @@ body {
   font-size: 0.78rem;
   line-height: 1.4;
 }
+
+/* Deployment view's "agent not connected" banner — same palette as .agent-offline-note. */
+#deploy-agent-banner {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--text-muted, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+#deploy-agent-banner[hidden] { display: none; }

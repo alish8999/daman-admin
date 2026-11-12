@@ -75,7 +75,7 @@
     </div>
   </section>
 
-  <section class="fleet-section" aria-label="Hosted stores">
+  <section class="fleet-section" data-view="stores" aria-label="Hosted stores">
     <div class="section-head">
       <h2 class="section-label">Hosted stores</h2>
       <button type="button" class="new-store-btn" id="new-store-btn" aria-expanded="false" aria-controls="new-store-panel">+ New store</button>
@@ -140,11 +140,15 @@
       </details>
     </section>
     </div>
+  </section>
+
+  <div id="deploy-agent-banner" data-view="deploy" hidden></div>
+
     <!-- ONE card, three actions. These were three separate cards, which read as three unrelated
          things to choose between when they are really one job (ship the shared jar) with a choice
          about restarting. Each action keeps its own data-slot and footer; they share one log,
          because only one can usefully run at a time. -->
-    <div class="release-bar" aria-label="Release the hosted store backend">
+    <div class="release-bar" data-view="deploy" aria-label="Release the hosted store backend">
       <section class="card release-card">
         <div class="card-head">
           <div class="card-title">
@@ -207,7 +211,7 @@
 
     <!-- Lives here, not under a generic bucket: this IS the hosted stores' frontend, the one
          shared Pages project every store is served from. -->
-    <main class="cards cards-compact">
+    <main class="cards cards-compact" data-view="deploy">
     <section class="card" data-slot="store-frontend">
       <div class="card-head">
         <div class="card-icon" aria-hidden="true">
@@ -237,9 +241,8 @@
       </details>
     </section>
     </main>
-  </section>
 
-  <section class="other-deploys" aria-label="Admin portal">
+  <section class="other-deploys" data-view="deploy" aria-label="Admin portal">
     <div class="section-head">
       <h2 class="section-label">Admin portal</h2>
     </div>
@@ -306,7 +309,7 @@
     </main>
   </section>
 
-  <section class="other-deploys" aria-label="Desktop client releases">
+  <section class="other-deploys" data-view="deploy" aria-label="Desktop client releases">
     <div class="section-head">
       <h2 class="section-label">Desktop client</h2>
     </div>
