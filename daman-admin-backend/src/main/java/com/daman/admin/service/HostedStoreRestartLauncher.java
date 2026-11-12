@@ -117,6 +117,7 @@ public class HostedStoreRestartLauncher {
                     List.of(new RestartResult(current.currentClientCode(), false, false,
                             t.getClass().getSimpleName() + ": " + t.getMessage())),
                     List.of(), startedAt, Instant.now());
+            // AssertionError is deliberately not rethrown: it is already recorded as HALTED above, and only genuine JVM-level Errors (OOM etc.) should escape. Do not "fix" this.
             if (t instanceof Error error && !(t instanceof AssertionError)) {
                 throw error;
             }

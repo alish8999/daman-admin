@@ -24,6 +24,9 @@
       if (!pageViewCore.isBlockVisible(el.dataset.view, PAGE_VIEW)) el.hidden = true;
     });
   }
+  // Run it first, not last: it needs only the parsed DOM (this script loads at the end of <body>),
+  // and at the bottom of a ~1700-line file any earlier throw would skip it and show both halves.
+  applyPageView();
 
   // The literal proxy paths stay in the source below, because they read as what the page wants;
   // api() decides where they actually go. A build or status path has no hosted equivalent, and
@@ -87,8 +90,8 @@
     const slots = document.querySelectorAll('[data-slot]');
     const agentOnly = [];
     slots.forEach(function (el) {
-      // A slot whose path has no hosted equivalent is agent-only, by the same rule api() uses —
-      // so the list cannot drift from the routing.
+      // Anything outside FLEET_SLOTS is agent-only (a slot nobody has named yet included).
+      // lib/page-view-markup.test.js keeps the markup's data-view tags in step with that list.
       if (apiBaseCore.isAgentOnlySlot(el.dataset.slot)) agentOnly.push(el);
     });
     const banner = document.getElementById('deploy-agent-banner');
@@ -343,6 +346,7 @@
   }
 
   function pollHealth() {
+    if (PAGE_MODE !== 'agent') return;   // agent-only route; an https portal page can never reach it
     fetch(agent('/api/health'))
       .then((r) => r.json())
       .then((health) => {
@@ -357,8 +361,13 @@
         // our own dashboard shouldn't read as "the servers are down".
       });
   }
-  pollHealth();
-  setInterval(pollHealth, 30000);
+  if (PAGE_MODE === 'agent') {
+    pollHealth();
+    setInterval(pollHealth, 30000);
+  } else {
+    // The dots would sit grey for ever; there is nothing for them to report here.
+    document.querySelectorAll('[data-health]').forEach((dot) => { dot.hidden = true; });
+  }
 
   cards.forEach((card) => {
     const slot = card.dataset.slot;
@@ -1347,6 +1356,8 @@
     const meta = document.getElementById('fleet-meta');
     const boxStrip = document.getElementById('fleet-box');
     if (!mount || !meta) return;
+    // The Deployment view hides this table, so polling it would be a request nobody can see.
+    if (PAGE_VIEW === pageViewCore.VIEW_DEPLOY) return;
 
     const core = window.storeRowCore;
     const FLEET_POLL_MS = 10000;
@@ -1782,7 +1793,6 @@
     })
     .catch(() => {});
 
-  applyPageView();
   hidePortalTokenFieldInPortalMode();
   greyAgentOnlyCardsUntilAgentAnswers();
 })();

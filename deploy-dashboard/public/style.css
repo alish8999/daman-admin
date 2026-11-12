@@ -1288,12 +1288,19 @@ body {
 }
 
 /* Banner-only differences: it is a body-level block, so it needs the same width cap and centring
-   as the sections around it (an id outranks the shared class list, hence restated here). */
+   as the sections around it; the banner restates max-width and margin because it needs auto side
+   margins that the shared class list does not give it. */
 #deploy-agent-banner {
   max-width: 1200px;
   margin: 0.6rem auto 0;
 }
 #deploy-agent-banner[hidden] { display: none; }
+
+/* main.js hides the other page's blocks with el.hidden = true. An author rule such as
+   .cards { display: grid } beats the browser's own [hidden] { display: none }, so a tagged block
+   would stay visible. !important makes the attribute win for every data-view block, present or
+   future, without each one needing its own [hidden] rule. */
+[data-view][hidden] { display: none !important; }
 
 /* The store-frontend block was lifted out of .fleet-section, which used to supply its bottom gap.
    Child combinator keeps this off the cards nested inside .other-deploys. */
