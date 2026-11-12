@@ -139,9 +139,9 @@
     });
   }
 
-  // Every element carrying a data-slot, which is NOT always a .card any more. The three hosted-store
-  // release actions (deploy & restart all / deploy / restart all) were three separate cards saying
-  // nearly the same thing; they are now three actions inside one card, so a slot is whatever element
+  // Every element carrying a data-slot, which is NOT always a .card any more. The hosted-store
+  // release actions (deploy & restart all / deploy) were separate cards saying
+  // nearly the same thing; they are now two actions inside one card, so a slot is whatever element
   // declares it. A single-action card still declares its own slot and matches here unchanged.
   const cards = document.querySelectorAll('[data-slot]');
 
@@ -253,7 +253,7 @@
 
   // Slots whose script needs the portal token. EventSource cannot send an Authorization header and
   // a token has no business in a URL, so each posts its OWN copy just before its OWN stream opens.
-  const PORTAL_TOKEN_SLOTS = new Set(['store-backend', 'store-deploy-only', 'store-restart-all']);
+  const PORTAL_TOKEN_SLOTS = new Set(['store-backend', 'store-deploy-only']);
 
   const newStoreBtn = document.getElementById('new-store-btn');
   const newStorePanel = document.getElementById('new-store-panel');
@@ -1646,6 +1646,113 @@
         runAction(code, 'Forgetting row for', () => forget(code));
       }
     });
+
+    // ── Restart all stores ──
+    // A walk is bounded at ~120 s PER store, so the backend answers 202 at once and this polls.
+    // Single-flight: `restartWatching` is set before the first request and cleared in exactly one
+    // place (stopRestartWatch), and the button stays disabled for that whole span, so a second press
+    // cannot start a second poll loop. A 409 means a walk is already running (another tab, or a
+    // phone); it is reported and watched like our own.
+    const restartBtn = document.getElementById('restart-all-btn');
+    const RESTART_POLL_MS = 3000;
+    const RESTART_MAX_WATCH_MS = 45 * 60 * 1000;   // hard ceiling: ~120 s x 20 stores is the long case
+    const RESTART_MAX_FAILED_POLLS = 5;            // consecutive status failures before giving up
+    let restartWatching = false;
+    let restartTimer = null;
+    let restartDeadline = 0;
+    let restartFailedPolls = 0;
+
+    function restartUrl(suffix) { return api('/api/remote/hosted-stores/restart-all/' + suffix); }
+
+    function stopRestartWatch(text, kind) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+      restartWatching = false;
+      if (restartBtn) restartBtn.disabled = false;
+      if (text) setNotice(text, kind);
+      return refresh();   // the table now reflects the restarted stores
+    }
+
+    // Pure on a RestartRun: returns { done, text, kind }. done=false means keep polling.
+    function describeRestartRun(run) {
+      const walked = Array.isArray(run && run.walked) ? run.walked : [];
+      const state = run && run.state;
+      if (state === 'RUNNING') {
+        const cur = run.currentClientCode;
+        return { done: false, kind: '', text: 'Restarting all stores' + (cur ? ': ' + cur + ' now' : '') + ' (' + walked.length + ' done so far)… one at a time, this can take several minutes.' };
+      }
+      if (state === 'DONE') {
+        const n = walked.filter((w) => w && w.restarted).length;
+        const skipped = Array.isArray(run.skipped) ? run.skipped.length : 0;
+        return { done: true, kind: 'success', text: 'Restart all: done. ' + n + (n === 1 ? ' store' : ' stores') + ' restarted' + (skipped ? ', ' + skipped + ' skipped' : '') + '.' };
+      }
+      if (state === 'HALTED') {
+        const bad = walked.filter((w) => w && !w.healthy).pop();
+        const reason = bad && bad.error ? ' (' + bad.error + ')' : '';
+        return { done: true, kind: 'failure', text: 'Restart all HALTED at ' + (bad ? bad.clientCode : 'an unknown store') + reason + '. ' + walked.length + ' stores were reached; the stores after it were NOT restarted.' };
+      }
+      if (state === 'NOOP') {
+        return { done: true, kind: 'failure', text: 'Restart all restarted NOTHING: there were no stores eligible to restart. Check the registry and the box; this is not a success.' };
+      }
+      // IDLE (the backend restarted mid-walk and forgot it) or anything unrecognised: not a success.
+      return { done: true, kind: 'failure', text: 'Restart all: the backend reports no walk running and no result (state ' + (state || 'unknown') + '). It may have been restarted mid-walk; check the table.' };
+    }
+
+    function pollRestart() {
+      restartTimer = null;
+      if (!restartWatching) return;
+      if (Date.now() > restartDeadline) {
+        stopRestartWatch('Stopped watching the restart after 45 minutes. It may still be running; press Restart all stores to re-attach.', 'failure');
+        return;
+      }
+      if (document.hidden) { restartTimer = setTimeout(pollRestart, RESTART_POLL_MS); return; }   // idle while hidden; the deadline still applies
+      if (!tokens.value('portal') || tokens.isExpired('portal')) {
+        stopRestartWatch('Portal token missing or expired, so the restart can no longer be watched. It keeps running on the server; paste a fresh token and press Restart all stores to re-attach.', 'failure');
+        return;
+      }
+      tokens.track('portal', fetch(restartUrl('status'), { headers: authHeaders() }))
+        .then((r) => r.text().then((text) => ({ r, body: parse(text) })))
+        .then(({ r, body }) => {
+          if (!r.ok || !body || typeof body !== 'object') throw new Error(describeFailure(r, body));
+          restartFailedPolls = 0;
+          const out = describeRestartRun(body);
+          if (out.done) return stopRestartWatch(out.text, out.kind);
+          setNotice(out.text, out.kind);
+          restartTimer = setTimeout(pollRestart, RESTART_POLL_MS);
+        })
+        .catch((err) => {
+          restartFailedPolls += 1;
+          if (restartFailedPolls >= RESTART_MAX_FAILED_POLLS) {
+            return stopRestartWatch('Lost contact with the backend while watching the restart (' + err.message + '). The walk may still be running; press Restart all stores to re-attach.', 'failure');
+          }
+          restartTimer = setTimeout(pollRestart, RESTART_POLL_MS);
+        });
+    }
+
+    function startRestartAll() {
+      if (restartWatching) return;   // the real guard; the disabled flag is cosmetic
+      if (!tokens.value('portal')) { setNotice('Paste the portal token above first.', 'failure'); return; }
+      if (!window.confirm('Restart ALL stores, one at a time?\n\nEach store is briefly unavailable (typically 30 to 60 seconds) and anyone mid-sale on it is interrupted. The walk stops at the first store that does not come back healthy.')) return;
+      restartWatching = true;
+      restartFailedPolls = 0;
+      restartDeadline = Date.now() + RESTART_MAX_WATCH_MS;
+      restartBtn.disabled = true;
+      setNotice('Starting the restart of all stores…', '');
+      tokens.track('portal', fetch(restartUrl('async'), { method: 'POST', headers: authHeaders() }))
+        .then((r) => r.text().then((text) => ({ r, body: parse(text) })))
+        .then(({ r, body }) => {
+          if (r.status === 202) { restartTimer = setTimeout(pollRestart, 0); return; }
+          if (r.status === 409) {
+            setNotice('A restart of all stores is already running; watching it.', '');
+            restartTimer = setTimeout(pollRestart, RESTART_POLL_MS);
+            return;
+          }
+          return stopRestartWatch('Could not start the restart: ' + describeFailure(r, body), 'failure');
+        })
+        .catch((err) => stopRestartWatch('Could not start the restart: ' + err.message, 'failure'));
+    }
+
+    if (restartBtn) restartBtn.addEventListener('click', startRestartAll);
 
     let debounce = null;
     tokens.onInput('portal', () => {

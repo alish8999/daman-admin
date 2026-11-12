@@ -78,6 +78,7 @@
   <section class="fleet-section" data-view="stores" aria-label="Hosted stores">
     <div class="section-head">
       <h2 class="section-label">Hosted stores</h2>
+      <button type="button" class="new-store-btn" id="restart-all-btn">Restart all stores</button>
       <button type="button" class="new-store-btn" id="new-store-btn" aria-expanded="false" aria-controls="new-store-panel">+ New store</button>
     </div>
     <p class="fleet-meta" id="fleet-meta" aria-live="polite"></p>
@@ -144,7 +145,7 @@
 
   <div id="deploy-agent-banner" data-view="deploy" hidden></div>
 
-    <!-- ONE card, three actions. These were three separate cards, which read as three unrelated
+    <!-- ONE card, two actions. These were three separate cards, which read as three unrelated
          things to choose between when they are really one job (ship the shared jar) with a choice
          about restarting. Each action keeps its own data-slot and footer; they share one log,
          because only one can usefully run at a time. -->
@@ -153,7 +154,7 @@
         <div class="card-head">
           <div class="card-title">
             <h2>Release the store backend</h2>
-            <p class="card-desc">One shared <code>daman-store.jar</code> serves every store. All three actions need the <strong>portal</strong> token above — the restart route is token-gated.</p>
+            <p class="card-desc">One shared <code>daman-store.jar</code> serves every store. Both actions need the <strong>portal</strong> token above — the restart route is token-gated. Restarting without deploying lives on the Hosted stores page.</p>
           </div>
         </div>
 
@@ -180,18 +181,6 @@
             <button class="deploy-btn">
               <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>Deploy</span>
-            </button>
-          </div>
-
-          <div class="release-action" data-slot="store-restart-all">
-            <div class="release-action-head">
-              <h3>Restart all <span class="card-tag">no deploy</span></h3>
-              <span class="footer"></span>
-            </div>
-            <p class="release-action-desc">Restart every store one at a time, without deploying. Use it after <em>Deploy only</em> to load the jar the stores are stale against.</p>
-            <button class="deploy-btn">
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>Restart all</span>
             </button>
           </div>
         </div>

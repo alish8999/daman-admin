@@ -720,6 +720,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Restart-all: async start + status poll (the walk outlasts any single request). Same remote
+  // routes the portal-served page calls directly; the agent just relays them. LIFECYCLE timeout
+  // is not needed: the start answers 202 at once and the status read is a memory read.
+  if (req.method === 'POST' && pathname === '/api/remote/hosted-stores/restart-all/async') {
+    proxyToRemoteAdminBackend(req, 'POST', '/api/hosted-stores/restart-all/async', res);
+    return;
+  }
+  if (req.method === 'GET' && pathname === '/api/remote/hosted-stores/restart-all/status') {
+    proxyToRemoteAdminBackend(req, 'GET', '/api/hosted-stores/restart-all/status', res);
+    return;
+  }
+
   const lifecycleMatch = /^[/]api[/]remote[/]hosted-stores[/]([^/]*)[/](suspend|resume|restart|remove|sync-unit|reset-demo)$/.exec(pathname);
   if (req.method === 'POST' && lifecycleMatch) {
     const code = lifecycleMatch[1];

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, agentUrl, AGENT_ORIGIN, resolveApiBase, ADMIN_API, PORTAL_ORIGIN } = require('./api-base-core');
+const { mode, apiUrl, tokenSource, agentReachable, isAgentOnlySlot, agentUrl, AGENT_ONLY_SLOTS, FLEET_SLOTS, AGENT_ORIGIN, resolveApiBase, ADMIN_API, PORTAL_ORIGIN } = require('./api-base-core');
+const { viewForSlot, VIEW_DEPLOY, VIEW_STORES } = require('./page-view-core');
 
 test('a localhost origin is agent mode; the portal origin is portal mode', () => {
   assert.strictEqual(mode('http://localhost:5500'), 'agent');
@@ -85,7 +86,7 @@ test('create-store is NOT agent-only: it is a pure fleet action', () => {
 });
 
 test('the build and release slots ARE agent-only', () => {
-  for (const slot of ['store-backend', 'store-deploy-only', 'store-restart-all', 'backend',
+  for (const slot of ['store-backend', 'store-deploy-only', 'backend',
                       'frontend', 'store-frontend', 'build-generic', 'generic']) {
     assert.strictEqual(isAgentOnlySlot(slot), true, slot);
   }
@@ -172,4 +173,18 @@ test('on the agent own page both tokens still come from the strip', () => {
   // There is no portal session to borrow: the page was not served by the portal.
   assert.strictEqual(tokenSource('agent', 'portal'), 'strip');
   assert.strictEqual(tokenSource('agent', 'local', 'http://localhost:8083'), 'strip');
+});
+
+test('store-restart-all works without the agent once the async endpoint exists', () => {
+  assert.strictEqual(isAgentOnlySlot('store-restart-all'), false);
+});
+
+test('the two build-and-ship release actions still need the agent', () => {
+  assert.strictEqual(isAgentOnlySlot('store-backend'), true);
+  assert.strictEqual(isAgentOnlySlot('store-deploy-only'), true);
+});
+
+test('every agent-only slot maps to the deploy view and every fleet slot to stores', () => {
+  AGENT_ONLY_SLOTS.forEach((s) => assert.strictEqual(viewForSlot(s), VIEW_DEPLOY));
+  FLEET_SLOTS.forEach((s) => assert.strictEqual(viewForSlot(s), VIEW_STORES));
 });

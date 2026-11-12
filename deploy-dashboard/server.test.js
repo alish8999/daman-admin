@@ -933,3 +933,21 @@ test('a remote origin is still refused, whatever it calls itself', async () => {
     assert.strictEqual(res.statusCode, 403, o);
   }
 });
+
+test('restart-all start and status are relayed to the remote with the Authorization header', async () => {
+  const { fake, seen, port: fakePort } = await startFakeRemote();
+  aimRemoteAt(fakePort);
+  try {
+    const auth = 'Bearer remote-token-xyz';
+    await post('/api/remote/hosted-stores/restart-all/async', {}, { Authorization: auth });
+    await get('/api/remote/hosted-stores/restart-all/status', { Authorization: auth });
+    assert.deepStrictEqual(seen.map((s) => `${s.method} ${s.url}`), [
+      'POST /api/hosted-stores/restart-all/async',
+      'GET /api/hosted-stores/restart-all/status',
+    ]);
+    for (const s of seen) assert.strictEqual(s.headers.authorization, auth);
+  } finally {
+    restoreRemote();
+    fake.close();
+  }
+});

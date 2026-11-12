@@ -117,7 +117,7 @@
    * until someone decides otherwise rather than silently enabled where it cannot work.
    */
   const AGENT_ONLY_SLOTS = [
-    'store-backend', 'store-deploy-only', 'store-restart-all',  // the shared store jar
+    'store-backend', 'store-deploy-only',                       // the shared store jar
     'backend', 'frontend',                                      // the admin portal itself
     'store-frontend',                                           // the shared store Pages project
     'build-generic', 'generic',                                 // the desktop client
@@ -125,9 +125,12 @@
 
   /**
    * Slots that work anywhere, because their work is a call to admin-api and nothing else.
-   * `create-store` is the whole list today, and it is the one that must never be greyed.
+   * `create-store` must never be greyed. `store-restart-all` qualifies since the backend grew an
+   * async walk (POST /api/hosted-stores/restart-all/async plus a status poll): it no longer needs a
+   * script on the owner's machine, so it can be pressed from a phone. The two release actions
+   * beside it still BUILD the jar locally and stay agent-only.
    */
-  const FLEET_SLOTS = ['create-store'];
+  const FLEET_SLOTS = ['create-store', 'store-restart-all'];
 
   function isAgentOnlySlot(slot) {
     if (FLEET_SLOTS.indexOf(slot) !== -1) return false;
