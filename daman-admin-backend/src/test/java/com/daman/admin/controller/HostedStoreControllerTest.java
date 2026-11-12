@@ -5,6 +5,7 @@ import com.daman.admin.repository.HostedInstanceRepository;
 import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
+import com.daman.admin.service.HostedStoreRestartService;
 import com.daman.admin.service.HostedStoreStatusService;
 import com.daman.admin.service.StoreUnitRenderer;
 import com.daman.admin.service.ServerOps;
@@ -49,10 +50,11 @@ class HostedStoreControllerTest {
         ops = mock(ServerOps.class);
         when(ops.readIngress()).thenReturn("ingress:\n  - service: http_status:404\n");
         // 3 health polls, no sleep: the tests never wait on a real clock.
-        controller = new HostedStoreController(launcher, repository, ops,
+        controller = new HostedStoreController(launcher, repository,
                 new HostedStoreStatusService(ops),
                 new HostedStoreLifecycleService(repository, ops, mock(com.daman.admin.repository.LicenseRepository.class), 3, 0),
-                new com.daman.admin.service.DemoResetService(repository, ops), 3, 0);
+                new com.daman.admin.service.DemoResetService(repository, ops),
+                new HostedStoreRestartService(repository, ops, 3, 0));
     }
 
     /** What the launcher answers for a run it just accepted. */
@@ -383,12 +385,12 @@ class HostedStoreControllerTest {
         return i;
     }
 
-    private List<HostedStoreController.RestartResult> results(ResponseEntity<?> res) {
-        return ((HostedStoreController.RestartReport) res.getBody()).walked();
+    private List<HostedStoreRestartService.RestartResult> results(ResponseEntity<?> res) {
+        return ((HostedStoreRestartService.RestartReport) res.getBody()).walked();
     }
 
-    private List<HostedStoreController.SkippedStore> skipped(ResponseEntity<?> res) {
-        return ((HostedStoreController.RestartReport) res.getBody()).skipped();
+    private List<HostedStoreRestartService.SkippedStore> skipped(ResponseEntity<?> res) {
+        return ((HostedStoreRestartService.RestartReport) res.getBody()).skipped();
     }
 
     @Test
@@ -400,7 +402,7 @@ class HostedStoreControllerTest {
         ResponseEntity<?> res = controller.restartAll();
 
         assertThat(res.getStatusCode().value()).isEqualTo(200);
-        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode)
+        assertThat(results(res)).extracting(HostedStoreRestartService.RestartResult::clientCode)
                 .containsExactly("a", "b", "c");
         assertThat(results(res)).allMatch(r -> r.restarted() && r.healthy());
         // One at a time: each store is restarted and checked before the next is touched.
@@ -423,9 +425,9 @@ class HostedStoreControllerTest {
         ResponseEntity<?> res = controller.restartAll();
 
         assertThat(res.getStatusCode().value()).isEqualTo(502);
-        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode)
+        assertThat(results(res)).extracting(HostedStoreRestartService.RestartResult::clientCode)
                 .containsExactly("a", "b");
-        HostedStoreController.RestartResult bad = results(res).get(1);
+        HostedStoreRestartService.RestartResult bad = results(res).get(1);
         assertThat(bad.restarted()).isTrue();
         assertThat(bad.healthy()).isFalse(); assertThat(bad.error()).contains("/api/health");
         // Later stores are NOT restarted - that is the point of the walk.
@@ -457,12 +459,12 @@ class HostedStoreControllerTest {
 
         ResponseEntity<?> res = controller.restartAll();
 
-        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode).containsExactly("c");
+        assertThat(results(res)).extracting(HostedStoreRestartService.RestartResult::clientCode).containsExactly("c");
         verify(ops, never()).restart("daman-store-a");
         verify(ops, never()).restart("daman-store-b");
         // Reported, not silently dropped: a store stuck at FAILED while its unit runs fine is
         // exactly how a release becomes a no-op nobody is told about.
-        assertThat(skipped(res)).extracting(HostedStoreController.SkippedStore::clientCode)
+        assertThat(skipped(res)).extracting(HostedStoreRestartService.SkippedStore::clientCode)
                 .containsExactly("a", "b");
         assertThat(skipped(res).get(0).reason()).contains("not ACTIVE").contains("FAILED");
     }
@@ -480,7 +482,7 @@ class HostedStoreControllerTest {
 
         // Walked in registry order. In production viora's row is the oldest, so from now on the
         // live store that has been running longest is also the canary of every release.
-        assertThat(results(res)).extracting(HostedStoreController.RestartResult::clientCode)
+        assertThat(results(res)).extracting(HostedStoreRestartService.RestartResult::clientCode)
                 .containsExactly("viora", "a");
         verify(ops).restart("daman-store-viora");
         verify(ops).health(8090);

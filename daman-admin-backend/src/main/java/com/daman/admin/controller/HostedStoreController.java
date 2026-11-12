@@ -7,6 +7,8 @@ import com.daman.admin.service.HostedStoreLifecycleService;
 import com.daman.admin.service.HostedStoreProvisionLauncher;
 import com.daman.admin.service.HostedStoreProvisioningService;
 import com.daman.admin.service.HostedStoreProvisioningService.ProvisionRequest;
+import com.daman.admin.service.HostedStoreRestartService;
+import com.daman.admin.service.HostedStoreRestartService.RestartReport;
 import com.daman.admin.service.HostedStoreStatusService;
 import com.daman.admin.service.ServerOps;
 import com.daman.admin.service.SubdomainRules;
@@ -54,57 +56,27 @@ import java.util.Map;
 @RequestMapping("/api/hosted-stores")
 public class HostedStoreController {
 
-    /** A fresh store boots Spring in up to ~a minute; poll this long before calling it unhealthy. */
-    private static final int HEALTH_ATTEMPTS = 40;
-    private static final long HEALTH_INTERVAL_MS = 3000;
 
     private final HostedStoreProvisionLauncher launcher;
     private final HostedInstanceRepository repository;
-    private final ServerOps ops;
     private final HostedStoreStatusService statusService;
     private final HostedStoreLifecycleService lifecycle;
     private final DemoResetService demoReset;
-    private final int healthAttempts;
-    private final long healthIntervalMs;
+    private final HostedStoreRestartService restartService;
 
     @Autowired
     public HostedStoreController(HostedStoreProvisionLauncher launcher,
-                                 HostedInstanceRepository repository, ServerOps ops,
+                                 HostedInstanceRepository repository,
                                  HostedStoreStatusService statusService,
-                                 HostedStoreLifecycleService lifecycle, DemoResetService demoReset) {
-        this(launcher, repository, ops, statusService, lifecycle, demoReset,
-                HEALTH_ATTEMPTS, HEALTH_INTERVAL_MS);
-    }
-
-    HostedStoreController(HostedStoreProvisionLauncher launcher,
-                          HostedInstanceRepository repository, ServerOps ops,
-                          HostedStoreStatusService statusService, HostedStoreLifecycleService lifecycle,
-                          DemoResetService demoReset, int healthAttempts, long healthIntervalMs) {
+                                 HostedStoreLifecycleService lifecycle, DemoResetService demoReset,
+                                 HostedStoreRestartService restartService) {
         this.launcher = launcher;
         this.repository = repository;
-        this.ops = ops;
         this.statusService = statusService;
         this.lifecycle = lifecycle;
         this.demoReset = demoReset;
-        this.healthAttempts = healthAttempts;
-        this.healthIntervalMs = healthIntervalMs;
+        this.restartService = restartService;
     }
-
-    /** One walked store. A store never reached (after a halt) has no entry at all. */
-    public record RestartResult(String clientCode, boolean restarted, boolean healthy, String error) {}
-
-    /** One store the release walk deliberately did not touch, and why. */
-    public record SkippedStore(String clientCode, String reason) {}
-
-    /**
-     * The whole outcome of a release walk: what was restarted, and what was passed over. The
-     * skipped list exists because an empty {@code walked} list used to be indistinguishable from a
-     * successful release — the script printed "every hosted store restarted healthy" when it had
-     * restarted nothing at all, which is what a stale registry (a store stuck at {@code FAILED}
-     * while its unit runs fine) actually produces. It also makes the viora exclusion auditable at
-     * release time instead of only in a unit test.
-     */
-    public record RestartReport(List<RestartResult> walked, List<SkippedStore> skipped) {}
 
     /** {@code demoFlavour} ("mart" or "mobile") marks the new slot as a demo. Absent = a real store. */
     public record ProvisionBody(String clientCode, String subdomain, String expiresAt, String demoFlavour) {
@@ -261,92 +233,18 @@ public class HostedStoreController {
     }
 
     /**
-     * Shared-jar release: restarts every ACTIVE store one at a time, polling its health before moving
-     * to the next, and HALTS at the first store that fails to restart or come up. That delays and
-     * sequences the exposure to a bad jar; it does NOT contain it: the new jar is already on disk and
-     * every unit has {@code Restart=always}, so a store not yet reached loads it on any restart, and
-     * the health check only catches "does not boot". Stores are walked in id order (oldest first, so
-     * the oldest store is the canary). 200 when every store is healthy, 502 on a halt.
-     *
-     * <p>The body is a {@link RestartReport}: {@code walked} is the stores actually restarted (the
-     * unhealthy one last; stores after a halt are untouched and absent), and {@code skipped} is
-     * every registry row deliberately passed over, with the reason. Both halves matter to the
-     * caller — an empty {@code walked} list means the release restarted <b>nothing</b>, which is a
-     * silent no-op the script has to shout about rather than call a success.
+     * Shared-jar release: restarts every ACTIVE store one at a time via
+     * {@link HostedStoreRestartService#walk()} and HALTS at the first one that fails. 200 when every
+     * store is healthy, 502 on a halt. The body is a {@link RestartReport}; see the service for what
+     * {@code walked} and {@code skipped} mean.
      */
     @PostMapping("/restart-all")
     public ResponseEntity<RestartReport> restartAll() {
-        List<HostedInstance> rows = repository.findAll().stream()
-                .sorted(java.util.Comparator.comparing(HostedInstance::getId,
-                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
-                .toList();
-        List<RestartResult> walked = new java.util.ArrayList<>();
-        List<SkippedStore> skipped = new java.util.ArrayList<>();
-        for (HostedInstance i : rows) {
-            String skipReason = skipReason(i);
-            if (skipReason != null) {
-                skipped.add(new SkippedStore(i.getClientCode(), skipReason));
-                continue;
-            }
-            RestartResult r = restartOne(i);
-            walked.add(r);
-            if (!r.healthy()) {
-                // Halt: every row after this one is neither walked nor "skipped by rule" — it was
-                // simply never reached, which the halt itself says.
-                return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                        .body(new RestartReport(walked, skipped));
-            }
-        }
-        if (walked.isEmpty()) {
-            log.warn("restart-all restarted NOTHING: {} registry row(s), all skipped {}",
-                    rows.size(), skipped);
-        }
-        return ResponseEntity.ok(new RestartReport(walked, skipped));
+        RestartReport report = restartService.walk();
+        boolean halted = report.walked().stream().anyMatch(r -> !r.healthy());
+        return ResponseEntity.status(halted ? HttpStatus.BAD_GATEWAY : HttpStatus.OK).body(report);
     }
 
-    /**
-     * Why this row is not part of a shared-jar release, or null when it is.
-     *
-     * <p>Status is now the only reason. viora used to be excluded here by service name, because
-     * its unit ran its own {@code /root/daman-store-viora.jar}; it was moved onto the shared jar
-     * on 2026-10-26 (it was the only store a release could not reach, and so the only one that
-     * never received a backend fix). Its unit is still the one hand-written unit on the box — it
-     * keeps the legacy {@code /root/.daman/viora} data directory and therefore carries no
-     * {@code -Duser.home} — so it must never be re-rendered by {@code StoreUnitRenderer}. That is
-     * guarded elsewhere, by {@code viora} being a reserved client code that provisioning refuses.
-     */
-    private static String skipReason(HostedInstance i) {
-        if (!"ACTIVE".equals(i.getStatus())) {
-            return "not ACTIVE (" + i.getStatus()
-                    + (i.getFailedStage() == null ? "" : " at stage " + i.getFailedStage()) + ")";
-        }
-        return null;
-    }
-
-    private RestartResult restartOne(HostedInstance i) {
-        try {
-            ops.restart(i.getServiceName());
-        } catch (RuntimeException e) {
-            log.warn("Restart of {} failed", i.getServiceName(), e);
-            return new RestartResult(i.getClientCode(), false, false,
-                    "restart failed: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-        }
-        for (int attempt = 1; attempt <= healthAttempts; attempt++) {
-            if (ops.health(i.getPort())) {
-                return new RestartResult(i.getClientCode(), true, true, null);
-            }
-            if (attempt < healthAttempts && healthIntervalMs > 0) {
-                try {
-                    Thread.sleep(healthIntervalMs);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }
-        return new RestartResult(i.getClientCode(), true, false,
-                "restarted but /api/health never answered 200 within " + healthAttempts + " polls");
-    }
 
     /**
      * Suspend: a billing lever. Disables and stops the unit and marks the row SUSPENDED, so neither
