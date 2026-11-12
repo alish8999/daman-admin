@@ -908,6 +908,7 @@ body {
 
 .token-strip,
 .fleet-section,
+.release-bar,
 .other-deploys {
   max-width: 1200px;
   margin: 0 auto 1.5rem;
@@ -1274,17 +1275,8 @@ body {
 /* Shown on a card that can only work at the owner's desk, when the local build agent is not
    answering. Deliberately the same message for a stopped agent, a declined Private Network Access
    prompt and a browser blocking the localhost call: three causes, one remedy. */
-.agent-offline-note {
-  margin: 0.6rem 0 0;
-  padding: 0.5rem 0.7rem;
-  border-radius: var(--radius-sm, 6px);
-  background: rgba(100, 116, 139, 0.1);
-  color: var(--text-muted, #64748b);
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-
-/* Deployment view's "agent not connected" banner — same palette as .agent-offline-note. */
+/* #deploy-agent-banner (Deployment view) shares this palette; keep them as one rule. */
+.agent-offline-note,
 #deploy-agent-banner {
   margin: 0.6rem 0 0;
   padding: 0.5rem 0.7rem;
@@ -1294,4 +1286,15 @@ body {
   font-size: 0.78rem;
   line-height: 1.4;
 }
+
+/* Banner-only differences: it is a body-level block, so it needs the same width cap and centring
+   as the sections around it (an id outranks the shared class list, hence restated here). */
+#deploy-agent-banner {
+  max-width: 1200px;
+  margin: 0.6rem auto 0;
+}
 #deploy-agent-banner[hidden] { display: none; }
+
+/* The store-frontend block was lifted out of .fleet-section, which used to supply its bottom gap.
+   Child combinator keeps this off the cards nested inside .other-deploys. */
+body > main.cards { margin-bottom: 1.5rem; }
