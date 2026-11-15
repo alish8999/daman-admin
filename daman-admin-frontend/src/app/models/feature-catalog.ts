@@ -55,6 +55,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   { key: 'userManagement',  group: 'addons', icon: 'bi-people', labelKey: 'featUserManagement',  descKey: 'featUserManagementDesc' },
   { key: 'shifts',          group: 'addons', icon: 'bi-clock-history', labelKey: 'featShifts',          descKey: 'featShiftsDesc' },
   { key: 'posTerminals',    group: 'addons', icon: 'bi-window-stack', labelKey: 'featPosTerminals',    descKey: 'featPosTerminalsDesc' },
+  { key: 'mobilePos',       group: 'addons', icon: 'bi-phone', labelKey: 'featMobilePos',       descKey: 'featMobilePosDesc' },
   { key: 'tableOrders',     group: 'addons', icon: 'bi-grid-3x3-gap', labelKey: 'featTableOrders',     descKey: 'featTableOrdersDesc' },
   // quickPickCards (Quick Sale, was a $15 add-on) was removed from the catalog
   // on 2026-10-19: it is now free on every installation and the store owner

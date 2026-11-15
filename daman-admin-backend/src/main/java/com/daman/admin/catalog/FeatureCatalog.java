@@ -85,6 +85,7 @@ public final class FeatureCatalog {
             Entry.priced("tableOrders", 29),
             Entry.priced("consignment", 29),
             Entry.priced("posTerminals", 75),
+            Entry.priced("mobilePos", 25),
 
             // Not a ClientFeatures flag — there is no `newBranch` boolean anywhere. It exists here
             // because the POS features page has a real New Branch card that opens the modal, and

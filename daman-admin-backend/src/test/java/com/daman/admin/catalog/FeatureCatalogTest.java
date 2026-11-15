@@ -44,7 +44,8 @@ class FeatureCatalogTest {
             Map.entry("manufacturing", 25),
             Map.entry("tableOrders", 29),
             Map.entry("consignment", 29),
-            Map.entry("posTerminals", 75));
+            Map.entry("posTerminals", 75),
+            Map.entry("mobilePos", 25));
 
     /**
      * The {@code price: null} rows in feature-catalog.ts. The owner hides these per client; they
@@ -121,6 +122,23 @@ class FeatureCatalogTest {
         for (String key : UNPRICED_TOGGLES) {
             assertThat(entry(key)).as("%s must not be in the catalog", key).isEmpty();
         }
+    }
+
+    /**
+     * The phone till and the Windows till are two products, not one with a discount. Neither
+     * entitlement implies the other: a shop that paid $75 for POS Terminals does not get the
+     * phone, and a shop that paid $25 for the phone cannot run a Windows terminal. Bundling
+     * them would be a pricing decision, and {@code bundledWith} is how this catalog records
+     * one — so the absence of it here is the decision, and this test pins it.
+     */
+    @Test
+    void mobilePosIsItsOwnProduct_notBundledWithPosTerminals() {
+        assertThat(entry("mobilePos")).isPresent().get()
+                .extracting(FeatureCatalog.Entry::priceUsd).isEqualTo(25);
+        assertThat(entry("mobilePos")).isPresent().get()
+                .extracting(FeatureCatalog.Entry::bundledWith).isNull();
+        assertThat(entry("posTerminals")).isPresent().get()
+                .extracting(FeatureCatalog.Entry::bundledWith).isNull();
     }
 
     @Test

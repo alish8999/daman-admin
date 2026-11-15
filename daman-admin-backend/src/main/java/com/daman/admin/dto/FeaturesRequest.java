@@ -46,6 +46,8 @@ public class FeaturesRequest {
     private Boolean autoBackup;
     /** Multi-terminal POS mode — allows more than one cashier till per client. $29 add-on, same tier as shifts. */
     private Boolean posTerminals;
+    /** The phone till (Android), independent of posTerminals. $25 add-on. */
+    private Boolean mobilePos;
     /**
      * Browser-only testing override — when a plain browser tab (ng serve, no
      * Electron) has no window.daman, getMode() falls back to this flag

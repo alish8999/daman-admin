@@ -215,6 +215,7 @@ export class ClientFormComponent implements OnInit {
         scaleBarcodes:        [false],
         autoBackup:           [true],
         posTerminals:         [false],
+        mobilePos:            [false],
         simulatePosMode:      [false],
         tableOrders:          [false],
         quickPickCards:       [false],
@@ -268,6 +269,7 @@ export class ClientFormComponent implements OnInit {
             scaleBarcodes:        client.features?.scaleBarcodes        ?? false,
             autoBackup:           client.features?.autoBackup           ?? true,
             posTerminals:         client.features?.posTerminals         ?? false,
+            mobilePos:            client.features?.mobilePos            ?? false,
             simulatePosMode:      client.features?.simulatePosMode      ?? false,
             tableOrders:          client.features?.tableOrders          ?? false,
             // ?? false to match the new-client default and the desktop own; an
