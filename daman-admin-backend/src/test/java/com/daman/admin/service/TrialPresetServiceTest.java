@@ -98,7 +98,12 @@ class TrialPresetServiceTest {
 
     @Test
     void baseCoversEveryLicenceFlagExceptQuickPickCards() {
-        // 35 flags in ClientConfigExportDto.FeaturesDto minus quickPickCards.
-        assertThat(TrialPresetService.BASE_FEATURES).hasSize(34);
+        // 36 flags in ClientConfigExportDto.FeaturesDto minus quickPickCards.
+        // (35 → 36 on 2026-11-15 when mobilePos, the phone till, was added.)
+        assertThat(TrialPresetService.BASE_FEATURES).hasSize(35);
+        // Named explicitly so a new flag that never reaches a trial is a failing
+        // test rather than a silent gap: a trial that cannot see a feature is how
+        // a shop decides it does not want it.
+        assertThat(TrialPresetService.BASE_FEATURES).containsKey("mobilePos");
     }
 }
