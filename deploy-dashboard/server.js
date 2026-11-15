@@ -222,9 +222,17 @@ function writePreflight(req, res) {
     res.end('Cross-origin requests are not allowed');
     return;
   }
+  // Every method this server actually routes must be listed, or the browser blocks the real
+  // request after a 204 preflight and the page sees only "Method X is not allowed by
+  // Access-Control-Allow-Methods" — a failure that looks like a server bug and is this header.
+  // PUT was missing until 2026-11-15, which broke exactly the two PUT routes below (`PUT
+  // /api/versions/{id}` and `PUT /api/changelog-library`) when the page was opened from the
+  // portal rather than from the agent's own origin: same-origin calls need no preflight, so the
+  // gap was invisible at localhost:5500 and only appeared from :4201 / admin.damansoft.com.
+  // Keep in step with the routing table in the request handler.
   const headers = {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '600',
   };

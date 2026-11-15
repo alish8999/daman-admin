@@ -851,6 +851,43 @@ test('OPTIONS preflight from the portal allows private network access', async ()
   assert.strictEqual(res.headers['access-control-allow-origin'], 'https://admin.damansoft.com');
 });
 
+test('OPTIONS preflight advertises PUT, so editing a release note works from the portal', async () => {
+  // The regression this pins: the header listed GET, POST, DELETE, OPTIONS while the routing
+  // table had carried `PUT /api/versions/{id}` all along. The preflight returned 204, then the
+  // browser refused the real PUT, and saving a release note from localhost:4201 failed with
+  // "Method PUT is not allowed by Access-Control-Allow-Methods" — which also blocked a generic
+  // build, since BuildService hard-fails a version with no release note.
+  const res = await options('/api/versions/103', {
+    Origin: 'http://localhost:4201',
+    'Access-Control-Request-Method': 'PUT',
+  });
+  assert.ok(res.statusCode === 204 || res.statusCode === 200, `got ${res.statusCode}`);
+  const allowed = String(res.headers['access-control-allow-methods'] || '')
+    .split(',').map((m) => m.trim().toUpperCase());
+  assert.ok(allowed.includes('PUT'), `PUT missing from: ${res.headers['access-control-allow-methods']}`);
+});
+
+test('every method the routing table uses is advertised in the preflight', async () => {
+  // A source scan rather than a fixed list, so a route added with a new method (PATCH, say)
+  // fails here instead of in a browser weeks later. The two must stay in step by construction;
+  // they drifted once already.
+  const source = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+  const routed = new Set();
+  for (const m of source.matchAll(/req\.method\s*===\s*'([A-Z]+)'/g)) routed.add(m[1]);
+  assert.ok(routed.size > 0, 'found no routed methods — the scan pattern has gone stale');
+
+  const res = await options('/api/status', {
+    Origin: 'http://localhost:4201',
+    'Access-Control-Request-Method': 'GET',
+  });
+  const allowed = new Set(String(res.headers['access-control-allow-methods'] || '')
+    .split(',').map((m) => m.trim().toUpperCase()));
+  for (const method of routed) {
+    assert.ok(allowed.has(method),
+      `${method} is routed but not advertised in Access-Control-Allow-Methods`);
+  }
+});
+
 test('OPTIONS preflight from a refused origin gets no allow headers at all', async () => {
   const res = await options('/api/deploy/backend/stream', {
     Origin: 'https://evil.example.com',
