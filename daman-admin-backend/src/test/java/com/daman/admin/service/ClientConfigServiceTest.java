@@ -38,6 +38,61 @@ class ClientConfigServiceTest {
                 mock(com.daman.admin.repository.TrialRegistrationRepository.class));
     }
 
+    /**
+     * mergeFeatures() is a hand-written field-by-field copy and the ONLY write path
+     * for a feature flag, so a flag added to every DTO and both read-side builders —
+     * as mobilePos was — still cannot be saved until it is named there too. Nothing in
+     * this suite round-tripped a FeaturesRequest before, which is exactly how that got
+     * through 551 green tests.
+     *
+     * Asserted on the persisted JSON rather than the returned DTO, because the JSON is
+     * what the v2 licence is built from and therefore what a phone actually obeys.
+     */
+    @Test
+    void update_persistsMobilePosFromTheFeaturesPatch() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setFeaturesJson("{}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+        when(repository.save(any(ClientConfig.class))).thenAnswer(i -> i.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Acme POS");
+        FeaturesRequest patch = new FeaturesRequest();
+        patch.setMobilePos(true);
+        request.setFeatures(patch);
+
+        service.update("acme", request);
+
+        assertThat(entity.getFeaturesJson()).contains("\"mobilePos\":true");
+    }
+
+    /** The mirror: an untouched flag is not clobbered by a patch that omits it. */
+    @Test
+    void update_leavesMobilePosAloneWhenThePatchOmitsIt() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setFeaturesJson("{\"mobilePos\":true}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+        when(repository.save(any(ClientConfig.class))).thenAnswer(i -> i.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Acme POS");
+        request.setFeatures(new FeaturesRequest());
+
+        service.update("acme", request);
+
+        assertThat(entity.getFeaturesJson()).contains("\"mobilePos\":true");
+    }
+
     @Test
     void export_roundTripsSimulatePosModeFromPersistedFeaturesJson() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);

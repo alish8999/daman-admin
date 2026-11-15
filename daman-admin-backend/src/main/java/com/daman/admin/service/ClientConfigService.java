@@ -306,6 +306,7 @@ public class ClientConfigService {
             if (patch.getScaleBarcodes()        != null) f.setScaleBarcodes(patch.getScaleBarcodes());
             if (patch.getAutoBackup()           != null) f.setAutoBackup(patch.getAutoBackup());
             if (patch.getPosTerminals()          != null) f.setPosTerminals(patch.getPosTerminals());
+            if (patch.getMobilePos()             != null) f.setMobilePos(patch.getMobilePos());
             if (patch.getSimulatePosMode()       != null) f.setSimulatePosMode(patch.getSimulatePosMode());
             if (patch.getTableOrders()          != null) f.setTableOrders(patch.getTableOrders());
             if (patch.getQuickPickCards()        != null) f.setQuickPickCards(patch.getQuickPickCards());
