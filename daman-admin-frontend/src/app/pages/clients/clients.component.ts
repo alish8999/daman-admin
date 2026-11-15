@@ -241,6 +241,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     userManagement:    { label: 'Users',          icon: '👥' },
     shifts:            { label: 'Shifts',         icon: '🕐' },
     posTerminals:      { label: 'POS Terminals',  icon: '🖥️' },
+    mobilePos:         { label: 'Mobile POS',     icon: '📱' },
     tableOrders:       { label: 'Table Orders',   icon: '🍽️' },
     quickPickCards:    { label: 'Quick-Pick',     icon: '🎛️' },
     accounting:        { label: 'Accounting',     icon: '📚' },

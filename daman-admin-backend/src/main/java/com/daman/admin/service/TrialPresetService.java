@@ -45,7 +45,7 @@ public class TrialPresetService {
     private static final List<String> DISABLED_BY_DEFAULT = List.of(
             "seedDemoData", "shifts", "multiCurrencyPricing", "productRecipes", "manufacturing",
             "userManagement", "quotation", "accounting", "currencyExchange", "kitchenPrinter",
-            "scaleBarcodes", "posTerminals", "simulatePosMode", "tableOrders", "cafeMode",
+            "scaleBarcodes", "posTerminals", "mobilePos", "simulatePosMode", "tableOrders", "cafeMode",
             "consignment", "shareholders", "deviceRepair", "googleDriveBackup");
 
     public static final Map<String, Boolean> BASE_FEATURES = buildBase();

@@ -99,6 +99,13 @@ public class ClientFeaturesJson {
      */
     private boolean posTerminals;
     /**
+     * The phone till — a worker's own Android phone selling against the shop PC over the
+     * local network. Independent of {@link #posTerminals}: neither implies the other, and
+     * the backend refuses a mobile terminal without this flag even when posTerminals is on.
+     * Default: off — opt-in per client, $25 add-on.
+     */
+    private boolean mobilePos;
+    /**
      * Browser-only testing override — when a plain browser tab (ng serve, no
      * Electron) has no window.daman, getMode() falls back to this flag
      * instead of always returning 'full'. Never affects a real Electron

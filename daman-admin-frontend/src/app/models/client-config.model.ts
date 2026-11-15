@@ -103,6 +103,14 @@ export interface ClientFeatures {
    */
   posTerminals?: boolean;
   /**
+   * Mobile POS — a worker's own Android phone selling against the shop PC over
+   * the local network. Enforced server-side by TerminalContextFilter, which picks
+   * this or posTerminals from the terminal-kind header a request carries.
+   * INDEPENDENT of posTerminals: neither implies the other. Default: false —
+   * opt-in per client, $25 add-on.
+   */
+  mobilePos?: boolean;
+  /**
    * Browser-only POS-mode testing override — when running `ng serve`/`npm start`
    * (no Electron at all), getMode() falls back to this flag instead of always
    * returning 'full'. Never affects a real Electron POS/full-app installer in
