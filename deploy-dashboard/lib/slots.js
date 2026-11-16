@@ -29,6 +29,16 @@ const SLOTS = {
     label: 'Generic Release',
     requiresVersion: true,
   },
+  // The phone till's APK. Beside 'generic' rather than anywhere else because it is
+  // the same act for a different device: upload the built artifact to the same R2
+  // bucket, verify it is live, rewrite the website's links, push. The script refuses
+  // an unsigned APK before any of that - Gradle's assembleRelease succeeds with or
+  // without a keystore, and the unsigned one installs on no phone at all.
+  mobile: {
+    scriptPath: path.join(ADMIN_ROOT, 'deploy-mobile-release.ps1'),
+    label: 'Android Release',
+    requiresVersion: true,
+  },
   'store-backend': {
     scriptPath: path.join(ADMIN_ROOT, 'deploy-store-backend.ps1'),
     label: 'Hosted Store Backend (all stores)',

@@ -565,67 +565,6 @@ export class ClientsComponent implements OnInit, OnDestroy {
     return clientCode === 'generic';
   }
 
-  // -- Deploy the APK to the public download page --
-  //
-  // A different kind of act from a build, and kept visibly separate from one. A
-  // build writes a file on this machine; this uploads to a bucket the world can
-  // read and pushes a public repository, and pressing it again does not take it
-  // back. Hence a confirmation that states the version in full before anything
-  // leaves the machine.
-
-  apkDeployVersion: string | null = null;
-  apkDeployStatus: BuildStatus | null = null;
-  showApkDeployModal = false;
-  private apkDeployPoll: ReturnType<typeof setInterval> | null = null;
-
-  requestApkDeploy(): void {
-    this.apkDeployVersion = this.versions.length > 0 ? this.versions[0].versionNumber : '';
-  }
-
-  cancelApkDeploy(): void {
-    this.apkDeployVersion = null;
-  }
-
-  confirmApkDeploy(): void {
-    const version = (this.apkDeployVersion || '').trim();
-    if (!version) return;
-    this.apkDeployVersion = null;
-    this.clientService.deployApk(version).subscribe({
-      next: (status) => {
-        this.apkDeployStatus = status;
-        this.showApkDeployModal = true;
-        this.startApkDeployPolling();
-      },
-      error: (err) => {
-        // Every refusal from this endpoint names the thing to go and fix - most
-        // often a missing keystore. Read it before falling back to an HTTP one.
-        alert(`Deploy refused: ${err.error?.error || err.error?.message || err.message}`);
-      }
-    });
-  }
-
-  private startApkDeployPolling(): void {
-    this.stopApkDeployPolling();
-    this.apkDeployPoll = setInterval(() => {
-      this.clientService.getApkDeployStatus().subscribe(status => {
-        this.apkDeployStatus = status;
-        if (status.status !== 'DEPLOYING') this.stopApkDeployPolling();
-      });
-    }, 2000);
-  }
-
-  private stopApkDeployPolling(): void {
-    if (this.apkDeployPoll) {
-      clearInterval(this.apkDeployPoll);
-      this.apkDeployPoll = null;
-    }
-  }
-
-  closeApkDeployModal(): void {
-    this.showApkDeployModal = false;
-    this.stopApkDeployPolling();
-  }
-
   // -- Build --
 
   private static readonly PLATFORM_META: Record<string, { label: string; electronVersion: string; outputExt: string; fileExt: string }> = {

@@ -202,10 +202,7 @@ export interface ClientConfigExport {
 export interface BuildStatus {
   clientCode: string;
   platform: string;
-  // DEPLOYING belongs to the same shape on purpose: publishing the APK reports
-  // progress exactly like a build does, and a second near-identical DTO would be
-  // two things to keep in step for no gain.
-  status: 'IDLE' | 'BUILDING' | 'DEPLOYING' | 'SUCCESS' | 'FAILED';
+  status: 'IDLE' | 'BUILDING' | 'SUCCESS' | 'FAILED';
   startedAt?: string;
   finishedAt?: string;
   artifactPath?: string;

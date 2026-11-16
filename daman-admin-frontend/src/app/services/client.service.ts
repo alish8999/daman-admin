@@ -91,16 +91,6 @@ export class ClientService {
     return `${this.apiUrl}/generic-build/download`;
   }
 
-  /** Publishes a built APK to R2 and the public download page. */
-  deployApk(version: string): Observable<BuildStatus> {
-    return this.http.post<BuildStatus>(
-      `${this.apiUrl}/generic-build/deploy-apk?version=${encodeURIComponent(version)}`, {});
-  }
-
-  getApkDeployStatus(): Observable<BuildStatus> {
-    return this.http.get<BuildStatus>(`${this.apiUrl}/generic-build/deploy-apk/status`);
-  }
-
   openGenericOutputFolder(): Observable<void> {
     return this.http.post<void>(`${this.apiUrl}/generic-build/open-folder`, {});
   }

@@ -326,6 +326,10 @@
           <div class="platform-checks">
             <label class="platform-check"><input type="checkbox" class="build-platform-check" value="win" checked> 64-bit (win)</label>
             <label class="platform-check"><input type="checkbox" class="build-platform-check" value="winx86"> 32-bit (winx86)</label>
+            <!-- Not checked by default: every release builds the two Windows installers,
+                 but the APK is rebuilt only when the phone till itself changed, and an
+                 unasked-for Gradle run is minutes nobody wanted. -->
+            <label class="platform-check"><input type="checkbox" class="build-platform-check" value="android"> Android (apk)</label>
           </div>
         </div>
       </div>
@@ -359,6 +363,46 @@
         <strong id="latest-built-version">checking&hellip;</strong>. Both platforms are needed before
         <strong>Generic Release</strong> can deploy. Reads only local, checked-in config - never the hosted
         database - so it never needs to run against <code>admin.damansoft.com</code>.
+      </p>
+    </section>
+
+    <section class="card" data-slot="mobile">
+      <div class="card-head">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="7" y="2.5" width="10" height="19" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card-title">
+          <h2>Android Release</h2>
+          <p class="card-desc">Upload the APK to R2 &amp; push the website's Android download link live</p>
+        </div>
+        <span class="footer"></span>
+      </div>
+
+      <label class="version-field">
+        <span>Version</span>
+        <input type="text" class="version-input" placeholder="1.5.1" autocomplete="off" spellcheck="false">
+      </label>
+
+      <button class="deploy-btn">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Deploy</span>
+      </button>
+
+      <details class="log-panel">
+        <summary class="log-panel-head">
+          <span class="log-dot" style="--dot-color:#ff5f57"></span>
+          <span class="log-dot" style="--dot-color:#febc2e"></span>
+          <span class="log-dot" style="--dot-color:#28c840"></span>
+          <span class="log-title">output</span>
+          <svg class="log-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <pre class="log" data-empty-text="Nothing run yet."></pre>
+      </details>
+
+      <p class="build-note">
+        Refuses an unsigned APK. <code>assembleRelease</code> succeeds with or without a
+        keystore, and the unsigned build installs on no phone - see
+        <code>Docs\superpowers\runbooks\android-build.md</code>.
       </p>
     </section>
 

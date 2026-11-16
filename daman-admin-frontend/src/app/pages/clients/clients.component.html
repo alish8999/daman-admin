@@ -327,78 +327,8 @@
       <button class="dropdown-item" (click)="requestBuild(openDropdown!, 'pos'); closeDropdown()">POS (Windows)</button>
     </li>
     <li><hr class="dropdown-divider"></li>
-    <li *ngIf="isAndroidBuildAllowed(openDropdown)">
-      <button class="dropdown-item text-success fw-semibold"
-              (click)="requestApkDeploy(); closeDropdown()">
-        Deploy APK to website
-      </button>
-    </li>
     <li><button class="dropdown-item" (click)="showHistory(openDropdown!); closeDropdown()">Build History</button></li>
   </ul>
-}
-
-<!-- Deploy-APK confirmation. Spelled out rather than summarised: this is the one
-     button on the page that changes something the public can see, and the person
-     pressing it cannot press it again to undo it. -->
-@if (apkDeployVersion !== null) {
-  <div class="modal-backdrop fade show"></div>
-  <div class="modal fade show d-block" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Publish the Android app</h5>
-          <button type="button" class="btn-close" (click)="cancelApkDeploy()"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Version</label>
-            <input class="form-control font-monospace" [(ngModel)]="apkDeployVersion" placeholder="1.5.1">
-            <div class="form-text">The APK must already be built: Daman_&lt;version&gt;_generic.apk</div>
-          </div>
-          <ul class="small text-muted mb-0 ps-3">
-            <li>Checks the APK is signed — an unsigned one is refused.</li>
-            <li>Uploads it to dl.damansoft.com and verifies it is live.</li>
-            <li>Rewrites the website's Android links, then <strong>commits and pushes</strong>.</li>
-          </ul>
-          <div class="alert alert-warning py-2 small mt-3 mb-0">
-            The download page is public. This cannot be undone by pressing it again.
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="cancelApkDeploy()">Cancel</button>
-          <button type="button" class="btn btn-success" [disabled]="!apkDeployVersion?.trim()"
-                  (click)="confirmApkDeploy()">Publish</button>
-        </div>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- Deploy progress -->
-@if (showApkDeployModal && apkDeployStatus) {
-  <div class="modal-backdrop fade show"></div>
-  <div class="modal fade show d-block" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Publishing {{ apkDeployStatus.artifactName }}</h5>
-          <button type="button" class="btn-close" (click)="closeApkDeployModal()"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-2">
-            <span class="badge"
-                  [class.bg-primary]="apkDeployStatus.status === 'DEPLOYING'"
-                  [class.bg-success]="apkDeployStatus.status === 'SUCCESS'"
-                  [class.bg-danger]="apkDeployStatus.status === 'FAILED'">{{ apkDeployStatus.status }}</span>
-          </div>
-          <pre class="bg-dark text-light p-3 rounded small" style="max-height:45vh;overflow:auto">{{ apkDeployStatus.logs?.join('\n') }}</pre>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="closeApkDeployModal()">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
 }
 
 <!-- Build Confirmation Modal -->
