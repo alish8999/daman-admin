@@ -84,7 +84,27 @@ const LIFECYCLE_PROXY_TIMEOUT_MS = 90000;
 // encodeURIComponent; anything else is a 400 that never reaches the remote.
 const STORE_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const MAX_JSON_BODY_BYTES = 16 * 1024;
-const BUILD_PLATFORMS = new Set(['win', 'winx86']);
+// Every platform the build card may ask for. It must hold everything
+// public/index.html offers as a .build-platform-check, which
+// lib/build-platforms.test.js pins: 'android' was offered on the page for a day
+// while this set still refused it, and resolveBuildPlatform's old silent fallback
+// turned that into a 64-bit Windows build reported as a success.
+const BUILD_PLATFORMS = new Set(['win', 'winx86', 'android']);
+
+/**
+ * The platform a build request asks for, or null when it asks for one this dashboard
+ * cannot build.
+ *
+ * An absent or empty value still means 'win', because that is what a request without a
+ * platform has always built. An unrecognised one is refused rather than replaced: a build
+ * that quietly produces a different platform than the one asked for reports SUCCESS, puts
+ * the wrong artifact in clients-build, and surfaces only later as a missing file in a
+ * different step.
+ */
+function resolveBuildPlatform(raw) {
+  if (raw === undefined || raw === null || raw === '') return 'win';
+  return BUILD_PLATFORMS.has(raw) ? raw : null;
+}
 
 const runLock = new RunLock(Object.keys(SLOTS));
 
@@ -464,7 +484,12 @@ function handleBuildGenericStart(req, res, query) {
     res.end('version must look like 1.2.3');
     return;
   }
-  const platform = BUILD_PLATFORMS.has(query.platform) ? query.platform : 'win';
+  const platform = resolveBuildPlatform(query.platform);
+  if (platform === null) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('platform must be one of: ' + [...BUILD_PLATFORMS].join(', '));
+    return;
+  }
   const targetPath = `/api/clients/generic-build?platform=${encodeURIComponent(platform)}&version=${encodeURIComponent(version)}`;
   proxyToLocalAdminBackend(req, 'POST', targetPath, res);
 }
@@ -787,4 +812,5 @@ if (require.main === module) {
 }
 
 module.exports = { server, runLock, runningPids, killTrackedChildren, isOriginAllowed, requiresOrigin, PORTAL_ORIGIN,
+  BUILD_PLATFORMS, resolveBuildPlatform,
   REMOTE_ADMIN_BACKEND, LOCAL_TARGET, PROVISION_TIMEOUT_MS, LIFECYCLE_PROXY_TIMEOUT_MS, adminTokens };
