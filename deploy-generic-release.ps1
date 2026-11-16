@@ -29,7 +29,7 @@
 
 .PARAMETER Version
     The version string exactly as it appears in the built filenames, e.g. "1.0.4"
-    (matches Daman_1.0.4_generic.exe / 32-Daman_1.0.4_generic.exe).
+    (matches Daman-Accounting_1.0.4_generic.exe / 32-Daman-Accounting_1.0.4_generic.exe).
 
 .EXAMPLE
     .\deploy-generic-release.ps1 -Version 1.0.4
@@ -47,8 +47,13 @@ $WebsiteIndex = "D:\Daman\src\daman-website\index.html"
 $Bucket       = "daman-installers"
 $DownloadHost = "dl.damansoft.com"
 
-$File64 = "Daman_${Version}_generic.exe"
-$File32 = "32-Daman_${Version}_generic.exe"
+# Renamed from Daman_ on 2026-11-17. The REPLACE patterns below still match the
+# old name as well, because that is what is on the live page until the first
+# release under the new one - a pattern that only knew the new name would find
+# nothing, change nothing, and report "already up to date" on a page still
+# pointing at the previous version.
+$File64 = "Daman-Accounting_${Version}_generic.exe"
+$File32 = "32-Daman-Accounting_${Version}_generic.exe"
 $Path64 = Join-Path $BuildDir $File64
 $Path32 = Join-Path $BuildDir $File32
 
@@ -118,8 +123,10 @@ Write-Host "==> [5/5] Updating daman-website/index.html download links..." -Fore
 # Set-Content's "UTF8" encoding in Windows PowerShell 5.1 always adds a BOM, which
 # would show up as a spurious byte-level diff even when nothing else changed.
 $html = [System.IO.File]::ReadAllText($WebsiteIndex, [System.Text.Encoding]::UTF8)
-$newHtml = $html -replace "https://$DownloadHost/Daman_[\d.]+_generic\.exe", "https://$DownloadHost/$File64"
-$newHtml = $newHtml -replace "https://$DownloadHost/32-Daman_[\d.]+_generic\.exe", "https://$DownloadHost/$File32"
+# The host in each pattern is load-bearing: without it the 64-bit pattern would
+# also match inside a 32-Daman... URL and rewrite half of it.
+$newHtml = $html -replace "https://$DownloadHost/Daman(-Accounting)?_[\d.]+_generic\.exe", "https://$DownloadHost/$File64"
+$newHtml = $newHtml -replace "https://$DownloadHost/32-Daman(-Accounting)?_[\d.]+_generic\.exe", "https://$DownloadHost/$File32"
 # The "latest version" buttons also show the version number in their label.
 $newHtml = $newHtml -replace '(<span class="dl-version">)[\d.]+(</span>)', "`${1}$Version`${2}"
 

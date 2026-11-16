@@ -185,7 +185,7 @@ class BuildServiceAndroidBranchTest {
     @Test
     void relocateArtifact_namesASignedApkAfterTheRelease() throws Exception {
         String out = relocate("app-release.apk");
-        assertThat(Path.of(out).getFileName().toString()).isEqualTo("Daman_1.5.1_generic.apk");
+        assertThat(Path.of(out).getFileName().toString()).isEqualTo("Daman-Accounting_1.5.1_generic.apk");
     }
 
     @Test
@@ -195,7 +195,7 @@ class BuildServiceAndroidBranchTest {
         // one. The marker is the only thing distinguishing them at a glance, and it is
         // what deploy-mobile-release.ps1 checks before it even reaches apksigner.
         String out = relocate("app-release-unsigned.apk");
-        assertThat(Path.of(out).getFileName().toString()).isEqualTo("Daman_1.5.1_generic-unsigned.apk");
+        assertThat(Path.of(out).getFileName().toString()).isEqualTo("Daman-Accounting_1.5.1_generic-unsigned.apk");
     }
 
     // -- no per-client APK ---------------------------------------------------

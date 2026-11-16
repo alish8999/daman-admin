@@ -164,7 +164,7 @@ class BuildServiceGenericBranchTest {
                 rawInstaller.toString(), "generic", "Daman", "1.0.0", tempDir, "win", status);
 
         Path resultPath = Path.of(result);
-        assertThat(resultPath.getFileName().toString()).isEqualTo("Daman_1.0.0_generic.exe");
+        assertThat(resultPath.getFileName().toString()).isEqualTo("Daman-Accounting_1.0.0_generic.exe");
         assertThat(resultPath.getParent()).isEqualTo(tempDir.resolve("clients-build").resolve("generic"));
     }
 

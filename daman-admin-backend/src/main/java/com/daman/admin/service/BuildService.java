@@ -345,7 +345,7 @@ public class BuildService {
         // the leading segment from the (potentially Arabic) appName, which produced
         // ugly "_______" prefixes once non-ASCII characters were stripped. Pin the
         // brand prefix instead so the output is always something like:
-        //   Daman_1.0.0_viora.exe (full app) or DamanPOS_1.0.0_viora.exe (POS variant)
+        //   Daman-Accounting_1.0.0_viora.exe (full app) or DamanPOS_1.0.0_viora.exe (POS variant)
         String safeClient = clientCode.replaceAll("[^a-zA-Z0-9_-]", "_");
         String safeVer    = (versionNumber != null && !versionNumber.isBlank())
                 ? versionNumber.replaceAll("[^a-zA-Z0-9._-]", "_")
@@ -356,10 +356,17 @@ public class BuildService {
         int dotIdx = originalName.lastIndexOf('.');
         String ext = dotIdx >= 0 ? originalName.substring(dotIdx) : "";
 
-        String prefix = platform.equalsIgnoreCase("pos") ? "DamanPOS_" : "Daman_";
+        // Renamed from "Daman_" on 2026-11-17, owner's call: the product is
+        // "ضمان للمحاسبة", and a download called Daman_ said less than it could.
+        // Latin rather than the Arabic name itself, also the owner's call - the
+        // filename becomes a public URL, and Arabic there is percent-encoded into
+        // something unreadable that some Android browsers then mangle on save.
+        // The POS variant keeps DamanPOS_: it is a different product with its own
+        // appId, not this one under another name.
+        String prefix = platform.equalsIgnoreCase("pos") ? "DamanPOS_" : "Daman-Accounting_";
         // winx86 (32-bit) shares every other platform's filename otherwise —
         // e.g. building generic as 32-bit after already building it as regular
-        // 64-bit win produces the identical "Daman_<ver>_generic.exe" in the
+        // 64-bit win produces the identical "Daman-Accounting_<ver>_generic.exe" in the
         // same clients-build/generic/ folder, so the second build's
         // REPLACE_EXISTING copy silently overwrites the first. Prefix with
         // "32-" so both artifacts coexist.

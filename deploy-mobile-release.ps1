@@ -25,7 +25,7 @@
 
 .PARAMETER Version
     The version string exactly as it appears in the built filename, e.g. "1.5.1"
-    (matches Daman_1.5.1_generic.apk).
+    (matches Daman-Accounting_1.5.1_generic.apk).
 
 .PARAMETER SkipWebsite
     Upload and verify, but leave index.html alone and push nothing. For putting a
@@ -49,7 +49,7 @@ $WebsiteIndex = "D:\Daman\src\daman-website\index.html"
 $Bucket       = "daman-installers"
 $DownloadHost = "dl.damansoft.com"
 
-$ApkName = "Daman_${Version}_generic.apk"
+$ApkName = "Daman-Accounting_${Version}_generic.apk"
 $ApkPath = Join-Path $BuildDir $ApkName
 
 if (-not (Test-Path $ApkPath)) {
@@ -112,7 +112,9 @@ Write-Host "==> [4/5] Updating daman-website/index.html Android links..." -Foreg
 # Set-Content's "UTF8" in Windows PowerShell 5.1 always adds one, which shows up
 # as a byte-level diff even when nothing else changed.
 $html = [System.IO.File]::ReadAllText($WebsiteIndex, [System.Text.Encoding]::UTF8)
-$newHtml = $html -replace "https://$DownloadHost/Daman_[\d.]+_generic\.apk", $url
+# Matches the pre-2026-11-17 name too, so the first release under the new one
+# still finds the link that is actually on the page.
+$newHtml = $html -replace "https://$DownloadHost/Daman(-Accounting)?_[\d.]+_generic\.apk", $url
 # Its own version marker, separate from the Windows .dl-version: the APK is not
 # rebuilt for every Windows release and the two numbers drift apart on purpose.
 $newHtml = $newHtml -replace '(<span class="dl-apk-version">)[\d.]+(</span>)', "`${1}$Version`${2}"
