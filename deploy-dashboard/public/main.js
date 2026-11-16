@@ -270,6 +270,13 @@
   // a token has no business in a URL, so each posts its OWN copy just before its OWN stream opens.
   const PORTAL_TOKEN_SLOTS = new Set(['store-backend', 'store-deploy-only']);
 
+  // Slots whose script takes -Version. The server refuses a run without ?version for exactly
+  // these, so a slot missing from this list shows a version box, sends nothing, and dies on the
+  // server's refusal instead of the card's own 'Enter a version first.' - which is what the
+  // Android card did while this was written as slot === 'generic'. lib/mobile-release-slot.test.js
+  // holds it level with the slot table's requiresVersion flags.
+  const VERSION_SLOTS = new Set(['generic', 'mobile']);
+
   const newStoreBtn = document.getElementById('new-store-btn');
   const newStorePanel = document.getElementById('new-store-panel');
   if (newStoreBtn && newStorePanel) {
@@ -391,7 +398,7 @@
 
     btn.addEventListener('click', () => {
       let streamUrl = agent(`/api/deploy/${slot}/stream`);
-      if (slot === 'generic') {
+      if (VERSION_SLOTS.has(slot)) {
         const version = versionInput.value.trim();
         if (!version) {
           footer.textContent = 'Enter a version first.';

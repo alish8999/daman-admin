@@ -60,3 +60,29 @@ test('android is not checked by default', () => {
   assert.ok(android, 'no android platform checkbox');
   assert.ok(!android[1].includes('checked'), 'android must not be pre-checked');
 });
+
+// ── The version query ───────────────────────────────────────────────────────
+// The server rejects a run of a requiresVersion slot with no ?version, and the
+// page's own refusal ("Enter a version first.") never fires, because the check
+// that appends it was written for 'generic' by name. The mobile card therefore
+// showed a version box, sent nothing, and the run died on
+// "version query parameter is required for this slot". The list of slots that
+// need one belongs to the slot table; the page must read it as a list, not
+// name a single slot.
+
+const MAIN_JS = fs.readFileSync(path.join(__dirname, '..', 'public', 'main.js'), 'utf8');
+
+test('the page knows every slot whose script needs a version', () => {
+  const declared = /const VERSION_SLOTS = new Set\(\[([^\]]*)\]\)/.exec(MAIN_JS);
+  assert.ok(declared, 'main.js has no VERSION_SLOTS list - the version query is gated on a slot name');
+
+  const onThePage = [...declared[1].matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]).sort();
+  const inTheTable = Object.keys(SLOTS).filter((s) => SLOTS[s].requiresVersion).sort();
+  assert.deepStrictEqual(onThePage, inTheTable,
+    'a slot requires a version server-side but the page does not send one (or the reverse)');
+});
+
+test('the version query is appended from that list, not from a slot name', () => {
+  const appended = /if \(VERSION_SLOTS\.has\(slot\)\) \{/.test(MAIN_JS);
+  assert.ok(appended, 'the ?version= block is not guarded by VERSION_SLOTS');
+});
