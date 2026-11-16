@@ -114,6 +114,16 @@ public class BuildService {
         boolean generic = GENERIC.equals(clientCode);
         String key = generic ? GENERIC_KEY : clientCode;
 
+        // The APK carries no client identity: the phone till's entitlement comes from the
+        // licence of the PC it connects to, read over /api/pos/handshake at Setup. A
+        // per-client Android build would be byte-identical to the generic one under a name
+        // claiming otherwise, and would then be deployed as if it were a different app.
+        if ("android".equalsIgnoreCase(platform) && !generic) {
+            throw new IllegalArgumentException(
+                    "The Android app is built generic only - it carries no client identity. Build it from"
+                            + " the generic build, not from client " + clientCode + ".");
+        }
+
         BuildStatusDto current = buildStatuses.get(key);
         if (current != null && "BUILDING".equals(current.getStatus())) {
             throw new IllegalStateException("Build already in progress for client: " + key);
@@ -190,6 +200,7 @@ public class BuildService {
     private void executeBuild(String clientCode, String platform, String versionNumber) {
         BuildStatusDto status = buildStatuses.get(clientCode);
         boolean isPos = platform.equalsIgnoreCase("pos");
+        boolean isAndroid = platform.equalsIgnoreCase("android");
         boolean generic = GENERIC_KEY.equals(clientCode);
         try {
             Path workspace = Path.of(workspacePath);
@@ -208,7 +219,11 @@ public class BuildService {
             // Before `ng build` below, which copies src/assets into the bundle.
             writeReleaseNotesAsset(frontendRoot, versionNumber, status);
 
-            if (!isPos) {
+            if (isAndroid) {
+                writeAndroidVersion(frontendRoot, versionNumber, status);
+            }
+
+            if (!isPos && !isAndroid) {
                 addLog(status, "Embedding license public key & build metadata...");
                 writePublicKey(backendRoot);
                 // The generic build's client-meta.properties (client.generic=true, no
@@ -228,7 +243,9 @@ public class BuildService {
                 copyBackendJar(backendRoot, frontendRoot);
                 addLog(status, "JAR copied");
             } else {
-                addLog(status, "POS build — skipping backend Maven build, JAR copy, and license binding (no bundled backend in this variant)");
+                addLog(status, (isAndroid ? "Android" : "POS")
+                        + " build — skipping backend Maven build, JAR copy, and license binding"
+                        + " (no bundled backend in this variant)");
             }
 
             if (!Files.exists(frontendRoot.resolve("node_modules"))) {
@@ -240,6 +257,40 @@ public class BuildService {
             addLog(status, "Building Angular frontend...");
             runProcess(frontendRoot, shellCommand("npx", "ng", "build", "--configuration", "production"), status);
             addLog(status, "Frontend built");
+
+            if (isAndroid) {
+                // cap sync, every time and never conditionally: the APK carries a COPY of
+                // dist/, so a build without it ships the previous release's web assets
+                // inside this release's version number - the worst of both.
+                addLog(status, "Syncing web assets into the Android project...");
+                runProcess(frontendRoot, shellCommand("npx", "cap", "sync", "android"), status);
+
+                addLog(status, "Assembling release APK (Gradle)...");
+                runProcess(frontendRoot.resolve("android"), androidGradleCommand(), status);
+
+                String rawApk = findAndroidArtifact(frontendRoot);
+                if (rawApk == null) {
+                    throw new IOException("Gradle reported success but produced no .apk in"
+                            + " android/app/build/outputs/apk/release");
+                }
+                if (rawApk.toLowerCase().contains("unsigned")) {
+                    // Not a failure: this is how the pipeline is proved before the owner has
+                    // created the keystore. It is said plainly because an unsigned APK will
+                    // not install on any phone, and the deploy step refuses it outright.
+                    addLog(status, "WARNING: this APK is UNSIGNED and no phone will install it."
+                            + " Set damanKeystoreFile and friends in ~/.gradle/gradle.properties -"
+                            + " see Docs/superpowers/runbooks/android-build.md.");
+                }
+                String finalApk = relocateArtifact(
+                        rawApk, clientCode, exportDto.getAppName(), versionNumber, workspace, platform, status);
+                status.setArtifactPath(finalApk);
+                status.setArtifactName(Path.of(finalApk).getFileName().toString());
+
+                status.setStatus("SUCCESS");
+                status.setFinishedAt(LocalDateTime.now());
+                addLog(status, "Build completed successfully");
+                return;
+            }
 
             String platformLabel = switch (platform.toLowerCase()) {
                 case "win7" -> "win7 — Electron 22.3.27 (Windows 7/8 compatible)";
@@ -739,6 +790,141 @@ public class BuildService {
             return cmd.toArray(new String[0]);
         }
         return args;
+    }
+
+    /**
+     * The integer Android actually compares one build against another with.
+     *
+     * {@code versionName} is a label Android never reads; {@code versionCode} is
+     * the whole of its update logic. A build whose code is not strictly greater
+     * than the installed one is refused as a downgrade, and the phone says
+     * nothing useful about why. So it is derived from the same semver the rest
+     * of the release already uses - major*10000 + minor*100 + patch - rather
+     * than counted by hand, where one forgotten bump is a release that cannot
+     * be installed over its predecessor.
+     *
+     * Two digits per field is what makes it ascending, and also what makes it
+     * breakable: 1.5.100 packs to 10600, which is 1.6.0. That is a collision
+     * where a real update looks to Android like the build already on the phone,
+     * so it is refused here rather than discovered on a shop's handset.
+     */
+    private static int androidVersionCode(String versionNumber) {
+        if (versionNumber == null || versionNumber.isBlank()) {
+            throw new IllegalArgumentException("Android build needs a version number (major.minor.patch)");
+        }
+        java.util.regex.Matcher m = ANDROID_SEMVER.matcher(versionNumber.trim());
+        if (!m.matches()) {
+            throw new IllegalArgumentException(
+                    "Version '" + versionNumber + "' is not major.minor.patch - an APK cannot be numbered from it");
+        }
+        int major = Integer.parseInt(m.group(1));
+        int minor = Integer.parseInt(m.group(2));
+        int patch = Integer.parseInt(m.group(3));
+        if (minor > 99 || patch > 99) {
+            throw new IllegalArgumentException(
+                    "Version '" + versionNumber + "' has a minor or patch above 99, which would collide with the next"
+                            + " release's versionCode - Android would treat the update as the build already installed");
+        }
+        return major * 10_000 + minor * 100 + patch;
+    }
+
+    private static final java.util.regex.Pattern ANDROID_SEMVER =
+            java.util.regex.Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)");
+
+    /**
+     * Stamps the release version into {@code android/app/build.gradle}.
+     *
+     * The Android counterpart of {@link #writeFrontendPackageVersion}, and
+     * deliberately stricter than it. package.json's version being stale is
+     * cosmetic; build.gradle's being stale produces an APK that phones already
+     * on the current version will not install, which looks like a broken
+     * download rather than a numbering mistake. So a build.gradle this cannot
+     * find its fields in stops the build instead of warning into a log.
+     */
+    private void writeAndroidVersion(Path frontendRoot, String versionNumber, BuildStatusDto status) throws IOException {
+        int code = androidVersionCode(versionNumber);
+        Path gradle = frontendRoot.resolve("android").resolve("app").resolve("build.gradle");
+        String content = Files.readString(gradle, java.nio.charset.StandardCharsets.UTF_8);
+
+        // Presence is checked with the pattern, not by comparing before and after.
+        // Rebuilding the same version is an ordinary thing to do, and a text
+        // comparison reports that no-op as a missing field and fails the build.
+        requireGradleField(gradle, content, ANDROID_VERSION_CODE, "versionCode");
+        String withCode = ANDROID_VERSION_CODE.matcher(content)
+                .replaceFirst(Matcher.quoteReplacement("versionCode " + code));
+
+        requireGradleField(gradle, withCode, ANDROID_VERSION_NAME, "versionName");
+        String withName = ANDROID_VERSION_NAME.matcher(withCode)
+                .replaceFirst(Matcher.quoteReplacement(
+                        "versionName \"" + versionNumber.replace("\"", "") + "\""));
+
+        Files.writeString(gradle, withName, java.nio.charset.StandardCharsets.UTF_8);
+        addLog(status, "Android version set to " + versionNumber + " (versionCode " + code + ")");
+    }
+
+    private static final java.util.regex.Pattern ANDROID_VERSION_CODE =
+            java.util.regex.Pattern.compile("versionCode\\s+\\d+");
+
+    private static final java.util.regex.Pattern ANDROID_VERSION_NAME =
+            java.util.regex.Pattern.compile("versionName\\s+\"[^\"]*\"");
+
+    private static void requireGradleField(Path gradle, String content,
+                                           java.util.regex.Pattern field, String name) throws IOException {
+        if (!field.matcher(content).find()) {
+            throw new IOException("No " + name + " field in " + gradle
+                    + " - refusing to build an APK stamped with the previous release's number");
+        }
+    }
+
+    /**
+     * The Gradle invocation that produces the phone till's APK.
+     *
+     * {@code assembleRelease}, never {@code assembleDebug}: Capacitor turns on
+     * WebView debugging in a debug build, which lets anyone with a USB cable
+     * read the app's localStorage - the never-expiring JWT and the saved server
+     * among it. See Docs/superpowers/runbooks/android-build.md.
+     *
+     * Signing is Gradle's own business and is read from properties outside
+     * every repo (damanKeystoreFile and friends). With those absent the task
+     * still succeeds and yields an UNSIGNED apk, which Android refuses to
+     * install - that is why {@link #findAndroidArtifact} takes whichever of the
+     * two filenames exists and the deploy step, not this one, is where an
+     * unsigned APK is stopped.
+     */
+    private String[] androidGradleCommand() {
+        return shellCommand(isWindows() ? "gradlew.bat" : "./gradlew", "assembleRelease");
+    }
+
+    /**
+     * The freshly built APK, signed or not.
+     *
+     * The Android Gradle plugin names the output after the signing outcome:
+     * {@code app-release.apk} once a signing config applies, and
+     * {@code app-release-unsigned.apk} when none does. Both are real build
+     * products and both are useful - the unsigned one is how the pipeline gets
+     * proved before a keystore exists - so this takes whichever is newer and
+     * leaves judging it to the deploy step.
+     */
+    private String findAndroidArtifact(Path frontendRoot) {
+        Path apkDir = frontendRoot.resolve("android").resolve("app").resolve("build")
+                .resolve("outputs").resolve("apk").resolve("release");
+        if (!Files.exists(apkDir)) return null;
+        try (Stream<Path> files = Files.list(apkDir)) {
+            return files
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".apk"))
+                    .max(Comparator.comparingLong(p -> {
+                        try {
+                            return Files.getLastModifiedTime(p).toMillis();
+                        } catch (IOException e) {
+                            return 0L;
+                        }
+                    }))
+                    .map(Path::toString)
+                    .orElse(null);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private String[] electronBuilderCommand(String platform) {

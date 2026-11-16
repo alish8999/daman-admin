@@ -557,6 +557,14 @@ export class ClientsComponent implements OnInit, OnDestroy {
     return !!client?.features?.posTerminals;
   }
 
+  /** The APK carries no client identity — the phone till's entitlement comes from the
+   *  licence of the PC it connects to, read at Setup over /api/pos/handshake. A per-client
+   *  Android build would be byte-identical to the generic one under a name claiming
+   *  otherwise, so the backend refuses it and the option is not offered here either. */
+  isAndroidBuildAllowed(clientCode: string | null): boolean {
+    return clientCode === 'generic';
+  }
+
   // -- Build --
 
   private static readonly PLATFORM_META: Record<string, { label: string; electronVersion: string; outputExt: string; fileExt: string }> = {
@@ -566,6 +574,9 @@ export class ClientsComponent implements OnInit, OnDestroy {
     mac:    { label: 'macOS (.dmg)',              electronVersion: '28.x (latest)', outputExt: 'Disk image (.dmg)',     fileExt: 'dmg' },
     linux:  { label: 'Linux (.AppImage)',         electronVersion: '28.x (latest)', outputExt: 'AppImage (.AppImage)',  fileExt: 'AppImage' },
     pos:    { label: 'POS (Windows)',             electronVersion: '28.x (latest)', outputExt: 'NSIS installer (.exe)', fileExt: 'exe' },
+    // Not Electron at all: Angular, wrapped by Capacitor and assembled by Gradle.
+    // The column still says something, because a blank there reads as a bug.
+    android: { label: 'Android (.apk)',           electronVersion: 'n/a — Capacitor 7', outputExt: 'Android package (.apk)', fileExt: 'apk' },
   };
 
   requestBuild(clientCode: string, platform: string): void {

@@ -314,6 +314,14 @@
     </li>
     <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'mac'); closeDropdown()">macOS (.dmg)</button></li>
     <li><button class="dropdown-item" (click)="requestBuild(openDropdown!, 'linux'); closeDropdown()">Linux (.AppImage)</button></li>
+    <li *ngIf="isAndroidBuildAllowed(openDropdown)"><hr class="dropdown-divider"></li>
+    <li *ngIf="isAndroidBuildAllowed(openDropdown)">
+      <button class="dropdown-item d-flex align-items-center gap-2"
+              (click)="requestBuild(openDropdown!, 'android'); closeDropdown()">
+        Android (.apk)
+        <span class="badge bg-secondary" style="font-size:0.65rem">phone till</span>
+      </button>
+    </li>
     <li *ngIf="isPosBuildAllowed(openDropdown)"><hr class="dropdown-divider"></li>
     <li *ngIf="isPosBuildAllowed(openDropdown)">
       <button class="dropdown-item" (click)="requestBuild(openDropdown!, 'pos'); closeDropdown()">POS (Windows)</button>
