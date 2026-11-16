@@ -78,8 +78,41 @@ if ($ApkName -match "unsigned") {
     throw "$ApkName is named unsigned. Set damanKeystoreFile / damanKeystorePassword / damanKeyAlias / damanKeyPassword in C:\Users\ASUS\.gradle\gradle.properties and rebuild - see Docs\superpowers\runbooks\android-build.md."
 }
 
+# apksigner is a .bat wrapper around a JAR and finds a JVM only through JAVA_HOME or
+# `java` on PATH. The deploy agent's PowerShell has neither here, and the wrapper's own
+# "JAVA_HOME is not set" arrives as a non-zero exit code - which the check below would
+# report as a bad signature, sending the owner off to rebuild an APK that was signed fine.
+if (-not $env:JAVA_HOME -and -not (Get-Command java -ErrorAction SilentlyContinue)) {
+    $jdk = $env:DAMAN_JAVA_HOME
+    if (-not $jdk) {
+        $jdk = Get-ChildItem -Path (Join-Path $env:USERPROFILE ".jdks") -Directory -ErrorAction SilentlyContinue |
+               Where-Object { Test-Path (Join-Path $_.FullName "bin\java.exe") } |
+               Sort-Object Name -Descending |
+               Select-Object -First 1 -ExpandProperty FullName
+    }
+    # Android Studio ships its own JRE, so a machine with the SDK almost always has this one.
+    if (-not $jdk -and (Test-Path "C:\Program Files\Android\Android Studio\jbr\bin\java.exe")) {
+        $jdk = "C:\Program Files\Android\Android Studio\jbr"
+    }
+    if (-not $jdk) {
+        throw "No JDK found for apksigner. Set JAVA_HOME (or DAMAN_JAVA_HOME) to a JDK and re-run - this says nothing about the APK's signature, only that it cannot be checked."
+    }
+    $env:JAVA_HOME = $jdk
+    Write-Host "    JDK for apksigner: $jdk" -ForegroundColor DarkGray
+}
+# 2>&1 keeps apksigner's stderr with its output so a real refusal is readable - but in
+# Windows PowerShell 5.1 those lines arrive as ErrorRecords, and under the Stop preference
+# set at the top of this script the first one throws before $LASTEXITCODE is ever read.
+# apksigner warns on stdout and stderr routinely (unprotected META-INF entries on every
+# Gradle build, "a restricted method has been called" on JDK 26), so under Stop a passing
+# verification aborted the deploy with a NativeCommandError naming no cause. The exit code
+# is the verdict; it is captured on the very next line, before anything can overwrite it.
+$previousEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 $certs = & $apksigner.FullName verify --print-certs $ApkPath 2>&1
-if ($LASTEXITCODE -ne 0) {
+$signerExit = $LASTEXITCODE
+$ErrorActionPreference = $previousEap
+if ($signerExit -ne 0) {
     Write-Host ($certs | Out-String) -ForegroundColor DarkGray
     throw "apksigner refused $ApkName. An unsigned or badly signed APK installs on no phone - fix the signing config and rebuild before deploying."
 }
