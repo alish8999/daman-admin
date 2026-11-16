@@ -366,7 +366,13 @@ public class BuildService {
         if (platform.equalsIgnoreCase("winx86")) {
             prefix = "32-" + prefix;
         }
-        String newName = prefix + safeVer + "_" + safeClient + ext;
+        // The Android Gradle plugin puts "unsigned" in its own filename when no signing
+        // config applied, and renaming used to throw that away - leaving a file in
+        // clients-build/ indistinguishable at a glance from a shippable one, for a build
+        // that installs on no phone at all. Carry the marker through; it is also the
+        // cheap check deploy-mobile-release.ps1 makes before it reaches apksigner.
+        String unsigned = originalName.toLowerCase().contains("unsigned") ? "-unsigned" : "";
+        String newName = prefix + safeVer + "_" + safeClient + unsigned + ext;
 
         Path outDir = workspace.resolve("clients-build").resolve(safeClient);
         Files.createDirectories(outDir);

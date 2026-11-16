@@ -6,6 +6,7 @@ import com.daman.admin.dto.ClientConfigExportDto;
 import com.daman.admin.dto.ClientConfigRequest;
 import com.daman.admin.entity.BuildLog;
 import com.daman.admin.service.BuildService;
+import com.daman.admin.service.MobileDeployService;
 import com.daman.admin.service.ClientConfigService;
 import com.daman.admin.service.DevRunService;
 import jakarta.validation.Valid;
@@ -28,6 +29,7 @@ public class ClientController {
 
     private final ClientConfigService service;
     private final BuildService buildService;
+    private final MobileDeployService mobileDeployService;
     private final DevRunService devRunService;
 
     @GetMapping
@@ -198,6 +200,31 @@ public class ClientController {
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", String.valueOf(e.getMessage())));
         }
+    }
+
+    /**
+     * Publishes the built APK: R2, then the public download page.
+     *
+     * Separate from the build endpoints because it is a different kind of act. A build
+     * writes a file on this machine; this uploads to a bucket the world can read and
+     * pushes a public repository, and cannot be taken back by pressing it again.
+     *
+     * Every refusal comes back as a 400 with its own message, because each one names
+     * the thing to go and fix - most often a missing keystore, whose symptom otherwise
+     * appears days later as a download that installs on nobody's phone.
+     */
+    @PostMapping("/generic-build/deploy-apk")
+    public ResponseEntity<?> deployApk(@RequestParam(defaultValue = "") String version) {
+        try {
+            return ResponseEntity.accepted().body(mobileDeployService.startDeploy(version));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", String.valueOf(e.getMessage())));
+        }
+    }
+
+    @GetMapping("/generic-build/deploy-apk/status")
+    public BuildStatusDto deployApkStatus() {
+        return mobileDeployService.getStatus();
     }
 
     @GetMapping("/generic-build/status")

@@ -29,7 +29,7 @@ class ClientControllerDevTest {
         clientConfigService = mock(ClientConfigService.class);
         buildService = mock(BuildService.class);
         devRunService = mock(DevRunService.class);
-        controller = new ClientController(clientConfigService, buildService, devRunService);
+        controller = new ClientController(clientConfigService, buildService, mock(com.daman.admin.service.MobileDeployService.class), devRunService);
     }
 
     @Test

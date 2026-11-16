@@ -171,6 +171,33 @@ class BuildServiceAndroidBranchTest {
         assertThat(String.join(" ", cmd)).contains("assembleRelease");
     }
 
+    // -- naming the artifact -------------------------------------------------
+
+    private String relocate(String builtFileName) throws Exception {
+        Path src = tempDir.resolve(builtFileName);
+        Files.writeString(src, "apk", StandardCharsets.UTF_8);
+        return (String) invokePrivate("relocateArtifact",
+                new Class<?>[]{String.class, String.class, String.class, String.class,
+                        Path.class, String.class, BuildStatusDto.class},
+                src.toString(), "generic", "Daman", "1.5.1", tempDir, "android", newStatus());
+    }
+
+    @Test
+    void relocateArtifact_namesASignedApkAfterTheRelease() throws Exception {
+        String out = relocate("app-release.apk");
+        assertThat(Path.of(out).getFileName().toString()).isEqualTo("Daman_1.5.1_generic.apk");
+    }
+
+    @Test
+    void relocateArtifact_keepsTheUnsignedMarkerInTheName() throws Exception {
+        // Gradle says "unsigned" in its own filename and the rename used to throw that
+        // away, leaving a file in clients-build/ that looks exactly like a shippable
+        // one. The marker is the only thing distinguishing them at a glance, and it is
+        // what deploy-mobile-release.ps1 checks before it even reaches apksigner.
+        String out = relocate("app-release-unsigned.apk");
+        assertThat(Path.of(out).getFileName().toString()).isEqualTo("Daman_1.5.1_generic-unsigned.apk");
+    }
+
     // -- no per-client APK ---------------------------------------------------
 
     @Test
