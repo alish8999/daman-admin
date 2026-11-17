@@ -7,7 +7,7 @@ import { ClientService } from '../../services/client.service';
 import { TranslationService } from '../../services/translation.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { DaysLeftPipe } from '../../pipes/days-left.pipe';
-import { LicenseService, License, GenerateLicenseResponse } from '../../services/license.service';
+import { LicenseService, License, GenerateLicenseResponse, RemintOutcome } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing, BillingRequest } from '../../models/billing.model';
 import { FeatureGridComponent } from '../../components/feature-grid/feature-grid.component';
@@ -15,12 +15,15 @@ import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup } from '../../models
 import { FeaturePriceService } from '../../services/feature-price.service';
 import { ClientFeatures } from '../../models/client-config.model';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
+import { LicenceCardComponent } from '../../components/licence-card/licence-card.component';
+import { LicenceDrawerComponent } from '../../components/licence-drawer/licence-drawer.component';
+import { sharedMachineIds, isLicenceLive } from '../../models/licence-kind';
 import { NOTO_KUFI_ARABIC_BASE64 } from './noto-kufi-arabic-font';
 
 @Component({
   selector: 'app-client-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe, DaysLeftPipe, DevRunButtonComponent, FeatureGridComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe, DaysLeftPipe, DevRunButtonComponent, FeatureGridComponent, LicenceCardComponent, LicenceDrawerComponent],
   templateUrl: './client-form.component.html'
 })
 export class ClientFormComponent implements OnInit {
@@ -32,8 +35,28 @@ export class ClientFormComponent implements OnInit {
   savedMsg = '';
   passwordVisible = false;
 
-  // Tab management
-  activeTab: 'business' | 'branding' | 'features' | 'billing' | 'license' = 'business';
+  // ── One page, no tabs ────────────────────────────────────────────────────
+  // The five tabs (business / branding / features / billing / license) are gone: they hid the
+  // one relationship the portal is about — a client HAS licences, and a licence is what a shop
+  // actually runs. Branding went with them; the shop owns its own logo and theme (the licence
+  // colours are only a baseline the POS's own saved theme sits on top of), so the portal had no
+  // business editing them. Those form controls are kept, unrendered, because the request DTO
+  // marks logoDark/colorPrimary/colorSecondary @NotBlank and dashboardHeaderImage is applied
+  // unconditionally — dropping them would fail validation or wipe a stored value on every save.
+
+  /** The licence whose drawer is open, or null. */
+  drawerLicence: License | null = null;
+
+  /** Machine ids serving more than one client — the dev PC and the hosted server. */
+  sharedMachines: Set<string> | null = null;
+
+  // Business features save their own way: it re-mints licence keys, which must not ride along
+  // on a press of "Save changes" for a renamed shop.
+  featuresSaving = false;
+  featuresMsg = '';
+  featuresError = '';
+  featuresConfirm = false;
+  remintOutcomes: RemintOutcome[] = [];
 
   // License management
   clientLicenses: License[] = [];
@@ -76,6 +99,7 @@ export class ClientFormComponent implements OnInit {
 
   readonly storeTypeValues = ['mobile', 'grocery', 'packaging', 'nutsdairy', 'variety', 'clothing', 'pharmacy', 'hardware', 'bookstore', 'cafe', 'general', 'restaurant', 'supermarket', 'electronics', 'wholesale'];
   readonly buildTargetValues = ['win', 'winx86', 'win7', 'mac', 'linux'];
+  readonly baseCurrencyValues = ['USD', 'SYP'];
   readonly paymentMethodValues = ['CASH', 'SHAM_CASH', 'BANK_TRANSFER', 'WESTERN_UNION', 'OTHER'];
   readonly paymentMethodLabels: Record<string, string> = {
     CASH: 'Cash', SHAM_CASH: 'شام كاش', BANK_TRANSFER: 'Bank Transfer',
@@ -103,13 +127,6 @@ export class ClientFormComponent implements OnInit {
     this.form?.get('features.' + key)?.setValue(value);
     this.form?.markAsDirty();
   }
-
-  // Only primary + secondary are client-brandable; success/danger/warning/info
-  // keep their framework defaults (set on the entity, not edited here).
-  readonly colorFields = [
-    { key: 'colorPrimary',   labelKey: 'colorPrimary' },
-    { key: 'colorSecondary', labelKey: 'colorSecondary' }
-  ];
 
   constructor(
     private fb: FormBuilder,
@@ -155,6 +172,15 @@ export class ClientFormComponent implements OnInit {
       phone:                 [''],
       email:                 [''],
       pointOfContact:        [''],
+      // Business address and base currency both ride in the v2 licence profile, where they
+      // pre-fill the shop's mandatory setup screen on a fresh install. The address had a column
+      // and a payload slot but no DTO field at all, so the portal could never set one; the
+      // currency was dropped from the UI when the device started choosing its own, which left
+      // the licence carrying whatever was last stored and licencePreviewSummary reading a
+      // control that did not exist. Neither can override a shop that already locked a currency:
+      // the desktop treats both as a pre-selection and refuses anything contradicting its lock.
+      address:               [''],
+      baseCurrency:          ['USD'],
       defaultBuildTarget:    ['win'],
       clientNotes:           [''],
       // Defaults for a NEW client: every feature enabled except seedDemoData
@@ -235,6 +261,14 @@ export class ClientFormComponent implements OnInit {
           phone:             client.phone              ?? '',
           email:             client.email              ?? '',
           pointOfContact:    client.pointOfContact     ?? '',
+          address:           client.address            ?? '',
+          baseCurrency:      client.baseCurrency       ?? 'USD',
+          // No input renders these any more, so a null in the database would make the form
+          // permanently invalid with nothing on screen to explain why — the request DTO marks
+          // all three @NotBlank. Coalesce to the same defaults a new client gets.
+          logoDark:          client.logoDark           || 'assets/brand/logo.png',
+          colorPrimary:      client.colorPrimary       || '#667eea',
+          colorSecondary:    client.colorSecondary     || '#764ba2',
           defaultBuildTarget: client.defaultBuildTarget ?? 'win',
           clientNotes:       client.clientNotes        ?? '',
           features: {
@@ -279,42 +313,126 @@ export class ClientFormComponent implements OnInit {
           }
         });
       });
-      // Loaded eagerly (not just on tab switch) so the read-only computed
-      // status badge on the Business tab has license/billing data available.
+      // Loaded eagerly so the profile card, the licence cards and the payment
+      // totals all have their data on first paint — there is no tab left to defer behind.
       this.loadClientLicenses();
       this.loadClientBillings();
+      this.loadSharedMachines();
     }
   }
 
-  // ── Tab helpers ──────────────────────────────────────────────────────────────
 
-  switchTab(tab: 'business' | 'branding' | 'features' | 'billing' | 'license'): void {
-    this.activeTab = tab;
+  // ── Business features — their own save ───────────────────────────────────────
+
+  /**
+   * Saving the business feature set RE-MINTS every live licence key for this client, so it is
+   * its own confirmed action rather than a passenger on "Save changes". A shop that was renamed
+   * should not have its keys re-signed as a side effect.
+   *
+   * <p>Only the flags this save actually changed may be switched off in a key (the backend's
+   * `removableFlags`), so an unrelated toggle cannot strip a feature a shop is currently
+   * running. Taking one back across the board is the owner-run reconcile, not this.
+   */
+  askSaveFeatures(): void {
+    this.featuresConfirm = true;
+    this.featuresError = '';
+    this.featuresMsg = '';
+    this.remintOutcomes = [];
   }
 
-  // ── Image upload ─────────────────────────────────────────────────────────────
+  cancelSaveFeatures(): void {
+    this.featuresConfirm = false;
+  }
 
-  onImageUpload(field: string, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    if (file.size > 512 * 1024) {
-      this.error = this.translationService.instant('imageTooLarge', {
-        name: file.name,
-        size: Math.round(file.size / 1024)
+  saveFeatures(): void {
+    if (!this.clientCode || this.featuresSaving) return;
+    this.featuresSaving = true;
+    this.featuresError = '';
+    this.featuresMsg = '';
+    this.remintOutcomes = [];
+    this.clientService.updateFeatures(this.clientCode, this.businessFeatures as Partial<ClientFeatures>)
+      .subscribe({
+        next: (res) => {
+          this.featuresSaving = false;
+          this.featuresConfirm = false;
+          this.remintOutcomes = res.remintOutcomes ?? [];
+          // The save stands even when minting failed; say which happened rather than one
+          // message that could mean either.
+          this.featuresError = res.remintError ?? '';
+          this.featuresMsg = this.translationService.instant('featuresSaved');
+          this.loadClientLicenses();
+        },
+        error: (err) => {
+          this.featuresSaving = false;
+          this.featuresConfirm = false;
+          this.featuresError = err?.error?.error || err?.error?.message
+            || this.translationService.instant('saveFailed');
+        }
       });
-    } else {
-      this.error = '';
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => { this.form.get(field)?.setValue(reader.result as string); };
-    reader.readAsDataURL(file);
   }
 
-  isDataUrl(value: string | null): boolean {
-    return !!value?.startsWith('data:');
+  get remintedCount(): number {
+    return this.remintOutcomes.filter(o => o.minted).length;
+  }
+
+  get remintSkipped(): RemintOutcome[] {
+    return this.remintOutcomes.filter(o => !o.minted);
+  }
+
+  // ── Licence drawer ───────────────────────────────────────────────────────────
+
+  openDrawer(licence: License): void {
+    this.drawerLicence = licence;
+  }
+
+  closeDrawer(): void {
+    this.drawerLicence = null;
+  }
+
+  /**
+   * The drawer re-minted a key and handed back the updated licence. Replace it in place rather
+   * than reloading the list, so the drawer does not lose the row it is showing mid-edit; the
+   * full reload happens when the drawer closes.
+   */
+  onLicenceChanged(updated: License): void {
+    this.clientLicenses = this.clientLicenses.map(l => l.id === updated.id ? updated : l);
+    this.drawerLicence = updated;
+  }
+
+  /** Payments booked against one licence. Rows with no licenceId are counted separately. */
+  paidTotalFor(licenceId: number): number {
+    return this.clientBillings
+      .filter(b => b.licenseId === licenceId)
+      .reduce((sum, b) => sum + (b.amount ? +b.amount : 0), 0);
+  }
+
+  paymentsFor(licenceId: number): Billing[] {
+    return this.clientBillings.filter(b => b.licenseId === licenceId);
+  }
+
+  /** Payments that predate per-licence billing — four such rows exist in production. */
+  get unassignedPayments(): Billing[] {
+    return this.clientBillings.filter(b => !b.licenseId);
+  }
+
+  get unassignedPaidTotal(): number {
+    return this.unassignedPayments.reduce((sum, b) => sum + (b.amount ? +b.amount : 0), 0);
+  }
+
+  get liveLicenceCount(): number {
+    return this.clientLicenses.filter(l => isLicenceLive(l)).length;
+  }
+
+  /**
+   * The dev/hosted badges need the WHOLE fleet: a machine id is shared only relative to other
+   * clients, which this client's own licences cannot show. One extra call, and a failure leaves
+   * `sharedMachines` null — a missing badge, never a wrong one.
+   */
+  private loadSharedMachines(): void {
+    this.licenseService.getAll().subscribe({
+      next: (all) => this.sharedMachines = sharedMachineIds(all),
+      error: () => this.sharedMachines = null
+    });
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
@@ -453,6 +571,11 @@ export class ClientFormComponent implements OnInit {
         this.licenseRevoking = false;
         this.licenseRevokeTarget = null;
         this.loadClientLicenses();
+        // The drawer holds a COPY of the licence, so leaving it open after a revoke or a renew
+        // would show the old status and expiry until the user closed it by hand — and its
+        // actions would act on a row that no longer looks like that. Close it; the refreshed
+        // card behind it is the honest view.
+        this.closeDrawer();
       },
       error: (err) => {
         this.licenseRevoking = false;
@@ -479,6 +602,11 @@ export class ClientFormComponent implements OnInit {
         this.licenseRenewing = false;
         this.licenseRenewTarget = null;
         this.loadClientLicenses();
+        // The drawer holds a COPY of the licence, so leaving it open after a revoke or a renew
+        // would show the old status and expiry until the user closed it by hand — and its
+        // actions would act on a row that no longer looks like that. Close it; the refreshed
+        // card behind it is the honest view.
+        this.closeDrawer();
       },
       error: (err) => {
         this.licenseRenewing = false;

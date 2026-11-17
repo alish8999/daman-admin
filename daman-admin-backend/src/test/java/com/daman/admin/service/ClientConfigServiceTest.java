@@ -502,4 +502,55 @@ class ClientConfigServiceTest {
 
         assertThat(service.export("acme").getFeatures().isGoogleDriveBackup()).isFalse();
     }
+
+    /**
+     * The business ADDRESS must survive a save and come back out again.
+     *
+     * <p>It had a column on {@code ClientConfig} and a slot in the v2 licence profile — where it
+     * pre-fills the shop's mandatory setup screen on a fresh install — but no field on either
+     * DTO, so the portal could neither set it nor show it. Every manually created client
+     * therefore carried a null address forever; only a trial registration, which writes the
+     * entity directly, ever populated one.
+     */
+    @Test
+    void update_persistsAddressAndReturnsItInTheDto() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setFeaturesJson("{}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Acme POS");
+        request.setAddress("Damascus - Baghdad St.");
+
+        var dto = service.update("acme", request);
+
+        assertThat(entity.getAddress()).isEqualTo("Damascus - Baghdad St.");
+        assertThat(dto.getAddress()).isEqualTo("Damascus - Baghdad St.");
+    }
+
+    /**
+     * The address also has to reach the licence, which is the whole reason it is collected: the
+     * v2 payload's {@code profile} is what the desktop reads to fill its setup screen.
+     */
+    @Test
+    void licenseEntitlements_carryTheAddressInTheProfile() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setAddress("Damascus - Baghdad St.");
+        entity.setFeaturesJson("{}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+
+        assertThat(service.licenseEntitlementsFor("acme").profile().address())
+                .isEqualTo("Damascus - Baghdad St.");
+    }
 }

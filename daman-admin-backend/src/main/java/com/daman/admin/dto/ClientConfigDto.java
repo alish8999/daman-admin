@@ -31,6 +31,7 @@ public class ClientConfigDto {
     private String phone;
     private String email;
     private String pointOfContact;
+    private String address;
     private String defaultBuildTarget;
     private FeaturesDto features;
     private LocalDateTime createdAt;

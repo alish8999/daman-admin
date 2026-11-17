@@ -344,6 +344,7 @@ public class ClientConfigService {
         entity.setPhone(request.getPhone());
         entity.setEmail(request.getEmail());
         entity.setPointOfContact(request.getPointOfContact());
+        entity.setAddress(request.getAddress());
         if (request.getDefaultBuildTarget() != null && !request.getDefaultBuildTarget().isBlank()) {
             entity.setDefaultBuildTarget(request.getDefaultBuildTarget());
         }
@@ -577,6 +578,7 @@ public class ClientConfigService {
                 .phone(c.getPhone())
                 .email(c.getEmail())
                 .pointOfContact(c.getPointOfContact())
+                .address(c.getAddress())
                 .defaultBuildTarget(c.getDefaultBuildTarget() != null ? c.getDefaultBuildTarget() : "win")
                 .features(toDtoFeatures(c.getFeaturesJson()))
                 .createdAt(c.getCreatedAt())

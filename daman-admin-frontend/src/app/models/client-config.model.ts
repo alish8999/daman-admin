@@ -169,6 +169,8 @@ export interface ClientConfig {
   phone?: string;
   email?: string;
   pointOfContact?: string;
+  /** Business address. Rides in the v2 licence profile and pre-fills the shop's setup screen. */
+  address?: string;
   defaultBuildTarget?: string;
   features?: ClientFeatures;
   createdAt?: string;

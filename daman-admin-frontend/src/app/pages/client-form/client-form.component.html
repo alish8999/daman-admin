@@ -26,113 +26,89 @@
     <div class="alert alert-success py-2 mb-3">{{ savedMsg }}</div>
   }
 
-  <!-- ── Tab Nav ──────────────────────────────────────────────────────────── -->
-  <ul class="nav nav-tabs mb-4">
-    <li class="nav-item">
-      <button type="button" class="nav-link" [class.active]="activeTab === 'business'" (click)="switchTab('business')">
-        <i class="bi bi-building me-1"></i>{{ 'tabBusiness' | t }}
-      </button>
-    </li>
-    <li class="nav-item">
-      <button type="button" class="nav-link" [class.active]="activeTab === 'branding'" (click)="switchTab('branding')">
-        <i class="bi bi-palette me-1"></i>{{ 'tabBranding' | t }}
-      </button>
-    </li>
-    <li class="nav-item">
-      <button type="button" class="nav-link" [class.active]="activeTab === 'features'" (click)="switchTab('features')">
-        <i class="bi bi-toggles me-1"></i>{{ 'tabFeatures' | t }}
-      </button>
-    </li>
-    @if (isEditMode) {
-      <li class="nav-item">
-        <button type="button" class="nav-link" [class.active]="activeTab === 'billing'" (click)="switchTab('billing')">
-          <i class="bi bi-receipt me-1"></i>{{ 'tabBilling' | t }}
-        </button>
-      </li>
-      <li class="nav-item">
-        <button type="button" class="nav-link" [class.active]="activeTab === 'license'" (click)="switchTab('license')">
-          <i class="bi bi-key me-1"></i>{{ 'tabLicense' | t }}
-        </button>
-      </li>
-    }
-  </ul>
-
   <!-- ══════════════════════════════════════════════════════════════════════
-       FORM — contains Business, Branding, Features tabs
+       1 — SHOP PROFILE
+       The five fields below are the ones the licence carries, so they are shown
+       together and marked as such. Branding is deliberately absent: the shop owns
+       its own logo and theme (the licence colours are only a baseline the POS's
+       saved theme sits on top of). Those controls still exist on the FormGroup,
+       unrendered, because the request DTO marks them @NotBlank.
        ══════════════════════════════════════════════════════════════════════ -->
   <form [formGroup]="form" (ngSubmit)="save()">
 
-    <!-- ════════════════════════════════════════════════════════════════════
-         TAB 1 — Business & Billing
-         ════════════════════════════════════════════════════════════════════ -->
-    <div [hidden]="activeTab !== 'business'">
+    <div class="bg-white rounded shadow-sm p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <h6 class="text-muted mb-0">{{ 'clientProfile' | t }}</h6>
+        <span class="status-pill status-pill--success">{{ 'licenceSeedFields' | t }}</span>
+      </div>
+      <p class="text-muted small mb-3">{{ 'licenceSeedFieldsHint' | t }}</p>
 
-      <div class="bg-white rounded shadow-sm p-4 mb-4">
-
-        <!-- App Info -->
-        <h6 class="text-muted mb-3">{{ 'appInfo' | t }}</h6>
-        <div class="row g-3 mb-4">
-          @if (isEditMode) {
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">{{ 'clientCode' | t }}</label>
-              <input class="form-control font-monospace bg-light" [value]="clientCode" readonly disabled>
-              <div class="form-text">{{ 'clientCodeHint' | t }}</div>
-            </div>
+      <div class="row g-3">
+        @if (isEditMode) {
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ 'clientCode' | t }}</label>
+            <input class="form-control font-monospace bg-light" [value]="clientCode" readonly disabled>
+            <div class="form-text">{{ 'clientCodeHint' | t }}</div>
+          </div>
+        }
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">{{ 'appName' | t }}</label>
+          <input formControlName="appName" class="form-control" [placeholder]="'appNamePlaceholder' | t">
+          @if (!isEditMode) {
+            <div class="form-text">{{ 'clientCodeAutoHint' | t }}</div>
           }
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ 'appName' | t }}</label>
-            <input formControlName="appName" class="form-control" [placeholder]="'appNamePlaceholder' | t">
-            @if (!isEditMode) {
-              <div class="form-text">{{ 'clientCodeAutoHint' | t }}</div>
-            }
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
-            <select formControlName="storeType" class="form-select">
-              @for (value of storeTypeValues; track value) {
-                <option [value]="value">{{ ('storeType.' + value) | t }}</option>
-              }
-            </select>
-            <div class="form-text">{{ 'storeTypeHint' | t }}</div>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ 'defaultBuildTarget' | t }}</label>
-            <select formControlName="defaultBuildTarget" class="form-select">
-              @for (value of buildTargetValues; track value) {
-                <option [value]="value">{{ ('buildTarget.' + value) | t }}</option>
-              }
-            </select>
-            <div class="form-text">{{ 'defaultBuildTargetHint' | t }}</div>
-          </div>
         </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">{{ 'storeType' | t }}</label>
+          <select formControlName="storeType" class="form-select">
+            @for (value of storeTypeValues; track value) {
+              <option [value]="value">{{ ('storeType.' + value) | t }}</option>
+            }
+          </select>
+          <div class="form-text">{{ 'storeTypeNotAppliedHint' | t }}</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">{{ 'address' | t }}</label>
+          <input formControlName="address" class="form-control" [placeholder]="'addressPlaceholder' | t">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">{{ 'phone' | t }}</label>
+          <input formControlName="phone" class="form-control" [placeholder]="'phonePlaceholder' | t">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">{{ 'baseCurrency' | t }}</label>
+          <select formControlName="baseCurrency" class="form-select">
+            @for (value of baseCurrencyValues; track value) {
+              <option [value]="value">{{ value }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">{{ 'clientNotes' | t }}</label>
+          <textarea formControlName="clientNotes" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
 
-      </div><!-- /app info card -->
-
-      <!-- ── Contact / Credentials / Footer ──────────────────────────────── -->
-      <div class="bg-white rounded shadow-sm p-4 mb-4">
-
-        <!-- Contact -->
-        <h6 class="text-muted mb-3"><i class="bi bi-person-lines-fill me-1"></i>{{ 'contactInformation' | t }}</h6>
-        <div class="row g-3 mb-4">
+      <!-- Rarely touched, and none of it describes the shop — collapsed, not a tab. -->
+      <details class="admin-details mt-3">
+        <summary>{{ 'advancedSettings' | t }}</summary>
+        <div class="row g-3 mt-1">
           <div class="col-md-4">
             <label class="form-label">{{ 'pointOfContact' | t }}</label>
             <input formControlName="pointOfContact" class="form-control" [placeholder]="'pointOfContactPlaceholder' | t">
           </div>
           <div class="col-md-4">
-            <label class="form-label">{{ 'phone' | t }}</label>
-            <input formControlName="phone" class="form-control" [placeholder]="'phonePlaceholder' | t">
-          </div>
-          <div class="col-md-4">
             <label class="form-label">{{ 'email' | t }}</label>
             <input formControlName="email" class="form-control" type="email" [placeholder]="'emailPlaceholder' | t">
           </div>
-        </div>
-
-        <hr>
-
-        <!-- Admin Credentials -->
-        <h6 class="text-muted mb-3"><i class="bi bi-shield-lock me-1"></i>{{ 'adminCredentials' | t }}</h6>
-        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="form-label">{{ 'defaultBuildTarget' | t }}</label>
+            <select formControlName="defaultBuildTarget" class="form-select">
+              @for (value of buildTargetValues; track value) {
+                <option [value]="value">{{ ('buildTarget.' + value) | t }}</option>
+              }
+            </select>
+          </div>
           <div class="col-md-6">
             <label class="form-label">{{ 'username' | t }}</label>
             <input formControlName="adminUsername" class="form-control font-monospace" [placeholder]="'usernamePlaceholder' | t">
@@ -148,13 +124,6 @@
             </div>
             <div class="form-text">{{ 'adminCredentialsHint' | t }}</div>
           </div>
-        </div>
-
-        <hr>
-
-        <!-- Footer -->
-        <h6 class="text-muted mb-3"><i class="bi bi-info-circle me-1"></i>{{ 'footer' | t }}</h6>
-        <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">{{ 'developerName' | t }}</label>
             <input formControlName="footerDeveloper" class="form-control" [placeholder]="'developerNamePlaceholder' | t">
@@ -164,156 +133,225 @@
             <input formControlName="footerUrl" class="form-control" [placeholder]="'developerUrlPlaceholder' | t">
           </div>
         </div>
+      </details>
 
-      </div>
-    </div><!-- /business tab -->
-
-    <!-- ════════════════════════════════════════════════════════════════════
-         TAB 2 — Branding
-         ════════════════════════════════════════════════════════════════════ -->
-    <div [hidden]="activeTab !== 'branding'">
-      <div class="bg-white rounded shadow-sm p-4 mb-4">
-
-        <h6 class="text-muted mb-3">{{ 'branding' | t }}</h6>
-
-        <div class="row g-3 mb-4">
-
-          <div class="col-md-6">
-            <label class="form-label">{{ 'logoLabel' | t }}</label>
-            <div class="upload-preview-box bg-dark rounded mb-2">
-              @if (isDataUrl(form.get('logoDark')?.value)) {
-                <img [src]="form.get('logoDark')?.value" [alt]="'logoLabel' | t" class="upload-preview-img">
-              } @else {
-                <span class="upload-placeholder text-secondary">{{ 'noImageUploaded' | t }}</span>
-              }
-            </div>
-            <div class="d-flex gap-2">
-              <label class="btn btn-sm btn-outline-secondary mb-0">
-                {{ 'upload' | t }}
-                <input type="file" accept="image/*" hidden (change)="onImageUpload('logoDark', $event)">
-              </label>
-              <input formControlName="logoDark" class="form-control form-control-sm font-monospace"
-                     [placeholder]="'logoDarkPlaceholder' | t">
-            </div>
-          </div>
-
-        </div>
-
-        <hr>
-        <h6 class="text-muted mb-3">{{ 'themeColors' | t }}</h6>
-
-        <div class="row g-3 mb-4">
-          @for (field of colorFields; track field.key) {
-            <div class="col-md-4">
-              <label class="form-label">{{ field.labelKey | t }}</label>
-              <div class="color-input-group">
-                <input type="color" [formControlName]="field.key" class="form-control form-control-color">
-                <input type="text" [formControlName]="field.key" class="form-control font-monospace"
-                       [placeholder]="'colorHexPlaceholder' | t">
-              </div>
-            </div>
-          }
-        </div>
-
-        <hr>
-        <h6 class="text-muted mb-3">{{ 'dashboard' | t }}</h6>
-
-        <div class="col-12">
-          <label class="form-label fw-semibold">{{ 'dashboardHeaderImage' | t }}</label>
-          <p class="text-muted small mb-2">{{ 'dashboardHeaderImageHint' | t }}</p>
-
-          @if (form.get('dashboardHeaderImage')?.value) {
-            <div class="dashboard-preview mb-2 rounded overflow-hidden position-relative"
-                 style="height: 90px; background: #1e293b;">
-              <img [src]="form.get('dashboardHeaderImage')?.value"
-                   [alt]="'headerPreview' | t"
-                   style="width:100%;height:100%;object-fit:cover;opacity:0.85;">
-              <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-                   style="background:rgba(0,0,0,0.28);">
-                <span class="text-white fw-semibold small">{{ 'headerPreview' | t }}</span>
-              </div>
-            </div>
-          } @else {
-            <div class="dashboard-preview mb-2 rounded d-flex align-items-center justify-content-center"
-                 style="height: 90px; background: linear-gradient(135deg,#667eea,#764ba2);">
-              <span class="fw-semibold small" style="color:#fff">{{ 'defaultGradientPreview' | t }}</span>
-            </div>
-          }
-
-          <div class="d-flex gap-2 align-items-center">
-            <label class="btn btn-sm btn-outline-secondary mb-0">
-              {{ 'uploadImage' | t }}
-              <input type="file" accept="image/*" hidden (change)="onImageUpload('dashboardHeaderImage', $event)">
-            </label>
-            <input formControlName="dashboardHeaderImage" class="form-control form-control-sm font-monospace"
-                   [placeholder]="'dashboardHeaderPlaceholder' | t">
-            @if (form.get('dashboardHeaderImage')?.value) {
-              <button type="button" class="btn btn-sm btn-outline-danger"
-                      (click)="form.get('dashboardHeaderImage')?.setValue('')">{{ 'clear' | t }}</button>
-            }
-          </div>
-          <div class="form-text">{{ 'dashboardImageFormatsHint' | t }}</div>
-        </div>
-
-      </div>
-    </div><!-- /branding tab -->
-
-    <!-- ════════════════════════════════════════════════════════════════════
-         TAB 3 — Features
-         ════════════════════════════════════════════════════════════════════ -->
-    <div [hidden]="activeTab !== 'features'">
-      <div class="bg-white rounded shadow-sm p-4 mb-4">
-        <!-- The grid is a shared component (app-feature-grid) so the licence drawer renders the
-             identical catalogue. The form stays the source of truth here: it feeds the current
-             values down and takes each toggle back. -->
-        <app-feature-grid
-          mode="business"
-          [features]="businessFeatures"
-          (toggle)="setBusinessFeature($event.key, $event.value)">
-        </app-feature-grid>
-      </div>
-    </div><!-- /features tab -->
-
-    <!-- ── Save Button (business, branding, features tabs only) ───────── -->
-    @if (activeTab !== 'license' && activeTab !== 'billing') {
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 mt-4">
         <button type="submit" class="btn btn-primary" [disabled]="form.invalid || saving">
-          @if (saving) {
-            {{ 'saving' | t }}
-          } @else {
-            {{ (isEditMode ? 'saveChanges' : 'createClient') | t }}
-          }
+          @if (saving) { {{ 'saving' | t }} } @else { {{ (isEditMode ? 'saveChanges' : 'createClient') | t }} }
         </button>
         <a routerLink="/clients" class="btn btn-outline-secondary">{{ 'cancel' | t }}</a>
       </div>
-    }
-
+    </div>
   </form>
 
-  <!-- ════════════════════════════════════════════════════════════════════
-       TAB 4 — Billing  (outside the reactive form, edit mode only)
-       ════════════════════════════════════════════════════════════════════ -->
-  @if (isEditMode) {
-    <div [hidden]="activeTab !== 'billing'">
+  <!-- ══════════════════════════════════════════════════════════════════════
+       2 — SHOP FEATURES
+       Outside the <form> on purpose: this has its own save, because saving it
+       re-mints licence keys. A passenger on "Save changes" would re-sign every
+       key for a renamed shop.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="bg-white rounded shadow-sm p-4 mb-4">
+    <h6 class="text-muted mb-1">{{ 'businessFeatures' | t }}</h6>
+    <p class="text-muted small mb-3">{{ 'businessFeaturesHint' | t }}</p>
 
-      @if (billingsLoading) {
-        <div class="text-center py-5">
+    <app-feature-grid
+      mode="business"
+      [features]="businessFeatures"
+      [disabled]="featuresSaving"
+      (toggle)="setBusinessFeature($event.key, $event.value)">
+    </app-feature-grid>
+
+    @if (featuresError) {
+      <div class="alert alert-warning py-2 mt-3 mb-0">{{ featuresError }}</div>
+    }
+    @if (featuresMsg) {
+      <div class="alert alert-success py-2 mt-3 mb-0">
+        {{ featuresMsg }}
+        @if (isEditMode) {
+          — <span class="ltr-num">{{ remintedCount }}</span>
+          {{ (remintedCount === 1 ? 'remintSummaryOne' : 'remintSummaryMany') | t }}
+          @if (remintSkipped.length) {
+            , <span class="ltr-num">{{ remintSkipped.length }}</span> {{ 'remintSkippedSuffix' | t }}
+          }
+        }
+      </div>
+    }
+    @if (remintSkipped.length) {
+      <ul class="text-muted small mt-2 mb-0">
+        @for (o of remintSkipped; track o.licenceId) {
+          <li><code dir="ltr">{{ truncate(o.machineId ?? '', 12) }}</code> — {{ o.skippedReason }}</li>
+        }
+      </ul>
+    }
+
+    @if (isEditMode) {
+      <div class="mt-3">
+        @if (!featuresConfirm) {
+          <button type="button" class="btn btn-primary" [disabled]="featuresSaving" (click)="askSaveFeatures()">
+            {{ 'saveFeatures' | t }}
+          </button>
+        } @else {
+          <div class="drawer-notice drawer-notice--warning mb-2">
+            <div class="fw-semibold">{{ 'saveFeaturesConfirmTitle' | t }}</div>
+            <div class="small">{{ 'saveFeaturesConfirmBody' | t }}</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" [disabled]="featuresSaving" (click)="saveFeatures()">
+              @if (featuresSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+              {{ 'saveFeatures' | t }}
+            </button>
+            <button type="button" class="btn btn-outline-secondary" (click)="cancelSaveFeatures()">{{ 'cancel' | t }}</button>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="text-muted small mt-3 mb-0">{{ 'createClient' | t }} &rarr; {{ 'businessFeaturesHint' | t }}</p>
+    }
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       3 — LICENCES  (edit mode only)
+       A card per licence, opening the drawer. This is the shape that makes the
+       portal say Client → Licence → Features; the old table said nothing.
+       ══════════════════════════════════════════════════════════════════════ -->
+  @if (isEditMode) {
+    <div class="bg-white rounded shadow-sm p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+          <h6 class="text-muted mb-0">
+            {{ 'licencesSection' | t }}
+            @if (clientLicenses.length) {
+              <span class="text-muted small ms-2 ltr-num">{{ liveLicenceCount }}/{{ clientLicenses.length }}</span>
+              <span class="text-muted small">{{ 'licencesLiveCount' | t }}</span>
+            }
+          </h6>
+        </div>
+        @if (!showGenerateForm) {
+          <button type="button" class="btn btn-sm btn-primary" (click)="openGenerateForm()">
+            <i class="bi bi-plus me-1"></i>{{ 'newLicense' | t }}
+          </button>
+        } @else {
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancelGenerateForm()">
+            {{ 'cancel' | t }}
+          </button>
+        }
+      </div>
+
+      @if (showGenerateForm) {
+        <div class="border rounded p-3 mb-3">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{{ 'machineId' | t }} *</label>
+              <input type="text" class="form-control font-monospace" dir="ltr"
+                     [(ngModel)]="generateForm.machineId" [placeholder]="'machineIdPlaceholder' | t">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">{{ 'licenseLabel' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
+              <input type="text" class="form-control" [(ngModel)]="generateForm.label"
+                     [placeholder]="'licenseLabelPlaceholder' | t">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">{{ 'expiresAt' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
+              <input type="date" class="form-control" [(ngModel)]="generateForm.expiresAt">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button type="button" class="btn btn-primary w-100"
+                      [disabled]="!generateForm.machineId.trim() || generating" (click)="generateLicense()">
+                @if (generating) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                {{ 'generate' | t }}
+              </button>
+            </div>
+            <div class="col-12">
+              <div class="form-text">
+                <i class="bi bi-info-circle me-1"></i>{{ 'licenceWillBake' | t }}: <code dir="ltr">{{ licencePreviewSummary }}</code>
+                <span class="text-muted">({{ 'licenceWillBakeHint' | t }})</span>
+              </div>
+            </div>
+          </div>
+
+          @if (generateError) {
+            <div class="alert alert-danger mt-3 mb-0">{{ generateError }}</div>
+          }
+
+          @if (generatedResult) {
+            <div class="alert alert-success mt-3 mb-0">
+              <div class="fw-semibold mb-1">{{ 'licenseGenerated' | t }}</div>
+              <code class="d-block bg-light text-dark p-2 rounded border mb-2" dir="ltr"
+                    style="word-break:break-all;font-size:.8rem;">{{ generatedResult.licenseKey }}</code>
+              <button type="button" class="btn btn-sm btn-outline-success me-1" (click)="copyKey(generatedResult!.licenseKey)">
+                {{ licenseCopied ? ('copied' | t) : ('copyKey' | t) }}
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      (click)="downloadDat(clientCode!, generatedResult!.licenseKey)">
+                <i class="bi bi-download me-1"></i>{{ 'downloadDat' | t }}
+              </button>
+            </div>
+          }
+        </div>
+      }
+
+      @if (licensesLoading) {
+        <div class="text-center py-4">
           <div class="spinner-border text-primary"></div>
-          <p class="mt-2 text-muted">{{ 'loadingBillings' | t }}</p>
+        </div>
+      } @else if (clientLicenses.length === 0) {
+        <!-- Review Focus 1: an invitation, not a bare zero. A client with no licence
+             cannot run the app at all, which the empty state has to say out loud. -->
+        <div class="text-center text-muted py-4">
+          <div class="fs-1 mb-2">🔑</div>
+          <div class="fw-semibold mb-1">{{ 'noLicencesYetTitle' | t }}</div>
+          <div class="small mb-3">{{ 'noLicencesYetBody' | t }}</div>
+          @if (!showGenerateForm) {
+            <button type="button" class="btn btn-sm btn-primary" (click)="openGenerateForm()">
+              <i class="bi bi-plus me-1"></i>{{ 'newLicense' | t }}
+            </button>
+          }
         </div>
       } @else {
+        <div class="d-flex flex-column gap-2">
+          @for (lic of clientLicenses; track lic.id) {
+            <app-licence-card
+              [licence]="lic"
+              [sharedMachines]="sharedMachines"
+              [paidTotal]="paidTotalFor(lic.id)"
+              (open)="openDrawer($event)">
+            </app-licence-card>
+          }
+        </div>
+      }
+    </div>
+  }
 
-        <!-- Summary bar -->
-        @if (clientBillings.length > 0) {
-          <div class="bg-white rounded shadow-sm p-3 mb-4 d-flex gap-4 align-items-center flex-wrap">
+  <!-- ══════════════════════════════════════════════════════════════════════
+       4 — PAYMENTS  (edit mode only)
+       The per-licence list lives in the drawer, but the full ledger stays here:
+       adding, editing, printing an invoice and the rows that predate per-licence
+       billing all need somewhere to live, and the drawer is deliberately
+       read-only. The lifetime total across every licence is how the owner reads
+       the value of the relationship, so it is always visible.
+       ══════════════════════════════════════════════════════════════════════ -->
+  @if (isEditMode) {
+    <div class="bg-white rounded shadow-sm p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-2">
+        <div>
+          <h6 class="text-muted mb-1">{{ 'paymentsSection' | t }}</h6>
+          <div class="d-flex gap-4 flex-wrap align-items-baseline">
             <div>
-              <div class="text-muted small">{{ 'totalPaid' | t }}</div>
-              <div class="fw-bold fs-5 text-success">${{ totalBillingPaid | number:'1.0-2' }}</div>
+              <div class="text-muted small">{{ 'lifetimeTotal' | t }}</div>
+              <div class="fw-bold fs-5 text-success ltr-num">${{ totalBillingPaid | number:'1.0-2' }}</div>
             </div>
             <div>
               <div class="text-muted small">{{ 'billingRecords' | t }}</div>
-              <div class="fw-bold fs-5">{{ clientBillings.length }}</div>
+              <div class="fw-bold fs-5 ltr-num">{{ clientBillings.length }}</div>
             </div>
+            @if (unassignedPayments.length) {
+              <div>
+                <div class="text-muted small">{{ 'unassignedPayments' | t }}</div>
+                <div class="fw-semibold ltr-num">${{ unassignedPaidTotal | number:'1.0-2' }}
+                  <span class="text-muted small">({{ unassignedPayments.length }})</span>
+                </div>
+              </div>
+            }
             @if (latestBilling?.supportEndDate) {
               <div>
                 <div class="text-muted small">{{ 'supportUntil' | t }}</div>
@@ -326,13 +364,23 @@
                 </div>
               </div>
             }
-            <div class="ms-auto">
-              <button type="button" class="btn btn-sm btn-primary" (click)="openAddBillingForm()">
-                + {{ 'addPayment' | t }}
-              </button>
-            </div>
           </div>
-        }
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" (click)="openAddBillingForm()">
+          + {{ 'addPayment' | t }}
+        </button>
+      </div>
+
+      <details class="admin-details" [open]="showBillingForm">
+        <summary>{{ 'paymentHistory' | t }}</summary>
+        <div class="mt-3">
+      @if (billingsLoading) {
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary"></div>
+          <p class="mt-2 text-muted">{{ 'loadingBillings' | t }}</p>
+        </div>
+      } @else {
+
 
         <!-- Add / Edit form -->
         @if (showBillingForm) {
@@ -505,213 +553,27 @@
         }
 
       }<!-- /!billingsLoading -->
-    </div><!-- /billing tab div -->
-  }<!-- /isEditMode billing -->
-
-  <!-- ════════════════════════════════════════════════════════════════════
-       TAB 5 — License  (outside the reactive form, edit mode only)
-       ════════════════════════════════════════════════════════════════════ -->
-  @if (isEditMode) {
-    <div [hidden]="activeTab !== 'license'">
-
-      @if (licensesLoading) {
-        <div class="text-center py-5">
-          <div class="spinner-border text-primary"></div>
-          <p class="mt-2 text-muted">{{ 'loadingLicenses' | t }}</p>
         </div>
-      } @else {
-
-        <!-- Generate panel -->
-        <div class="bg-white rounded shadow-sm mb-4">
-          <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
-            <span class="fw-semibold"><i class="bi bi-plus-circle me-2"></i>{{ 'generateLicense' | t }}</span>
-            @if (!showGenerateForm) {
-              <button type="button" class="btn btn-sm btn-primary" (click)="openGenerateForm()">
-                <i class="bi bi-plus me-1"></i>{{ 'newLicense' | t }}
-              </button>
-            } @else {
-              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancelGenerateForm()">
-                {{ 'cancel' | t }}
-              </button>
-            }
-          </div>
-
-          @if (showGenerateForm) {
-            <div class="p-4">
-              <div class="row g-3">
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold">{{ 'machineId' | t }} *</label>
-                  <input type="text" class="form-control font-monospace"
-                         [(ngModel)]="generateForm.machineId"
-                         [placeholder]="'machineIdPlaceholder' | t">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">{{ 'licenseLabel' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
-                  <input type="text" class="form-control"
-                         [(ngModel)]="generateForm.label"
-                         [placeholder]="'licenseLabelPlaceholder' | t">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold">{{ 'expiresAt' | t }} <span class="text-muted">({{ 'optional' | t }})</span></label>
-                  <input type="date" class="form-control" [(ngModel)]="generateForm.expiresAt">
-                </div>
-                <div class="col-12">
-                  <div class="form-text mb-2">
-                    <i class="bi bi-info-circle me-1"></i>{{ 'licenceWillBake' | t }}: <code>{{ licencePreviewSummary }}</code>
-                    <span class="text-muted">({{ 'licenceWillBakeHint' | t }})</span>
-                  </div>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                  <button type="button" class="btn btn-primary w-100"
-                          [disabled]="!generateForm.machineId.trim() || generating"
-                          (click)="generateLicense()">
-                    @if (generating) {
-                      <span class="spinner-border spinner-border-sm me-1"></span>
-                    }
-                    {{ 'generate' | t }}
-                  </button>
-                </div>
-              </div>
-
-              @if (generateError) {
-                <div class="alert alert-danger mt-3 mb-0">{{ generateError }}</div>
-              }
-
-              @if (generatedResult) {
-                <div class="alert alert-success mt-3 mb-0">
-                  <div class="d-flex align-items-start gap-2">
-                    <i class="bi bi-check-circle-fill fs-5 mt-1 flex-shrink-0"></i>
-                    <div class="flex-grow-1">
-                      <div class="fw-semibold mb-1">{{ 'licenseGenerated' | t }}</div>
-                      <code class="d-block bg-light text-dark p-2 rounded border mb-2"
-                            style="word-break:break-all;font-size:.8rem;">
-                        {{ generatedResult.licenseKey }}
-                      </code>
-                      <button type="button" class="btn btn-sm btn-outline-success"
-                              (click)="copyKey(generatedResult!.licenseKey)">
-                        <i class="bi me-1" [class.bi-clipboard]="!licenseCopied" [class.bi-check2]="licenseCopied"></i>
-                        {{ licenseCopied ? ('copied' | t) : ('copyKey' | t) }}
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary"
-                              (click)="downloadDat(clientCode!, generatedResult!.licenseKey)">
-                        <i class="bi bi-download me-1"></i>{{ 'downloadDat' | t }}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              }
-            </div>
-          }
-
-          @if (!showGenerateForm && clientLicenses.length === 0) {
-            <div class="p-4 text-muted">{{ 'noLicensesYet' | t }}</div>
-          }
-        </div>
-
-        <!-- Licenses table -->
-        @if (clientLicenses.length > 0) {
-          <div class="bg-white rounded shadow-sm mb-4">
-            <div class="p-3 border-bottom fw-semibold">
-              <i class="bi bi-list-check me-2"></i>{{ 'existingLicenses' | t }}
-              <span class="badge bg-secondary ms-2">{{ clientLicenses.length }}</span>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-hover mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>{{ 'machineId' | t }}</th>
-                    <th>{{ 'licenseLabel' | t }}</th>
-                    <th>{{ 'status' | t }}</th>
-                    <th>{{ 'licenceVersionCol' | t }}</th>
-                    <th>{{ 'activatedAt' | t }}</th>
-                    <th>{{ 'expiresAt' | t }}</th>
-                    <th class="text-end">{{ 'actions' | t }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (lic of clientLicenses; track lic.id) {
-                    <tr>
-                      <td><code class="text-muted" style="font-size:.8rem;">{{ truncate(lic.machineId) }}</code></td>
-                      <td>
-                        @if (lic.label) {
-                          <span class="badge bg-light text-dark border" style="font-size:.72rem;">{{ lic.label }}</span>
-                        } @else {
-                          <span class="text-muted">—</span>
-                        }
-                      </td>
-                      <td>
-                        <span class="badge"
-                              [class.bg-success]="lic.status === 'ACTIVE' && !isLicenseExpired(lic)"
-                              [class.bg-danger]="lic.status === 'REVOKED' || isLicenseExpired(lic)"
-                              [class.bg-warning]="lic.status === 'ACTIVE' && (daysUntilExpiry(lic) ?? 999) < 14 && !isLicenseExpired(lic)"
-                              [class.text-dark]="lic.status === 'ACTIVE' && (daysUntilExpiry(lic) ?? 999) < 14 && !isLicenseExpired(lic)">
-                          {{ isLicenseExpired(lic) ? 'EXPIRED' : lic.status }}
-                        </span>
-                      </td>
-                      <td>
-                        <span class="badge"
-                              [class.bg-primary]="lic.payloadVersion === 2"
-                              [class.bg-secondary]="lic.payloadVersion !== 2">
-                          {{ lic.payloadVersion === 2 ? 'v2' : 'v1' }}
-                        </span>
-                      </td>
-                      <td class="text-muted small">{{ lic.activatedAt | date:'dd MMM yyyy' }}</td>
-                      <td>
-                        @if (!lic.expiresAt) {
-                          <span class="text-muted">∞ no expiry</span>
-                        } @else {
-                          {{ lic.expiresAt | date:'dd MMM yyyy' }}
-                          @if (daysUntilExpiry(lic) !== null && !isLicenseExpired(lic)) {
-                            <span class="text-muted small ms-1">({{ daysUntilExpiry(lic) | daysLeft }})</span>
-                          }
-                        }
-                      </td>
-                      <td class="text-end">
-                        <div class="d-flex gap-1 justify-content-end">
-                          <button type="button" class="btn btn-xs btn-outline-primary"
-                                  (click)="copyKey(lic.licenseKey)">
-                            ⎘ {{ 'copyKey' | t }}
-                          </button>
-                          <button type="button" class="btn btn-xs btn-outline-secondary"
-                                  (click)="downloadDat(clientCode!, lic.licenseKey)">
-                            <i class="bi bi-download me-1"></i>{{ 'downloadDat' | t }}
-                          </button>
-                          @if (lic.reissued) {
-                            <button type="button" class="btn btn-xs btn-outline-secondary"
-                                    [disabled]="revertingReissueId === lic.id"
-                                    (click)="revertReissue(lic.id)">
-                              ↺ {{ 'revertReissue' | t }}
-                            </button>
-                          }
-                          @if (lic.status === 'ACTIVE') {
-                            <button type="button" class="btn btn-xs btn-outline-warning"
-                                    (click)="openRenewModal(lic)">
-                              ↻ {{ 'renew' | t }}
-                            </button>
-                            <button type="button" class="btn btn-xs btn-outline-danger"
-                                    (click)="openRevokeConfirm(lic)">
-                              ✕ {{ 'revoke' | t }}
-                            </button>
-                          }
-                          <button type="button" class="btn btn-xs btn-outline-secondary"
-                                  (click)="deleteLicense(lic)">
-                            🗑 {{ 'delete' | t }}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        }
-
-      }<!-- /!licensesLoading -->
-    </div><!-- /license tab div -->
-  }<!-- /isEditMode -->
+      </details>
+    </div>
+  }
 
 </div><!-- /container -->
+
+<!-- ── Licence drawer ────────────────────────────────────────────────────── -->
+@if (drawerLicence) {
+  <app-licence-drawer
+    [licence]="drawerLicence"
+    [sharedMachines]="sharedMachines"
+    [payments]="paymentsFor(drawerLicence.id)"
+    (closed)="closeDrawer()"
+    (changed)="onLicenceChanged($event)"
+    (renew)="openRenewModal($event)"
+    (revoke)="openRevokeConfirm($event)"
+    (downloadDat)="downloadDat(clientCode!, $event.licenseKey)"
+    (revertReissue)="revertReissue($event.id)">
+  </app-licence-drawer>
+}
 
 <!-- ── Revoke Modal ──────────────────────────────────────────────────────── -->
 @if (licenseRevokeTarget) {

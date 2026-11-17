@@ -1253,3 +1253,44 @@ html[dir="rtl"] {
   }
 }
 
+
+/* ── Collapsed section ─────────────────────────────────────────────────────
+   A <details> that reads as part of the card rather than a browser widget.
+   Used for the things that are rarely touched and describe nobody's shop:
+   developer credentials, the footer, the payment ledger. They were tabs once,
+   which gave each of them the same weight as the licences. */
+.admin-details {
+  border-top: 1px solid var(--admin-border);
+  padding-top: .85rem;
+
+  > summary {
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--admin-text-muted);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+
+    &::-webkit-details-marker { display: none; }
+
+    /* A caret that turns, so the control says "there is more here" without a
+       library icon. Logical properties keep it pointing inward in both scripts. */
+    &::before {
+      content: "";
+      width: 0;
+      height: 0;
+      border-block: 4px solid transparent;
+      border-inline-start: 5px solid currentColor;
+      transition: transform .15s ease;
+    }
+
+    &:hover { color: var(--admin-text); }
+  }
+
+  &[open] > summary::before { transform: rotate(90deg); }
+}
+
+[dir="rtl"] .admin-details > summary::before { transform: scaleX(-1); }
+[dir="rtl"] .admin-details[open] > summary::before { transform: scaleX(-1) rotate(90deg); }

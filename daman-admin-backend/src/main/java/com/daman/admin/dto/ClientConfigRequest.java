@@ -65,6 +65,10 @@ public class ClientConfigRequest {
     private String phone;
     private String email;
     private String pointOfContact;
+
+    /** Business address. Travels in the v2 licence profile, where it pre-fills the shop's
+     *  mandatory setup screen on a fresh install, so it is collected here and nowhere else. */
+    private String address;
     private String defaultBuildTarget;
 
     private FeaturesRequest features;
