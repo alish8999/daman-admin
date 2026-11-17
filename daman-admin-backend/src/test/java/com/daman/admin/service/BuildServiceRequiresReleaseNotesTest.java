@@ -136,16 +136,16 @@ class BuildServiceRequiresReleaseNotesTest {
 
     @Test
     void aBlankVersionFallsBackToTheLatestRowTheAssetWriterWouldUse() {
-        // writeReleaseNotesAsset() resolves a blank version with findTopByOrderByReleaseDateDesc().
+        // writeReleaseNotesAsset() resolves a blank version with findTopByOrderByReleaseDateDescIdDesc().
         // The gate must resolve it the SAME way, or it would pass on one row and then ship another.
-        when(appVersionRepository.findTopByOrderByReleaseDateDesc())
+        when(appVersionRepository.findTopByOrderByReleaseDateDescIdDesc())
                 .thenReturn(Optional.of(version("1.3.5", "[EN]\n- Something real")));
         assertThatCode(() -> genericBuild("")).doesNotThrowAnyException();
     }
 
     @Test
     void aBlankVersionIsStillRefusedWhenTheLatestRowHasNoText() {
-        when(appVersionRepository.findTopByOrderByReleaseDateDesc())
+        when(appVersionRepository.findTopByOrderByReleaseDateDescIdDesc())
                 .thenReturn(Optional.of(version("1.3.5", "")));
         assertThatThrownBy(() -> genericBuild("")).isInstanceOf(IllegalStateException.class);
     }

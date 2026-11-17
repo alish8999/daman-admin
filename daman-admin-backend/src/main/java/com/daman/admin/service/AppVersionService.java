@@ -19,7 +19,7 @@ public class AppVersionService {
     private final ChangelogLibraryService changelogLibraryService;
 
     public List<AppVersionDto> findAll() {
-        return repository.findAllByOrderByReleaseDateDesc().stream().map(this::toDto).toList();
+        return repository.findAllByOrderByReleaseDateDescIdDesc().stream().map(this::toDto).toList();
     }
 
     public AppVersionDto create(AppVersionRequest req) {

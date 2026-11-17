@@ -165,7 +165,7 @@ class BuildServiceReleaseNotesAssetTest {
     /** No version passed: falls back to the newest release, as writeChangelog does. */
     @Test
     void fallsBackToTheLatestVersionWhenNoneRequested() throws Exception {
-        when(appVersionRepository.findTopByOrderByReleaseDateDesc())
+        when(appVersionRepository.findTopByOrderByReleaseDateDescIdDesc())
                 .thenReturn(Optional.of(version("9.9.9", "[EN]\n- Newest\n\n[AR]\n- الأحدث")));
 
         String json = runWriter(null);

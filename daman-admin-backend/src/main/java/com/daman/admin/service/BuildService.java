@@ -179,7 +179,7 @@ public class BuildService {
         boolean explicit = versionNumber != null && !versionNumber.isBlank();
         var versionOpt = explicit
                 ? appVersionRepository.findByVersionNumber(versionNumber)
-                : appVersionRepository.findTopByOrderByReleaseDateDesc();
+                : appVersionRepository.findTopByOrderByReleaseDateDescIdDesc();
 
         String label = explicit ? versionNumber : "the latest version";
 
@@ -448,7 +448,7 @@ public class BuildService {
         try {
             var versionOpt = (versionNumber != null && !versionNumber.isBlank())
                     ? appVersionRepository.findByVersionNumber(versionNumber)
-                    : appVersionRepository.findTopByOrderByReleaseDateDesc();
+                    : appVersionRepository.findTopByOrderByReleaseDateDescIdDesc();
             if (versionOpt.isEmpty() || versionOpt.get().getChangelogText() == null
                     || versionOpt.get().getChangelogText().isBlank()) {
                 return;
@@ -497,7 +497,7 @@ public class BuildService {
         try {
             var versionOpt = (versionNumber != null && !versionNumber.isBlank())
                     ? appVersionRepository.findByVersionNumber(versionNumber)
-                    : appVersionRepository.findTopByOrderByReleaseDateDesc();
+                    : appVersionRepository.findTopByOrderByReleaseDateDescIdDesc();
 
             if (versionOpt.isPresent()) {
                 var v = versionOpt.get();
@@ -537,7 +537,7 @@ public class BuildService {
         try {
             var versionOpt = (versionNumber != null && !versionNumber.isBlank())
                     ? appVersionRepository.findByVersionNumber(versionNumber)
-                    : appVersionRepository.findTopByOrderByReleaseDateDesc();
+                    : appVersionRepository.findTopByOrderByReleaseDateDescIdDesc();
 
             if (versionOpt.isPresent()) {
                 var v = versionOpt.get();
