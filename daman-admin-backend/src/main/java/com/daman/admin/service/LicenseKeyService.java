@@ -181,6 +181,49 @@ public class LicenseKeyService {
     }
 
     /**
+     * Re-signs an existing licence with a new feature set, <b>changing nothing else</b>.
+     *
+     * <p>This is how a feature change reaches a shop without a renewal: the key rotates in place,
+     * the desktop collects it from {@code /api/license/renewal} within 12 hours, and
+     * {@code PackagedClientFeatures} re-applies the entitlements live.
+     *
+     * <p><b>Deliberately not a call to {@link #generateLicense}.</b> A fresh mint rebuilds the
+     * payload from the client's current record, which would make a feature save also push any
+     * branding, contact, store-type or base-currency edit made since the key was issued. And
+     * {@code generateLicense}'s {@code trial} parameter defaults to false and emits nothing, so a
+     * fresh mint silently <b>drops {@code trial: true}</b> — which the desktop reads for its
+     * lock-screen wording. {@link LicenseReissueService} already drops it; this does not.
+     *
+     * <p>Returns {@code null} when {@code existingKey} does not verify (hand-edited, truncated,
+     * or not ours). A key we cannot verify must never be re-signed into one that validates:
+     * that would turn this into a laundering service for a forged payload. Never throws.
+     */
+    public String resignWithFeatures(String existingKey, java.util.Map<String, Boolean> features) {
+        try {
+            JsonNode verified = verifiedPayload(existingKey);
+            if (verified == null || !verified.isObject()) return null;
+
+            ObjectNode payload = (ObjectNode) verified.deepCopy();
+            ObjectNode f = mapper.createObjectNode();
+            if (features != null) features.forEach(f::put);
+            // set() replaces in place when the key exists (keeping field order) and appends when
+            // it does not — a v1-shaped payload with no features object gains one.
+            payload.set("features", f);
+
+            byte[] payloadBytes = mapper.writeValueAsBytes(payload);
+            Signature sig = Signature.getInstance("SHA256withRSA");
+            sig.initSign(privateKey);
+            sig.update(payloadBytes);
+
+            return Base64.getEncoder().encodeToString(payloadBytes) + "."
+                 + Base64.getEncoder().encodeToString(sig.sign());
+        } catch (Exception e) {
+            log.error("Could not re-sign licence with new features", e);
+            return null;
+        }
+    }
+
+    /**
      * Verifies a licence key's RSA signature and returns its payload, or {@code null} if the
      * signature does not check out, the key is malformed, or the payload is not JSON.
      *
