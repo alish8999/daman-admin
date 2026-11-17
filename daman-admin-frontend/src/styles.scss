@@ -6,9 +6,9 @@
 :root {
   --admin-sidebar-from: #06303f;
   --admin-sidebar-to: #0a4d68;
-  --admin-bg: #f4f7f8;
+  --admin-bg: #f8fafc;
   --admin-surface: #ffffff;
-  --admin-border: #e2e9eb;
+  --admin-border: #e2e8f0;
   --admin-text: #17222b;
   --admin-text-muted: #64757c;
   --admin-accent: #0a4d68;
@@ -21,6 +21,41 @@
   --admin-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
   --admin-shadow-md: 0 4px 18px rgba(16, 24, 40, 0.07);
   --admin-shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.14);
+
+  // Soft status pills: a tinted background with darker text of the same hue, never a
+  // saturated fill — and never applied to a whole row. A status is one fact about a record,
+  // so it gets a badge; washing the row in green made "active" shout louder than the client's
+  // own name and left every other row looking faulty by comparison.
+  --admin-pill-bg-success: #dcfce7;
+  --admin-pill-fg-success: #15803d;
+  --admin-pill-bg-warning: #fef3c7;
+  --admin-pill-fg-warning: #b45309;
+  --admin-pill-bg-neutral: #f1f5f9;
+  --admin-pill-fg-neutral: #475569;
+  --admin-pill-bg-danger: #fee2e2;
+  --admin-pill-fg-danger: #b91c1c;
+}
+
+// ── Status pill ─────────────────────────────────────────────────────────────
+// One class, four tones. Used wherever a record carries a state: client status,
+// licence liveness, build result, store health.
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--admin-pill-bg-neutral);
+  color: var(--admin-pill-fg-neutral);
+
+  &--success { background: var(--admin-pill-bg-success); color: var(--admin-pill-fg-success); }
+  &--warning { background: var(--admin-pill-bg-warning); color: var(--admin-pill-fg-warning); }
+  &--danger  { background: var(--admin-pill-bg-danger);  color: var(--admin-pill-fg-danger); }
 }
 
 * { box-sizing: border-box; }
@@ -610,9 +645,6 @@ html[dir="rtl"] body {
     box-shadow: inset 3px 0 0 var(--admin-accent);
   }
 
-  tbody tr.row--active td {
-    background: linear-gradient(90deg, rgba(22, 163, 74, 0.04), transparent 40%);
-  }
 
   // Numbers line up when they are tabular. Mixed-width digits in a money column
   // are the single clearest giveaway of an untended table.
@@ -915,12 +947,10 @@ html[dir="rtl"] body {
         box-shadow: 0 4px 14px rgba(17, 18, 43, 0.07);
       }
 
-      &.row--active { border-inline-start: 3px solid #16a34a; }
     }
 
     tbody td,
-    tbody tr:hover td,
-    tbody tr.row--active td {
+    tbody tr:hover td {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -980,14 +1010,6 @@ html[dir="rtl"] {
     // box-shadow takes physical offsets only: the accent edge must move to the right.
     tbody tr:hover { box-shadow: inset -3px 0 0 var(--admin-accent); }
 
-    // A 90deg gradient runs left-to-right regardless of direction, so the active row's
-    // tint would fade away from the marked edge instead of out from it.
-    tbody tr.row--active td {
-      background: linear-gradient(270deg, rgba(22, 163, 74, 0.04), transparent 40%);
-    }
   }
 }
 
-@media (max-width: 1200px) {
-  html[dir="rtl"] .clients-table tbody tr.row--active td { background: transparent; }
-}

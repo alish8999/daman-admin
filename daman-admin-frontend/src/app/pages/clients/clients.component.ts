@@ -72,12 +72,6 @@ import { ClientHeartbeatService, LatestHeartbeat } from '../../services/client-h
     .clients-table tbody tr:hover {
       background: #f8f9fb;
     }
-    .clients-table tbody tr.row--active {
-      background: #f2fbf5;
-    }
-    .clients-table tbody tr.row--active:hover {
-      background: #e8faf0;
-    }
     .clients-table tbody tr:last-child td {
       border-bottom: none;
     }
