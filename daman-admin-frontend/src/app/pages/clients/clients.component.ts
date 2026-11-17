@@ -11,6 +11,8 @@ import { AppVersionService, AppVersion } from '../../services/app-version.servic
 import { ClientConfig, ClientFeatures, BuildStatus, BuildLogEntry } from '../../models/client-config.model';
 import { FEATURE_CATALOG } from '../../models/feature-catalog';
 import { computeClientStatus, ClientStatusResult } from '../../models/client-status';
+import { licenceKind, isLicenceLive, sharedMachineIds, LicenceKind } from '../../models/licence-kind';
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
 import { ChangelogPickerComponent, ChangelogSelection } from '../../components/changelog-picker/changelog-picker.component';
@@ -20,7 +22,7 @@ import { ClientHeartbeatService, LatestHeartbeat } from '../../services/client-h
 @Component({
   selector: 'app-clients',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe, DevRunButtonComponent, ChangelogPickerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, TranslatePipe, DevRunButtonComponent, ChangelogPickerComponent, CdkMenu, CdkMenuItem, CdkMenuTrigger],
   templateUrl: './clients.component.html',
   styles: [`
     .build-log {
@@ -305,11 +307,41 @@ export class ClientsComponent implements OnInit, OnDestroy {
 
   // ── Badge helpers ────────────────────────────────────────────────────────
 
+  /**
+   * Soft pill tones, not saturated Bootstrap fills. A status is one fact about a record; the
+   * previous `bg-success` block plus a green row wash made "active" the loudest thing on the
+   * page and left every other row looking faulty by comparison.
+   */
   clientStatusClass(status?: string | null): string {
-    if (status === 'ACTIVE') return 'bg-success';
-    if (status === 'TRIAL')  return 'bg-warning text-dark';
-    return 'bg-secondary bg-opacity-50';
+    if (status === 'ACTIVE') return 'status-pill status-pill--success';
+    if (status === 'TRIAL')  return 'status-pill status-pill--warning';
+    return 'status-pill';
   }
+
+  /**
+   * How many of this client's licences a shop could actually run on today.
+   *
+   * <p>Counts `live`, not `status === 'ACTIVE'` — on the live fleet 43 of the 101 ACTIVE
+   * licences have an expiry in the past, and those installs are locked. It also excludes the
+   * dev machine's licences, which are this PC, not branches.
+   */
+  liveLicenceCount(clientCode: string): number {
+    return this.licenses.filter(l =>
+      l.clientCode === clientCode
+      && isLicenceLive(l)
+      && licenceKind(l, this.sharedMachines) !== 'dev').length;
+  }
+
+  /** What a licence row actually is — shop, a shared/dev box, a hosted store, or retired. */
+  kindOf(licence: License): LicenceKind {
+    return licenceKind(licence, this.sharedMachines);
+  }
+
+  /**
+   * Machine ids serving more than one client — recomputed whenever the licence list is
+   * replaced, which is the only time it can change.
+   */
+  private sharedMachines: Set<string> = new Set();
 
   clientStatusLabel(status: string): string {
     if (status === 'ACTIVE') return 'Active';
@@ -469,7 +501,10 @@ export class ClientsComponent implements OnInit, OnDestroy {
   }
 
   loadLicenses(): void {
-    this.licenseService.getAll().subscribe(licenses => this.licenses = licenses);
+    this.licenseService.getAll().subscribe(licenses => {
+      this.licenses = licenses;
+      this.sharedMachines = sharedMachineIds(licenses);
+    });
   }
 
   loadVersions(): void {

@@ -36,6 +36,60 @@
   --admin-pill-fg-danger: #b91c1c;
 }
 
+// ── Row action menu (CDK Menu) ──────────────────────────────────────────────
+// One ⋯ per row instead of four inline icon buttons. CDK supplies the behaviour
+// — keyboard navigation, Escape, click-outside, focus return — so none of that is
+// hand-rolled here; this is only the skin.
+
+.admin-row-menu {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-md);
+  box-shadow: var(--admin-shadow-md);
+  padding: 6px;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--admin-radius-sm);
+  font-size: 0.86rem;
+  color: var(--admin-text);
+  text-decoration: none;
+  text-align: start;
+  cursor: pointer;
+  width: 100%;
+
+  // The focus ring is how a keyboard user follows the menu — CDK moves focus,
+  // and removing the outline would make that invisible.
+  &:hover,
+  &:focus-visible { background: var(--admin-accent-soft); }
+
+  i { color: var(--admin-text-muted); }
+
+  &--danger {
+    color: var(--admin-pill-fg-danger);
+    i { color: var(--admin-pill-fg-danger); }
+    &:hover, &:focus-visible { background: var(--admin-pill-bg-danger); }
+  }
+}
+
+// Separates "delete" from everything above it: it is the one action that cannot
+// be undone, and it used to sit a few pixels from "edit".
+.admin-row-menu-sep {
+  height: 1px;
+  background: var(--admin-border);
+  margin: 4px 2px;
+}
+
 // ── Status pill ─────────────────────────────────────────────────────────────
 // One class, four tones. Used wherever a record carries a state: client status,
 // licence liveness, build result, store health.

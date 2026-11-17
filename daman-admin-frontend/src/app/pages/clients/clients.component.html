@@ -117,18 +117,19 @@
                    Actions cell was simply invisible, which is how the licence date disappeared
                    entirely. Status and expiry are the same question anyway — "is this licence
                    good, and until when" — so they now share a cell and the table fits. -->
-              <th>Client</th>
-              <th>Status</th>
-              <th>Last seen</th>
-              <th>Contact</th>
-              <th>Paid Features</th>
-              <th class="text-end">Total Paid</th>
-              <th class="text-end">Actions</th>
+              <th>{{ 'colClient' | t }}</th>
+              <th>{{ 'colStatus' | t }}</th>
+              <th>{{ 'colLicences' | t }}</th>
+              <th>{{ 'colLastSeen' | t }}</th>
+              <th>{{ 'colContact' | t }}</th>
+              <th>{{ 'colPaidFeatures' | t }}</th>
+              <th class="text-end">{{ 'colTotalPaid' | t }}</th>
+              <th class="text-end">{{ 'colActions' | t }}</th>
             </tr>
           </thead>
           <tbody>
             @for (client of filteredClients; track client.clientCode) {
-              <tr [class.row--active]="statusOf(client).status === 'ACTIVE'">
+              <tr>
 
                 <!-- Client -->
                 <td class="clients-name-cell">
@@ -145,12 +146,12 @@
                 <!-- Status -->
                 <td data-label="Status">
                   <div class="d-flex flex-wrap gap-1 align-items-center">
-                    <span class="badge" [ngClass]="clientStatusClass(statusOf(client).status)" style="font-size:0.68rem">
+                    <span [ngClass]="clientStatusClass(statusOf(client).status)">
                       {{ clientStatusLabel(statusOf(client).status) }}
                     </span>
                     @if (statusOf(client).lapsed) {
-                      <span class="badge bg-danger" style="font-size:0.68rem" title="Paid, but the license is expired or revoked">
-                        ⚠ Lapsed
+                      <span class="status-pill status-pill--danger" [title]="'lapsedHint' | t">
+                        {{ 'lapsed' | t }}
                       </span>
                     }
                     <!-- The v1/v2 licence badge was here. Every licence in the fleet is v2
@@ -170,9 +171,21 @@
                       @if (lic.expiresAt) {
                         <span class="ltr-num">{{ lic.expiresAt | date:'dd MMM yyyy' }}</span>
                       } @else {
-                        <span class="text-muted">Perpetual</span>
+                        <span class="text-muted">{{ 'perpetual' | t }}</span>
                       }
                     </div>
+                  }
+                </td>
+
+                <!-- Licences. Counts only what a shop could run on TODAY: active, not expired,
+                     and not on a shared machine. 43 of the fleet's 101 active licences have a
+                     past expiry, and 29 more sit on this PC — counting either as a branch would
+                     roughly double the apparent size of the business. -->
+                <td data-label="Licences">
+                  @if (liveLicenceCount(client.clientCode); as n) {
+                    <span class="fw-semibold">{{ n }}</span>
+                  } @else {
+                    <span class="text-muted">—</span>
                   }
                 </td>
 
@@ -214,16 +227,7 @@
                           <span>📞 <span class="ltr-num">{{ client.phone }}</span></span>
                         }
                       </div>
-                      @if (client.phone) {
-                        <a [href]="whatsappUrl(client.phone)" target="_blank" rel="noopener"
-                           class="btn btn-xs btn-outline-success" title="WhatsApp {{ client.phone }}">
-                          <i class="bi bi-whatsapp"></i>
-                        </a>
-                        <a [href]="telegramUrl(client.phone)" target="_blank" rel="noopener"
-                           class="btn btn-xs btn-outline-primary" title="Telegram {{ client.phone }}">
-                          <i class="bi bi-telegram"></i>
-                        </a>
-                      }
+                      <!-- WhatsApp and Telegram moved into the row's ⋯ menu. -->
                     </div>
                   } @else {
                     <span class="text-muted small">—</span>
@@ -263,22 +267,46 @@
                 </td>
 
 
-                <!-- Actions -->
+                <!-- Actions. One menu instead of four inline icon buttons: at 66 rows the old
+                     layout put ~260 competing targets on screen, and the destructive one sat a
+                     few pixels from "edit". The dev-run button stays outside because it carries
+                     its own state, and it is a tool rather than a row action. -->
                 <td class="clients-actions-cell">
-                  <div class="d-flex gap-1 justify-content-end flex-nowrap">
-                    <a [routerLink]="['/clients', client.clientCode, 'edit']"
-                       class="btn btn-xs btn-outline-primary" title="Edit">
-                      <i class="bi bi-pencil"></i>
-                    </a>
+                  <div class="d-flex gap-1 justify-content-end flex-nowrap align-items-center">
                     <app-dev-run-button [clientCode]="client.clientCode"
                                         [hasActiveV2License]="hasActiveV2License(client.clientCode)"
                                         [compact]="true" [showStatus]="false"
                                         (changed)="loadDevCurrent()"></app-dev-run-button>
-                    <button (click)="delete(client.clientCode)"
-                            class="btn btn-xs btn-outline-danger" title="Delete client">
-                      <i class="bi bi-trash"></i>
+                    <button type="button" class="btn btn-xs btn-outline-secondary"
+                            [cdkMenuTriggerFor]="rowMenu" [attr.aria-label]="'actions' | t">
+                      <i class="bi bi-three-dots"></i>
                     </button>
                   </div>
+
+                  <ng-template #rowMenu>
+                    <div cdkMenu class="admin-row-menu">
+                      <a cdkMenuItem class="admin-row-menu-item"
+                         [routerLink]="['/clients', client.clientCode, 'edit']">
+                        <i class="bi bi-pencil"></i><span>{{ 'edit' | t }}</span>
+                      </a>
+                      @if (client.phone) {
+                        <a cdkMenuItem class="admin-row-menu-item" target="_blank" rel="noopener"
+                           [href]="whatsappUrl(client.phone)">
+                          <i class="bi bi-whatsapp"></i><span>WhatsApp</span>
+                        </a>
+                        <a cdkMenuItem class="admin-row-menu-item" target="_blank" rel="noopener"
+                           [href]="telegramUrl(client.phone)">
+                          <i class="bi bi-telegram"></i><span>Telegram</span>
+                        </a>
+                      }
+                      <div class="admin-row-menu-sep"></div>
+                      <button cdkMenuItem type="button"
+                              class="admin-row-menu-item admin-row-menu-item--danger"
+                              (click)="delete(client.clientCode)">
+                        <i class="bi bi-trash"></i><span>{{ 'delete' | t }}</span>
+                      </button>
+                    </div>
+                  </ng-template>
                 </td>
 
               </tr>
