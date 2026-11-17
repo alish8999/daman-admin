@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { boxLabel, memoryLabel, hasMemory, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor } = require('./store-row-core');
+const { boxLabel, memoryLabel, hasMemory, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, readAge, lifecycleRouteFor, phoneAddress } = require('./store-row-core');
 
 test('an ACTIVE store offers restart, sync-unit and suspend, never remove', () => {
   assert.deepStrictEqual(actionsFor('ACTIVE'), ['restart', 'sync-unit', 'suspend']);
@@ -343,4 +343,33 @@ test('Remove still maps to its own lifecycle route, separate from reset-demo', (
   assert.strictEqual(lifecycleRouteFor('remove'), 'remove');
   assert.strictEqual(lifecycleRouteFor('reset-demo'), 'reset-demo');
   assert.strictEqual(lifecycleRouteFor('forget-row'), null, 'forget-row is a DELETE, not a lifecycle call');
+});
+
+// ── The address a phone needs ───────────────────────────────────────────────
+// A phone till pointed at a HOSTED store is set up by hand: there is nothing on
+// the shop's wifi to find, so the owner reads the store's API address off this
+// table and types it into the phone. mobile-setup-core accepts exactly
+// "https://<host>" - a pasted https link states the whole address, port 443 and
+// no path - so the row offers that string and not the bare hostname, which the
+// phone would rebuild as http://<host>:8080 and never reach.
+
+test('a hosted store offers the exact address the phone app takes', () => {
+  assert.strictEqual(
+    phoneAddress({ apiHostname: 'acme-api.damansoft.com' }),
+    'https://acme-api.damansoft.com');
+});
+
+test('no API hostname means no address to copy', () => {
+  // A store still provisioning has no hostname yet, and half an address is worse
+  // than none: it reaches nothing and looks like a typo on the owner's side.
+  assert.strictEqual(phoneAddress({}), '');
+  assert.strictEqual(phoneAddress({ apiHostname: '' }), '');
+  assert.strictEqual(phoneAddress({ apiHostname: null }), '');
+  assert.strictEqual(phoneAddress(null), '');
+});
+
+test('a hostname already carrying a scheme is not given a second one', () => {
+  assert.strictEqual(
+    phoneAddress({ apiHostname: 'https://acme-api.damansoft.com' }),
+    'https://acme-api.damansoft.com');
 });

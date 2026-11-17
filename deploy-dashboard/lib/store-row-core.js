@@ -251,6 +251,23 @@
     return Array.isArray(rows) && rows.some((s) => s && s.memoryBytes !== undefined);
   }
 
+  /**
+   * The address to type into a phone till pointed at this store, or '' when the store
+   * has no API hostname yet.
+   *
+   * A phone on a shop's wifi finds the PC by itself; a phone pointed at a HOSTED store
+   * cannot - there is nothing on the local network to find - so the owner reads this off
+   * the table and types it in. mobile-setup-core treats a pasted https link as the whole
+   * address (443, no path) and ignores the port box beside it, which is why the scheme is
+   * part of the string: the bare hostname would be rebuilt as http://<host>:8080 and reach
+   * nothing.
+   */
+  function phoneAddress(store) {
+    const host = store && typeof store.apiHostname === 'string' ? store.apiHostname.trim() : '';
+    if (!host) return '';
+    return /^https?:\/\//i.test(host) ? host : 'https://' + host;
+  }
+
   function memoryLabel(bytes, liveStatus) {
     if (bytes === undefined) return '';
     if (NOT_RUNNING.has(liveStatus)) return 'not running';
@@ -258,5 +275,5 @@
     return bytes >= GB ? dec(bytes / GB) + ' GB' : Math.round(bytes / MB) + ' MB';
   }
 
-  return { boxLabel, memoryLabel, hasMemory, lifecycleRouteFor, readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime };
+  return { boxLabel, memoryLabel, hasMemory, lifecycleRouteFor, readAge, actionsFor, rowLabel, capacityLabel, backupLabel, formatJarTime, phoneAddress };
 });

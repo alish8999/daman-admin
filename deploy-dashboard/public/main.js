@@ -1410,6 +1410,37 @@
       return node;
     }
 
+    /**
+     * Puts the address on the clipboard and says so on the button for a moment.
+     *
+     * navigator.clipboard needs a secure context, which localhost is, and inside the portal
+     * this page runs in a same-origin iframe, where clipboard-write's default allowlist of
+     * 'self' covers it. It can still be refused (a browser that has not seen a user gesture
+     * it trusts), so the failure path selects the text instead of leaving a dead button -
+     * the owner can then copy it by hand and the address is still on screen either way.
+     */
+    function copyPhoneAddress(button, address) {
+      const hint = button.querySelector('.host-copy-hint');
+      const say = (text) => {
+        hint.textContent = text;
+        clearTimeout(button.hintTimer);   // a property, not dataset: dataset stringifies the handle
+        button.hintTimer = setTimeout(() => { hint.textContent = 'copy for phone'; }, 2000);
+      };
+      const clipboard = navigator.clipboard;
+      if (!clipboard || !clipboard.writeText) { selectText(button.querySelector('.host-copy-text')); say('select & copy'); return; }
+      clipboard.writeText(address)
+        .then(() => say('copied'))
+        .catch(() => { selectText(button.querySelector('.host-copy-text')); say('select & copy'); });
+    }
+
+    function selectText(node) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
     function showMessage(text) {
       mount.replaceChildren(el('p', 'fleet-empty', text));
     }
@@ -1452,7 +1483,20 @@
           a.rel = 'noopener';
           hosts.append(a);
         }
-        if (store.apiHostname) hosts.append(el('div', 'cell-sub', store.apiHostname));
+        // The API address, as a button that copies exactly what the phone app takes. A phone
+        // pointed at a hosted store is set up by hand (nothing on the shop's wifi to find),
+        // and this line is where the owner reads it from - so it is one tap, not a careful
+        // retype of a hostname into a phone keyboard.
+        const phone = core.phoneAddress(store);
+        if (phone) {
+          const copy = el('button', 'cell-sub host-copy');
+          copy.type = 'button';
+          copy.title = 'Copy ' + phone + ' - the address to type into the phone app';
+          copy.append(el('span', 'host-copy-text', store.apiHostname));
+          copy.append(el('span', 'host-copy-hint', 'copy for phone'));
+          copy.addEventListener('click', () => copyPhoneAddress(copy, phone));
+          hosts.append(copy);
+        }
         tr.append(hosts);
 
         tr.append(el('td', null, store.port === undefined || store.port === null ? '—' : String(store.port)));

@@ -1131,6 +1131,13 @@ body {
 
 .fleet-table .cell-code { font-weight: 600; }
 .fleet-table .cell-sub { margin-top: 0.2rem; font-size: 0.75rem; color: var(--text-muted); }
+/* The API address is a button so it can be copied in one tap - it must still read as the
+   quiet sub-line it was, not as a control competing with the row's real actions. */
+.fleet-table .host-copy { display: flex; align-items: baseline; gap: 0.4rem; padding: 0;
+  background: none; border: 0; font: inherit; color: var(--text-muted); cursor: pointer; text-align: left; }
+.fleet-table .host-copy:hover .host-copy-text { text-decoration: underline; }
+.fleet-table .host-copy-hint { font-size: 0.68rem; opacity: 0.65; white-space: nowrap; }
+.fleet-table .host-copy:hover .host-copy-hint { opacity: 1; }
 .fleet-table .cell-backup { color: var(--text-muted); white-space: nowrap; }
 .fleet-table .cell-hosts a { color: var(--accent); text-decoration: none; }
 .fleet-table .cell-hosts a:hover { text-decoration: underline; }
