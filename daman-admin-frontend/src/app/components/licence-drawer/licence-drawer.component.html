@@ -1,0 +1,111 @@
+<!-- Click the backdrop to dismiss; the panel stops the click so a click inside never closes it. -->
+<div class="drawer-backdrop" (click)="closed.emit()"></div>
+
+<aside class="drawer-panel" role="dialog" aria-modal="true"
+       [attr.aria-label]="'licenceDrawerTitle' | t"
+       cdkTrapFocus cdkTrapFocusAutoCapture
+       (keydown.escape)="closed.emit()"
+       (click)="$event.stopPropagation()">
+
+  <header class="drawer-head">
+    <div class="drawer-head-text">
+      <h2 class="drawer-title">{{ licence.label || ('licenceUnlabelled' | t) }}</h2>
+      <p class="drawer-subtitle" dir="ltr">
+        <code>{{ licence.machineId }}</code>
+      </p>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            (click)="closed.emit()" [attr.aria-label]="'close' | t">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </header>
+
+  <div class="drawer-body">
+
+    <!-- Identity -->
+    <section class="drawer-section">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        @switch (kind) {
+          @case ('dev')     { <span class="status-pill">{{ 'kindDev' | t }}</span> }
+          @case ('hosted')  { <span class="status-pill">{{ 'kindHosted' | t }}</span> }
+          @case ('revoked') { <span class="status-pill status-pill--danger">{{ 'kindRevoked' | t }}</span> }
+          @default          { <span class="status-pill status-pill--success">{{ 'kindShop' | t }}</span> }
+        }
+        @if (licence.expiresAt) {
+          <span class="status-pill" [class.status-pill--danger]="!live">
+            {{ licence.expiresAt | date:'dd MMM yyyy' }}
+          </span>
+        } @else {
+          <span class="status-pill">{{ 'perpetual' | t }}</span>
+        }
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="drawer-section">
+      @if (effectiveFeatures === null) {
+        <p class="text-muted small mb-0">{{ 'featuresNotLoadedHint' | t }}</p>
+      } @else {
+        @if (skippedReason) {
+          <!-- The override saved, but the shop has not got it. Those are different facts and
+               collapsing them would tell the owner the change had landed when it had not. -->
+          <div class="drawer-notice drawer-notice--warning">
+            {{ 'licenceSavedNotDelivered' | t }} — {{ skippedReasonLabel(skippedReason) }}
+          </div>
+        }
+        @if (error) {
+          <div class="drawer-notice drawer-notice--danger">{{ error }}</div>
+        }
+
+        <app-feature-grid
+          mode="licence"
+          [features]="effectiveFeatures"
+          [overriddenKeys]="overriddenKeys"
+          [disabled]="saving"
+          (toggle)="onToggle($event)"
+          (resetToInherited)="onResetToInherited($event)">
+        </app-feature-grid>
+      }
+    </section>
+
+    <!-- Payments -->
+    <section class="drawer-section">
+      <h3 class="drawer-section-title">{{ 'payments' | t }}</h3>
+      @if (payments.length === 0) {
+        <p class="text-muted small mb-0">{{ 'noPaymentsForLicence' | t }}</p>
+      } @else {
+        <div class="d-flex flex-column gap-1">
+          @for (p of payments; track p.id) {
+            <div class="drawer-payment">
+              <span class="ltr-num">{{ p.paymentDate | date:'dd MMM yyyy' }}</span>
+              <span class="ltr-num fw-semibold">${{ p.amount | number:'1.0-2' }}</span>
+            </div>
+          }
+          <div class="drawer-payment drawer-payment--total">
+            <span>{{ 'total' | t }}</span>
+            <span class="ltr-num">${{ paidTotal | number:'1.0-2' }}</span>
+          </div>
+        </div>
+      }
+    </section>
+  </div>
+
+  <!-- Actions stay owned by the client page, which already has their confirmation flows. -->
+  <footer class="drawer-foot">
+    <button type="button" class="btn btn-sm btn-outline-primary" (click)="renew.emit(licence)">
+      {{ 'renew' | t }}
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="downloadDat.emit(licence)">
+      {{ 'downloadDat' | t }}
+    </button>
+    @if (licence.reissued) {
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="revertReissue.emit(licence)">
+        {{ 'revertReissue' | t }}
+      </button>
+    }
+    <span class="flex-grow-1"></span>
+    <button type="button" class="btn btn-sm btn-outline-danger" (click)="revoke.emit(licence)">
+      {{ 'revoke' | t }}
+    </button>
+  </footer>
+</aside>
