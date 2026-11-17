@@ -4,7 +4,8 @@ import com.daman.admin.event.LicenceRemintedEvent;
 import com.daman.admin.repository.HostedInstanceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,8 +18,19 @@ import org.springframework.stereotype.Component;
  * {@link ServerOps#activateLicence} during provisioning. Eight licences across five clients are
  * hosted today.
  *
- * <p><b>Fail-soft, deliberately.</b> The licence row is saved and committed before this runs, so
- * nothing here may throw: a store that is down, restarting, or refusing the key must not undo a
+ * <p><b>Only that store's OWN key is pushed.</b> A client can hold several licences — {@code viora}
+ * has three (two shop tills and its hosted store) and {@code daman} two — so matching on
+ * {@code clientCode} alone would fire every re-minted key at the live store, most of them belonging
+ * to a shop machine. That is not harmless: the store's activation runs
+ * {@code LicenseService.verifyLicenseKey}, which clears the cached licence features, colours and
+ * profile BEFORE it checks the machine id, and (unlike {@code attemptRenewal}) never restores them
+ * on failure. The store would then serve a config with no branding and no frontend-gated add-ons to
+ * every new visitor until its process restarted, and the 12-hour poll cannot heal it because an
+ * unchanged key short-circuits to UNCHANGED. So the event's {@code machineId} is checked against
+ * what the store itself reports, and a store that cannot be probed is left alone.
+ *
+ * <p><b>Fail-soft, deliberately.</b> This runs AFTER COMMIT, so the licence row is already durable
+ * and nothing here may throw: a store that is down, restarting, or refusing the key must not undo a
  * correct mint. It will collect the same key on its next poll, since hosted stores run the
  * desktop profile and therefore poll like any other install.
  *
@@ -36,7 +48,14 @@ public class HostedLicencePushListener {
     private final HostedInstanceRepository hostedInstanceRepository;
     private final ServerOps ops;
 
-    @EventListener(LicenceRemintedEvent.class)
+    /**
+     * AFTER_COMMIT, not a plain {@code @EventListener}: a plain one runs inside the re-mint's
+     * transaction, which would hold a database transaction open across a blocking HTTP call to a
+     * store and — if a later licence in the same batch threw — leave the store holding a key whose
+     * row was rolled back. {@code fallbackExecution} keeps it working when something publishes
+     * outside a transaction.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onReminted(LicenceRemintedEvent event) {
         try {
             var instance = hostedInstanceRepository.findByClientCode(event.clientCode()).orElse(null);
@@ -46,6 +65,20 @@ public class HostedLicencePushListener {
                         event.clientCode(), instance.getStatus());
                 return;
             }
+
+            String storeMachineId = ops.probeMachineId(instance.getPort())
+                    .map(String::trim).filter(id -> !id.isEmpty()).orElse(null);
+            if (storeMachineId == null) {
+                log.debug("Hosted store {} did not report a machineId; not pushing", event.clientCode());
+                return;
+            }
+            if (!storeMachineId.equals(event.machineId())) {
+                // This re-mint belongs to one of the client's other machines, e.g. a shop till.
+                log.debug("Re-minted licence for {} belongs to machine {}, not hosted store {}",
+                        event.clientCode(), event.machineId(), storeMachineId);
+                return;
+            }
+
             ops.activateLicence(instance.getPort(), event.licenseKey());
             log.info("Pushed re-minted licence straight into hosted store {} on port {}",
                     event.clientCode(), instance.getPort());

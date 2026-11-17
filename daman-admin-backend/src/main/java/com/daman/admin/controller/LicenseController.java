@@ -184,17 +184,30 @@ public class LicenseController {
 
     // ── List ─────────────────────────────────────────────────────────────────
 
+    /**
+     * The {@code "v"} of this row's {@code previousLicenseKey}, or null when it has none.
+     *
+     * <p>Only a v1 previous key means "re-issued", and therefore only that offers the portal's
+     * "Revert re-issue" action — see {@code LicenseDto.of}. A feature re-mint also stores a
+     * previous key, and reverting to that one would restore stale features.
+     */
+    private Integer previousVersionOf(License l) {
+        String previous = l.getPreviousLicenseKey();
+        if (previous == null || previous.isBlank()) return null;
+        return licenseKeyService.payloadVersion(previous);
+    }
+
     @GetMapping
     public java.util.List<com.daman.admin.dto.LicenseDto> getAll() {
         return licenseRepository.findAllByOrderByActivatedAtDesc().stream()
-                .map(l -> com.daman.admin.dto.LicenseDto.of(l, licenseKeyService.payloadVersion(l.getLicenseKey())))
+                .map(l -> com.daman.admin.dto.LicenseDto.of(l, licenseKeyService.payloadVersion(l.getLicenseKey()), previousVersionOf(l)))
                 .toList();
     }
 
     @GetMapping("/client/{clientCode}")
     public java.util.List<com.daman.admin.dto.LicenseDto> getByClient(@PathVariable String clientCode) {
         return licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode).stream()
-                .map(l -> com.daman.admin.dto.LicenseDto.of(l, licenseKeyService.payloadVersion(l.getLicenseKey())))
+                .map(l -> com.daman.admin.dto.LicenseDto.of(l, licenseKeyService.payloadVersion(l.getLicenseKey()), previousVersionOf(l)))
                 .toList();
     }
 

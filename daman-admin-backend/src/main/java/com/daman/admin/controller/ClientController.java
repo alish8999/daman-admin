@@ -71,10 +71,36 @@ public class ClientController {
                                   @Valid @RequestBody ClientConfigRequest request) {
         java.util.Map<String, Boolean> before = service.clientFeatures(clientCode);
         ClientConfigDto saved = service.update(clientCode, request);
-        if (!before.equals(service.clientFeatures(clientCode))) {
-            remintService.remintForClient(clientCode);
-        }
+        remintIfFeaturesChanged(clientCode, before);
         return saved;
+    }
+
+    /**
+     * Re-mint this client's live keys, passing ONLY the flags this save actually changed as
+     * removable.
+     *
+     * <p>That set is what stops an unrelated toggle stripping a flag a shop is currently running:
+     * a key may have drifted from the client record (measured live on {@code viora} and
+     * {@code c-14}), and taking that flag back is the owner's explicit reconcile, not a side
+     * effect. See {@code LicenceRemintService.featuresToWrite}.
+     *
+     * <p>Never throws. The save has already committed — losing a correct feature save because
+     * signing was briefly unavailable would be the worse outcome, and the next save or renewal
+     * picks the keys up.
+     */
+    private void remintIfFeaturesChanged(String clientCode, java.util.Map<String, Boolean> before) {
+        try {
+            java.util.Map<String, Boolean> after = service.clientFeatures(clientCode);
+            java.util.Set<String> changed = new java.util.TreeSet<>();
+            after.forEach((key, value) -> {
+                if (!value.equals(before.get(key))) changed.add(key);
+            });
+            if (changed.isEmpty()) return;
+            remintService.remintForClient(clientCode, changed);
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(ClientController.class)
+                    .error("Client {} saved but re-minting its licence keys failed", clientCode, e);
+        }
     }
 
     /**
@@ -91,10 +117,16 @@ public class ClientController {
     public ResponseEntity<FeatureSaveResponse> updateFeatures(
             @PathVariable String clientCode,
             @RequestBody com.daman.admin.dto.FeaturesRequest features) {
+        java.util.Map<String, Boolean> before = service.clientFeatures(clientCode);
         ClientConfigDto saved = service.updateFeatures(clientCode, features);
         try {
+            java.util.Map<String, Boolean> after = service.clientFeatures(clientCode);
+            java.util.Set<String> changed = new java.util.TreeSet<>();
+            after.forEach((key, value) -> {
+                if (!value.equals(before.get(key))) changed.add(key);
+            });
             return ResponseEntity.ok(new FeatureSaveResponse(
-                    saved, remintService.remintForClient(clientCode), null));
+                    saved, remintService.remintForClient(clientCode, changed), null));
         } catch (RuntimeException e) {
             org.slf4j.LoggerFactory.getLogger(ClientController.class)
                     .error("Features saved for {} but re-minting its licence keys failed", clientCode, e);

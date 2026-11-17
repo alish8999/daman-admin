@@ -68,8 +68,10 @@ class LicenceFeatureControllerTest {
     }
 
     private void remintSucceeds(long id) {
-        when(remint.remintLicence(anyLong())).thenReturn(
-                new LicenceRemintService.RemintOutcome(id, "c-1", "m-" + id, true, null));
+        // The controller passes the patch's keys as the removable set, so that only the flags this
+        // save named can be switched off in the key.
+        when(remint.remintLicence(anyLong(), org.mockito.ArgumentMatchers.<java.util.Set<String>>any()))
+                .thenReturn(new LicenceRemintService.RemintOutcome(id, "c-1", "m-" + id, true, null));
     }
 
     @Test
@@ -89,7 +91,7 @@ class LicenceFeatureControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(l.getFeaturesOverrideJson()).isEqualTo("{\"consignment\":true}");
         verify(licenses).save(l);
-        verify(remint).remintLicence(1L);
+        verify(remint).remintLicence(1L, java.util.Set.of("consignment"));
     }
 
     @Test
@@ -133,7 +135,7 @@ class LicenceFeatureControllerTest {
         controller.setFeatures(5L, Map.of());
 
         assertThat(l.getFeaturesOverrideJson()).isNull();
-        verify(remint).remintLicence(5L);
+        verify(remint).remintLicence(5L, java.util.Set.of());
     }
 
     @Test
@@ -159,7 +161,7 @@ class LicenceFeatureControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         verify(licenses, never()).save(any());
-        verify(remint, never()).remintLicence(anyLong());
+        verify(remint, never()).remintLicence(anyLong(), org.mockito.ArgumentMatchers.<java.util.Set<String>>any());
     }
 
     @Test

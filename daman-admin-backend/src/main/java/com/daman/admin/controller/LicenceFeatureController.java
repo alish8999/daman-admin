@@ -101,9 +101,21 @@ public class LicenceFeatureController {
         licence.setFeaturesOverrideJson(FeatureOverride.write(next, objectMapper));
         licenseRepository.save(licence);
 
-        LicenceRemintService.RemintOutcome outcome = remintService.remintLicence(id);
+        // Only the flags this patch named may be switched off in the key. Any OTHER flag the key
+        // grants but the resolved set denies is a pre-existing drift, and taking it back belongs
+        // to the owner's reconcile — not to a save that touched a different flag.
+        LicenceRemintService.RemintOutcome outcome = remintService.remintLicence(id, patch.keySet());
+
+        Map<String, Boolean> effective;
+        try {
+            effective = clientConfigService.licenseEntitlementsFor(licence).features();
+        } catch (IllegalArgumentException e) {
+            // An orphan licence (no client row — six exist in production). The override is saved;
+            // there is simply no client to resolve an effective set against.
+            effective = Map.of();
+        }
         return ResponseEntity.ok(new FeatureUpdateResponse(
-                clientConfigService.licenseEntitlementsFor(licence).features(),
+                effective,
                 FeatureOverride.parse(licence.getFeaturesOverrideJson(), objectMapper),
                 outcome.minted(),
                 outcome.skippedReason()));

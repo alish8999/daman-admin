@@ -56,10 +56,41 @@ class HostedLicencePushListenerTest {
     @Test
     void aRemintForAHostedInstancePushesTheKeyToItsPort() {
         when(instances.findByClientCode("viora")).thenReturn(Optional.of(instance("viora", "ACTIVE")));
+        when(ops.probeMachineId(9101)).thenReturn(Optional.of("m-host"));
+
+        listener.onReminted(new LicenceRemintedEvent(1L, "viora", "m-host", "new-key"));
+
+        verify(ops).activateLicence(9101, "new-key");
+    }
+
+    /**
+     * The bug this guards. `viora` holds three licences — two shop machines and its hosted store
+     * — and `daman` two. Looking the store up by clientCode alone pushed every one of that
+     * client's re-minted keys at the live store, and a key for a DIFFERENT machine is rejected by
+     * {@code LicenseService.verifyLicenseKey}, which clears the cached licence features, colours
+     * and profile BEFORE the machine check and (unlike attemptRenewal) never restores them. The
+     * store then serves a config with no branding and no frontend-gated add-ons to every new
+     * visitor until its process restarts, and the 12-hour poll cannot heal it.
+     */
+    @Test
+    void aKeyForADifferentMachineIsNotPushedToTheStore() {
+        when(instances.findByClientCode("viora")).thenReturn(Optional.of(instance("viora", "ACTIVE")));
+        when(ops.probeMachineId(9101)).thenReturn(Optional.of("m-host"));
+
+        listener.onReminted(new LicenceRemintedEvent(2L, "viora", "m-a-shop-till", "shop-key"));
+
+        verify(ops, never()).activateLicence(anyInt(), anyString());
+    }
+
+    /** Cannot tell whose key it is: do nothing. The store polls for its own key anyway. */
+    @Test
+    void anUnprobableStoreIsNotPushedTo() {
+        when(instances.findByClientCode("viora")).thenReturn(Optional.of(instance("viora", "ACTIVE")));
+        when(ops.probeMachineId(9101)).thenReturn(Optional.empty());
 
         listener.onReminted(event());
 
-        verify(ops).activateLicence(9101, "new-key");
+        verify(ops, never()).activateLicence(anyInt(), anyString());
     }
 
     /** A desktop licence has no hosted instance; nothing to push to. */
@@ -75,6 +106,7 @@ class HostedLicencePushListenerTest {
     @Test
     void aFailedPushIsSwallowedAndLogged() {
         when(instances.findByClientCode("viora")).thenReturn(Optional.of(instance("viora", "ACTIVE")));
+        when(ops.probeMachineId(9101)).thenReturn(Optional.of("m-host"));
         doThrow(new RuntimeException("connection refused"))
                 .when(ops).activateLicence(anyInt(), anyString());
 

@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,6 +52,11 @@ class LicenceRemintServiceTest {
         scanner = mock(LicenceDriftScanner.class);
         events = mock(ApplicationEventPublisher.class);
         service = new LicenceRemintService(licenses, keys, configs, scanner, events);
+        // Default every key to v2. A v1 key is refused outright (it would produce a half-open
+        // install), and an unstubbed mock would answer 0 — so without this default every test
+        // below would be exercising the v1 refusal instead of what it is about. The v1 test
+        // overrides this for its own key.
+        when(keys.payloadVersion(org.mockito.ArgumentMatchers.anyString())).thenReturn(2);
     }
 
     private License licence(long id, String code, String status, LocalDate expiry) {
@@ -93,7 +99,7 @@ class LicenceRemintServiceTest {
         resolvedSays(l, Map.of("accounting", true));
         clientHas("c-1", l);
 
-        assertThat(service.remintForClient("c-1", TODAY))
+        assertThat(service.remintForClient("c-1", TODAY, null))
                 .singleElement().satisfies(o -> assertThat(o.minted()).isFalse());
         verify(licenses, never()).save(any());
         verify(events, never()).publishEvent(any(Object.class));
@@ -107,7 +113,7 @@ class LicenceRemintServiceTest {
         when(keys.resignWithFeatures("key-2", Map.of("accounting", true))).thenReturn("new-key-2");
         clientHas("c-1", l);
 
-        assertThat(service.remintForClient("c-1", TODAY))
+        assertThat(service.remintForClient("c-1", TODAY, null))
                 .singleElement().satisfies(o -> assertThat(o.minted()).isTrue());
 
         assertThat(l.getLicenseKey()).isEqualTo("new-key-2");
@@ -129,7 +135,7 @@ class LicenceRemintServiceTest {
                 .thenReturn("new-key-3");
         clientHas("c-1", l);
 
-        assertThat(service.remintForClient("c-1", TODAY))
+        assertThat(service.remintForClient("c-1", TODAY, null))
                 .singleElement().satisfies(o -> assertThat(o.minted()).isTrue());
     }
 
@@ -141,7 +147,7 @@ class LicenceRemintServiceTest {
         when(keys.resignWithFeatures("key-4", Map.of("accounting", true))).thenReturn("new-key-4");
         clientHas("c-1", l);
 
-        service.remintForClient("c-1", TODAY);
+        service.remintForClient("c-1", TODAY, null);
         assertThat(l.getPreviousLicenseKey()).isEqualTo("key-4");
     }
 
@@ -156,7 +162,7 @@ class LicenceRemintServiceTest {
         when(keys.resignWithFeatures("key-5", Map.of("accounting", true))).thenReturn("new-key-5");
         clientHas("c-1", l);
 
-        service.remintForClient("c-1", TODAY);
+        service.remintForClient("c-1", TODAY, null);
         assertThat(l.getRenewedAt()).isEqualTo(renewed);
         assertThat(l.getExpiresAt()).isEqualTo(LocalDate.of(2027, 5, 1));
         assertThat(l.getMachineId()).isEqualTo("m-5");
@@ -167,7 +173,7 @@ class LicenceRemintServiceTest {
         License l = licence(6, "c-1", "REVOKED", null);
         clientHas("c-1", l);
 
-        assertThat(service.remintForClient("c-1", TODAY)).singleElement().satisfies(o -> {
+        assertThat(service.remintForClient("c-1", TODAY, null)).singleElement().satisfies(o -> {
             assertThat(o.minted()).isFalse();
             assertThat(o.skippedReason()).isEqualTo("revoked");
         });
@@ -179,7 +185,7 @@ class LicenceRemintServiceTest {
         License l = licence(7, "c-1", "ACTIVE", TODAY.minusDays(1));
         clientHas("c-1", l);
 
-        assertThat(service.remintForClient("c-1", TODAY)).singleElement().satisfies(o -> {
+        assertThat(service.remintForClient("c-1", TODAY, null)).singleElement().satisfies(o -> {
             assertThat(o.minted()).isFalse();
             assertThat(o.skippedReason()).isEqualTo("expired");
         });
@@ -193,7 +199,7 @@ class LicenceRemintServiceTest {
         when(configs.licenseEntitlementsFor(l)).thenThrow(new IllegalArgumentException("Client not found: gone"));
         clientHas("gone", l);
 
-        assertThat(service.remintForClient("gone", TODAY)).singleElement().satisfies(o -> {
+        assertThat(service.remintForClient("gone", TODAY, null)).singleElement().satisfies(o -> {
             assertThat(o.minted()).isFalse();
             assertThat(o.skippedReason()).isEqualTo("no client");
         });
@@ -207,7 +213,7 @@ class LicenceRemintServiceTest {
         resolvedSays(l, Map.of("accounting", true));
         clientHas("c-1", l);
 
-        assertThat(service.remintForClient("c-1", TODAY)).singleElement().satisfies(o -> {
+        assertThat(service.remintForClient("c-1", TODAY, null)).singleElement().satisfies(o -> {
             assertThat(o.minted()).isFalse();
             assertThat(o.skippedReason()).isEqualTo("unverifiable key");
         });
@@ -223,7 +229,7 @@ class LicenceRemintServiceTest {
         when(keys.resignWithFeatures("key-10", Map.of("accounting", true))).thenReturn(null);
         clientHas("c-1", l);
 
-        assertThat(service.remintForClient("c-1", TODAY)).singleElement().satisfies(o -> {
+        assertThat(service.remintForClient("c-1", TODAY, null)).singleElement().satisfies(o -> {
             assertThat(o.minted()).isFalse();
             assertThat(o.skippedReason()).isEqualTo("resign failed");
         });
@@ -249,7 +255,7 @@ class LicenceRemintServiceTest {
         when(keys.resignWithFeatures("key-12", Map.of("consignment", true))).thenReturn("new-12");
         clientHas("c-14", a, b);
 
-        assertThat(service.remintForClient("c-14", TODAY))
+        assertThat(service.remintForClient("c-14", TODAY, null))
                 .hasSize(2).allSatisfy(o -> assertThat(o.minted()).isTrue());
         verify(licenses, times(2)).save(any());
         verify(events, times(2)).publishEvent(any(Object.class));
@@ -263,16 +269,184 @@ class LicenceRemintServiceTest {
         when(keys.resignWithFeatures("key-13", Map.of("accounting", true))).thenReturn("new-13");
         when(licenses.findById(13L)).thenReturn(Optional.of(l));
 
-        assertThat(service.remintLicence(13L, TODAY).minted()).isTrue();
+        assertThat(service.remintLicence(13L, TODAY, null).minted()).isTrue();
     }
 
     @Test
     void remintLicenceOnAnUnknownIdReportsNotFound() {
         when(licenses.findById(99L)).thenReturn(Optional.empty());
-        assertThat(service.remintLicence(99L, TODAY).skippedReason()).isEqualTo("not found");
+        assertThat(service.remintLicence(99L, TODAY, null).skippedReason()).isEqualTo("not found");
     }
 
     /** The owner-run reconcile mints exactly the rows the scanner reported, and no others. */
+    // ── An ordinary save must not strip a drifted flag ──────────────────────
+    //
+    // Spec §7.1(a) and §13.1: a feature save never silently takes a flag away from a live
+    // shop; that happens only through the owner-run reconcile. viora runs
+    // multiCurrencyPricing and c-14 runs consignment while their client records say false,
+    // so without this guard the first unrelated toggle on those clients would remove a
+    // working feature with no preview and no confirmation.
+
+    @Test
+    void savingAnUnrelatedFlagDoesNotRemoveADriftedOne() {
+        License l = licence(20, "viora", "ACTIVE", null);
+        keySays(l, Map.of("multiCurrencyPricing", true, "accounting", false));
+        resolvedSays(l, Map.of("multiCurrencyPricing", false, "accounting", true));
+        // The save touched `accounting` only.
+        when(keys.resignWithFeatures("key-20", Map.of("multiCurrencyPricing", true, "accounting", true)))
+                .thenReturn("new-20");
+        when(keys.payloadVersion("key-20")).thenReturn(2);
+        clientHas("viora", l);
+
+        assertThat(service.remintForClient("viora", TODAY, Set.of("accounting")))
+                .singleElement().satisfies(o -> assertThat(o.minted()).isTrue());
+
+        // accounting adopted, multiCurrencyPricing PRESERVED despite the resolved set denying it.
+        verify(keys).resignWithFeatures("key-20",
+                Map.of("multiCurrencyPricing", true, "accounting", true));
+    }
+
+    @Test
+    void savingTheDriftedFlagItselfDoesRemoveIt() {
+        License l = licence(21, "viora", "ACTIVE", null);
+        keySays(l, Map.of("multiCurrencyPricing", true));
+        resolvedSays(l, Map.of("multiCurrencyPricing", false));
+        when(keys.resignWithFeatures("key-21", Map.of("multiCurrencyPricing", false))).thenReturn("new-21");
+        when(keys.payloadVersion("key-21")).thenReturn(2);
+        clientHas("viora", l);
+
+        assertThat(service.remintForClient("viora", TODAY, Set.of("multiCurrencyPricing")))
+                .singleElement().satisfies(o -> assertThat(o.minted()).isTrue());
+        verify(keys).resignWithFeatures("key-21", Map.of("multiCurrencyPricing", false));
+    }
+
+    /** Nothing but a protected removal to do: say so rather than reporting "unchanged". */
+    @Test
+    void aLicenceWithOnlyAProtectedRemovalIsReportedAsDrifting() {
+        License l = licence(22, "c-14", "ACTIVE", null);
+        keySays(l, Map.of("consignment", true));
+        resolvedSays(l, Map.of("consignment", false));
+        when(keys.payloadVersion("key-22")).thenReturn(2);
+        clientHas("c-14", l);
+
+        assertThat(service.remintForClient("c-14", TODAY, Set.of("accounting")))
+                .singleElement().satisfies(o -> {
+                    assertThat(o.minted()).isFalse();
+                    assertThat(o.skippedReason()).isEqualTo("drifting - reconcile first");
+                });
+        verify(licenses, never()).save(any());
+    }
+
+    /** A flag the key never carried is adopted whether or not the save named it. */
+    @Test
+    void aNewlyAddedFlagIsAdoptedWithoutBeingNamedBySave() {
+        License l = licence(23, "c-1", "ACTIVE", null);
+        keySays(l, Map.of("accounting", true));
+        resolvedSays(l, Map.of("accounting", true, "deviceRepair", true));
+        when(keys.resignWithFeatures("key-23", Map.of("accounting", true, "deviceRepair", true)))
+                .thenReturn("new-23");
+        when(keys.payloadVersion("key-23")).thenReturn(2);
+        clientHas("c-1", l);
+
+        assertThat(service.remintForClient("c-1", TODAY, Set.of()))
+                .singleElement().satisfies(o -> assertThat(o.minted()).isTrue());
+    }
+
+    /** The reconcile is the explicit remover, so nothing is protected from it. */
+    @Test
+    void reconcileDriftMayRemoveAFlagNoSaveNamed() {
+        License l = licence(24, "viora", "ACTIVE", null);
+        keySays(l, Map.of("multiCurrencyPricing", true));
+        resolvedSays(l, Map.of("multiCurrencyPricing", false));
+        when(keys.resignWithFeatures("key-24", Map.of("multiCurrencyPricing", false))).thenReturn("new-24");
+        when(keys.payloadVersion("key-24")).thenReturn(2);
+        when(licenses.findById(24L)).thenReturn(Optional.of(l));
+        when(scanner.scanAll(TODAY)).thenReturn(List.of(new LicenceDriftScanner.DriftRow(
+                24L, "viora", "live", "m-24",
+                List.of(new LicenceDriftScanner.FlagChange("multiCurrencyPricing", true, false)))));
+
+        assertThat(service.reconcileDrift(TODAY))
+                .singleElement().satisfies(o -> assertThat(o.minted()).isTrue());
+        verify(keys).resignWithFeatures("key-24", Map.of("multiCurrencyPricing", false));
+    }
+
+    // ── A v1 key must be re-issued, not feature-re-minted ───────────────────
+
+    /**
+     * resignWithFeatures would happily add a features object to a v1 payload, but the desktop's
+     * applyLicenseEntitlements() returns early below v2 while effectiveClientConfig() has no
+     * version gate — so the POS UI would light up over backend gates that stay shut: a button
+     * that 403s.
+     */
+    @Test
+    void aV1KeyIsSkippedAndPointedAtTheReissuePath() {
+        License l = licence(25, "c-1", "ACTIVE", null);
+        keySays(l, Map.of("accounting", false));
+        resolvedSays(l, Map.of("accounting", true));
+        when(keys.payloadVersion("key-25")).thenReturn(1);
+        clientHas("c-1", l);
+
+        assertThat(service.remintForClient("c-1", TODAY, null)).singleElement().satisfies(o -> {
+            assertThat(o.minted()).isFalse();
+            assertThat(o.skippedReason()).isEqualTo("v1 key - re-issue first");
+        });
+        assertThat(l.getLicenseKey()).isEqualTo("key-25");
+        verify(licenses, never()).save(any());
+    }
+
+    // ── The v1 rollback key must survive a feature re-mint ──────────────────
+
+    /**
+     * LicenseReissueService stores previousLicenseKey only on a genuine v1→v2 transition, so a
+     * later revert restores a v1 key rather than another v2 one. A feature re-mint must not
+     * clobber that, or "reversible from the DB alone" stops being true.
+     */
+    @Test
+    void aStoredV1PreviousKeyIsNotOverwrittenByAFeatureRemint() {
+        License l = licence(26, "c-1", "ACTIVE", null);
+        l.setPreviousLicenseKey("v1-key");
+        keySays(l, Map.of("accounting", false));
+        resolvedSays(l, Map.of("accounting", true));
+        when(keys.payloadVersion("key-26")).thenReturn(2);
+        when(keys.payloadVersion("v1-key")).thenReturn(1);
+        when(keys.resignWithFeatures("key-26", Map.of("accounting", true))).thenReturn("new-26");
+        clientHas("c-1", l);
+
+        service.remintForClient("c-1", TODAY, null);
+
+        assertThat(l.getPreviousLicenseKey()).isEqualTo("v1-key");
+        assertThat(l.getLicenseKey()).isEqualTo("new-26");
+    }
+
+    @Test
+    void aStoredV2PreviousKeyIsReplacedAsUsual() {
+        License l = licence(27, "c-1", "ACTIVE", null);
+        l.setPreviousLicenseKey("older-v2-key");
+        keySays(l, Map.of("accounting", false));
+        resolvedSays(l, Map.of("accounting", true));
+        when(keys.payloadVersion("key-27")).thenReturn(2);
+        when(keys.payloadVersion("older-v2-key")).thenReturn(2);
+        when(keys.resignWithFeatures("key-27", Map.of("accounting", true))).thenReturn("new-27");
+        clientHas("c-1", l);
+
+        service.remintForClient("c-1", TODAY, null);
+
+        assertThat(l.getPreviousLicenseKey()).isEqualTo("key-27");
+    }
+
+    // ── The push listener must not run before the row is committed ──────────
+
+    @Test
+    void theRemintedEventIsPublishedAfterCommit() throws Exception {
+        var annotation = HostedLicencePushListener.class
+                .getMethod("onReminted", com.daman.admin.event.LicenceRemintedEvent.class)
+                .getAnnotation(org.springframework.transaction.event.TransactionalEventListener.class);
+        assertThat(annotation).as("a blocking HTTP push must not run inside the mint transaction")
+                .isNotNull();
+        assertThat(annotation.phase())
+                .isEqualTo(org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT);
+    }
+
     @Test
     void reconcileDriftMintsExactlyTheRowsTheScannerReported() {
         License drifting = licence(14, "viora", "ACTIVE", null);

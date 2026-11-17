@@ -65,7 +65,23 @@ class ClientFeatureSaveRemintsTest {
 
         controller.update("c-1", new ClientConfigRequest());
 
-        verify(remint).remintForClient("c-1");
+        verify(remint).remintForClient("c-1", java.util.Set.of("accounting"));
+    }
+
+    /**
+     * Only the flags this save actually changed may be removed from a key. Without that, the
+     * first unrelated toggle on a client whose key has drifted would strip the drifted flag from
+     * a live shop — which the spec forbids outside the owner-run reconcile.
+     */
+    @Test
+    void onlyTheFlagsThisSaveChangedArePassedAsRemovable() {
+        featuresGoFromTo(
+                Map.of("accounting", false, "consignment", true, "shifts", false),
+                Map.of("accounting", true, "consignment", true, "shifts", true));
+
+        controller.update("c-1", new ClientConfigRequest());
+
+        verify(remint).remintForClient("c-1", java.util.Set.of("accounting", "shifts"));
     }
 
     @Test
@@ -74,7 +90,7 @@ class ClientFeatureSaveRemintsTest {
 
         controller.update("c-1", new ClientConfigRequest());
 
-        verify(remint, never()).remintForClient(anyString());
+        verify(remint, never()).remintForClient(anyString(), any());
     }
 
     @Test
@@ -86,13 +102,23 @@ class ClientFeatureSaveRemintsTest {
         request.setAppName("Renamed Shop");
         controller.update("c-1", request);
 
-        verify(remint, never()).remintForClient(anyString());
+        verify(remint, never()).remintForClient(anyString(), any());
+    }
+
+    /** The profile save must not 500 after a successful save just because minting failed. */
+    @Test
+    void aRemintFailureOnTheProfileSaveDoesNotFailTheSave() {
+        featuresGoFromTo(Map.of("accounting", false), Map.of("accounting", true));
+        when(remint.remintForClient(anyString(), any())).thenThrow(new RuntimeException("signing unavailable"));
+
+        assertThat(controller.update("c-1", new ClientConfigRequest()).getClientCode()).isEqualTo("c-1");
     }
 
     @Test
     void theDedicatedFeaturesEndpointSavesAndRemints() {
-        when(remint.remintForClient("c-1")).thenReturn(List.of(
+        when(remint.remintForClient(anyString(), any())).thenReturn(List.of(
                 new LicenceRemintService.RemintOutcome(1L, "c-1", "m-1", true, null)));
+        featuresGoFromTo(Map.of("accounting", false), Map.of("accounting", true));
         FeaturesRequest patch = new FeaturesRequest();
         patch.setAccounting(true);
 
@@ -100,14 +126,15 @@ class ClientFeatureSaveRemintsTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(service).updateFeatures("c-1", patch);
-        verify(remint).remintForClient("c-1");
+        verify(remint).remintForClient("c-1", java.util.Set.of("accounting"));
     }
 
     @Test
     void theDedicatedEndpointReportsWhatHappenedToEachLicence() {
-        when(remint.remintForClient("c-1")).thenReturn(List.of(
+        when(remint.remintForClient(anyString(), any())).thenReturn(List.of(
                 new LicenceRemintService.RemintOutcome(1L, "c-1", "m-1", true, null),
                 new LicenceRemintService.RemintOutcome(2L, "c-1", "m-2", false, "expired")));
+        featuresGoFromTo(Map.of("accounting", false), Map.of("accounting", true));
         FeaturesRequest patch = new FeaturesRequest();
         patch.setAccounting(true);
 
@@ -120,7 +147,8 @@ class ClientFeatureSaveRemintsTest {
     /** A licence that cannot be re-minted must not undo a correct save. */
     @Test
     void remintFailureDoesNotLoseTheSavedFeatures() {
-        when(remint.remintForClient("c-1")).thenThrow(new RuntimeException("signing unavailable"));
+        when(remint.remintForClient(anyString(), any())).thenThrow(new RuntimeException("signing unavailable"));
+        featuresGoFromTo(Map.of("accounting", false), Map.of("accounting", true));
         FeaturesRequest patch = new FeaturesRequest();
         patch.setAccounting(true);
 
