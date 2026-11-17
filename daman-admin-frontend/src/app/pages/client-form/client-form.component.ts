@@ -10,6 +10,7 @@ import { DaysLeftPipe } from '../../pipes/days-left.pipe';
 import { LicenseService, License, GenerateLicenseResponse } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
 import { Billing, BillingRequest } from '../../models/billing.model';
+import { FeatureGridComponent } from '../../components/feature-grid/feature-grid.component';
 import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup } from '../../models/feature-catalog';
 import { FeaturePriceService } from '../../services/feature-price.service';
 import { ClientFeatures } from '../../models/client-config.model';
@@ -19,7 +20,7 @@ import { NOTO_KUFI_ARABIC_BASE64 } from './noto-kufi-arabic-font';
 @Component({
   selector: 'app-client-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe, DaysLeftPipe, DevRunButtonComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, AsyncPipe, TranslatePipe, DaysLeftPipe, DevRunButtonComponent, FeatureGridComponent],
   templateUrl: './client-form.component.html'
 })
 export class ClientFormComponent implements OnInit {
@@ -86,27 +87,21 @@ export class ClientFormComponent implements OnInit {
   readonly featureCatalog = FEATURE_CATALOG;
   readonly featureGroupOrder = FEATURE_GROUP_ORDER;
 
-  featureGroupEntries(group: FeatureGroup) {
-    return this.featureCatalog.filter(f => f.group === group);
+  /**
+   * The feature flags as a plain map, for `<app-feature-grid>`.
+   *
+   * <p>The grid is shared with the licence drawer, which has no form, so it speaks maps and
+   * events rather than `formControlName`. The form remains the source of truth here — this is
+   * only the read half of the bridge; {@link setBusinessFeature} is the write half.
+   */
+  get businessFeatures(): Record<string, boolean> {
+    return (this.form?.get('features')?.value ?? {}) as Record<string, boolean>;
   }
 
-  /** Badge text for a feature: 'free', a $ price, or null when it carries no price at all. */
-  featureBadge(key: string): string | null {
-    const price = this.featurePrices.priceOf(key);
-    if (price === null) return null;
-    return price === 0 ? 'free' : `$${price}`;
-  }
-
-  get enabledAddonCount(): number {
-    const features = this.form?.get('features')?.value as ClientFeatures | undefined;
-    if (!features) return 0;
-    return this.featureCatalog.filter(f => f.group === 'addons' && this.featurePrices.isPaid(f.key) && features[f.key]).length;
-  }
-
-  get addonTotalValue(): number {
-    const features = this.form?.get('features')?.value as ClientFeatures | undefined;
-    if (!features) return 0;
-    return this.featurePrices.addonValue(features as unknown as Record<string, boolean | undefined>);
+  /** Write half of the bridge: a toggle in the grid lands back on the form control. */
+  setBusinessFeature(key: string, value: boolean): void {
+    this.form?.get('features.' + key)?.setValue(value);
+    this.form?.markAsDirty();
   }
 
   // Only primary + secondary are client-brandable; success/danger/warning/info

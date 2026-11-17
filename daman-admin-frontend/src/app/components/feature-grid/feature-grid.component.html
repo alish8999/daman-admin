@@ -1,0 +1,80 @@
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+  <div>
+    <h6 class="text-muted mb-1">{{ 'appFeatures' | t }}</h6>
+    <p class="text-muted small mb-0">
+      {{ (mode === 'licence' ? 'licenceFeaturesHint' : 'appFeaturesHint') | t }}
+    </p>
+  </div>
+
+  <!-- Prices come from the backend. Until that lands (or if it fails) these numbers are
+       unknown, NOT zero — rendering "$0 / per client" for a client with six paid add-ons
+       would be a confident lie that nobody would think to question.
+       Only shown in business mode: an add-on is priced per business, so repeating the total
+       on each licence would read as a per-licence charge. -->
+  @if (mode === 'business') {
+    <div class="addon-summary text-end" *ngIf="featurePrices.isLoaded; else addonPricesUnavailable">
+      <div class="small text-muted">{{ 'addonsEnabled' | t }}: <strong>{{ enabledAddonCount }}</strong></div>
+      <div class="fw-bold fs-4 text-success">${{ addonTotalValue }}<span class="small text-muted fw-normal">/{{ 'perClient' | t }}</span></div>
+    </div>
+    <ng-template #addonPricesUnavailable>
+      <div class="addon-summary text-end">
+        <div class="small text-muted">{{ 'addonPricesUnavailable' | t }}</div>
+      </div>
+    </ng-template>
+  }
+</div>
+
+<div>
+  @for (group of featureGroupOrder; track group) {
+    <div class="text-muted small fw-semibold text-uppercase mt-4 mb-2">{{ ('featureGroup.' + group) | t }}</div>
+    <div class="row g-3">
+      @for (f of featureGroupEntries(group); track f.key) {
+        <div class="col-md-6 col-lg-4">
+          <label class="feature-card d-flex gap-3 p-3 rounded border h-100 mb-0"
+                 [class.feature-card--on]="isOn(f.key)">
+            <span class="feature-card-icon flex-shrink-0">
+              <i class="bi" [ngClass]="f.icon"></i>
+            </span>
+            <span class="flex-grow-1">
+              <span class="d-flex align-items-center justify-content-between gap-2">
+                <span class="fw-semibold small">{{ f.labelKey | t }}</span>
+                @if (featureBadge(f.key); as badge) {
+                  <span class="badge" [class.bg-success]="badge === 'free'" [class.bg-primary]="badge !== 'free'">
+                    {{ badge === 'free' ? ('free' | t) : badge }}
+                  </span>
+                } @else {
+                  <span class="badge bg-light text-muted border">{{ 'included' | t }}</span>
+                }
+              </span>
+              <span class="d-block text-muted mt-1" style="font-size:0.76rem">{{ f.descKey | t }}</span>
+
+              <!-- Licence mode: say whether this flag follows the business or deviates from it,
+                   and offer the way back. Without this a customised licence looks identical to
+                   an inherited one, which is how a per-licence override silently becomes
+                   permanent. -->
+              @if (mode === 'licence') {
+                <span class="d-block mt-2">
+                  @if (isOverridden(f.key)) {
+                    <span class="status-pill status-pill--warning">{{ 'featureCustomised' | t }}</span>
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline"
+                            style="font-size:0.72rem" [disabled]="disabled"
+                            (click)="$event.preventDefault(); resetToInherited.emit(f.key)">
+                      {{ 'featureResetToBusiness' | t }}
+                    </button>
+                  } @else {
+                    <span class="status-pill">{{ 'featureInherited' | t }}</span>
+                  }
+                </span>
+              }
+            </span>
+            <span class="form-check form-switch flex-shrink-0 mb-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     [checked]="isOn(f.key)" [disabled]="disabled"
+                     (change)="onToggle(f.key, $any($event.target).checked)">
+            </span>
+          </label>
+        </div>
+      }
+    </div>
+  }
+</div>

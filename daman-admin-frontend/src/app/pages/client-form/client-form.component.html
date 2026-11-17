@@ -263,60 +263,14 @@
          ════════════════════════════════════════════════════════════════════ -->
     <div [hidden]="activeTab !== 'features'">
       <div class="bg-white rounded shadow-sm p-4 mb-4">
-
-        <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
-          <div>
-            <h6 class="text-muted mb-1">{{ 'appFeatures' | t }}</h6>
-            <p class="text-muted small mb-0">{{ 'appFeaturesHint' | t }}</p>
-          </div>
-          <!-- Prices come from the backend. Until that lands (or if it fails) these numbers are
-               unknown, NOT zero — rendering "$0 / per client" for a client with six paid add-ons
-               would be a confident lie that nobody would think to question. -->
-          <div class="addon-summary text-end" *ngIf="featurePrices.isLoaded; else addonPricesUnavailable">
-            <div class="small text-muted">{{ 'addonsEnabled' | t }}: <strong>{{ enabledAddonCount }}</strong></div>
-            <div class="fw-bold fs-4 text-success">${{ addonTotalValue }}<span class="small text-muted fw-normal">/{{ 'perClient' | t }}</span></div>
-          </div>
-          <ng-template #addonPricesUnavailable>
-            <div class="addon-summary text-end">
-              <div class="small text-muted">{{ 'addonPricesUnavailable' | t }}</div>
-            </div>
-          </ng-template>
-        </div>
-
-        <div formGroupName="features">
-          @for (group of featureGroupOrder; track group) {
-            <div class="text-muted small fw-semibold text-uppercase mt-4 mb-2">{{ ('featureGroup.' + group) | t }}</div>
-            <div class="row g-3">
-              @for (f of featureGroupEntries(group); track f.key) {
-                <div class="col-md-6 col-lg-4">
-                  <label class="feature-card d-flex gap-3 p-3 rounded border h-100 mb-0"
-                         [class.feature-card--on]="form.get('features.' + f.key)?.value">
-                    <span class="feature-card-icon flex-shrink-0">
-                      <i class="bi" [ngClass]="f.icon"></i>
-                    </span>
-                    <span class="flex-grow-1">
-                      <span class="d-flex align-items-center justify-content-between gap-2">
-                        <span class="fw-semibold small">{{ f.labelKey | t }}</span>
-                        @if (featureBadge(f.key); as badge) {
-                          <span class="badge" [class.bg-success]="badge === 'free'" [class.bg-primary]="badge !== 'free'">
-                            {{ badge === 'free' ? ('free' | t) : badge }}
-                          </span>
-                        } @else {
-                          <span class="badge bg-light text-muted border">{{ 'included' | t }}</span>
-                        }
-                      </span>
-                      <span class="d-block text-muted mt-1" style="font-size:0.76rem">{{ f.descKey | t }}</span>
-                    </span>
-                    <span class="form-check form-switch flex-shrink-0 mb-0">
-                      <input class="form-check-input" type="checkbox" role="switch" [formControlName]="f.key">
-                    </span>
-                  </label>
-                </div>
-              }
-            </div>
-          }
-        </div>
-
+        <!-- The grid is a shared component (app-feature-grid) so the licence drawer renders the
+             identical catalogue. The form stays the source of truth here: it feeds the current
+             values down and takes each toggle back. -->
+        <app-feature-grid
+          mode="business"
+          [features]="businessFeatures"
+          (toggle)="setBusinessFeature($event.key, $event.value)">
+        </app-feature-grid>
       </div>
     </div><!-- /features tab -->
 
