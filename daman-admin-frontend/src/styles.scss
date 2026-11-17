@@ -166,6 +166,13 @@
 
   // Expired or revoked: present, readable, and visibly not one of the live ones.
   &--dim { opacity: 0.68; }
+
+  // The drift page reuses this shape to SHOW a licence that nothing opens. Without this it
+  // would offer a pointer and a hover lift for a card that does not respond to a click.
+  &--static {
+    cursor: default;
+    &:hover { box-shadow: var(--admin-shadow-sm); border-color: var(--admin-border); }
+  }
 }
 
 .licence-card-head {

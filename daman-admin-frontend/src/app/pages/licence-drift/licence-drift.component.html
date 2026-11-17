@@ -1,0 +1,257 @@
+@if (translationService.getLanguage$() | async) {
+<div class="admin-content-inner" style="max-width: 980px">
+
+  <div class="page-header">
+    <div>
+      <h3>{{ 'driftTitle' | t }}</h3>
+      <p>{{ 'driftSubtitle' | t }}</p>
+    </div>
+    <a routerLink="/clients" class="btn btn-sm btn-outline-secondary fw-semibold">&larr; {{ 'back' | t }}</a>
+  </div>
+
+  @if (error) {
+    <div class="alert alert-warning mb-3">{{ error }}</div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       OUTCOMES — shown after a reconcile, before the (re-read) preview.
+       Every row is listed, the ones that did nothing included: a blanket
+       "done" would hide the licences that still need attention.
+       ══════════════════════════════════════════════════════════════════════ -->
+  @if (reconciled) {
+    <div class="bg-white rounded shadow-sm p-4 mb-4">
+      <h6 class="text-muted mb-3">{{ 'driftOutcomesTitle' | t }}</h6>
+
+      <div class="d-flex gap-4 flex-wrap mb-3">
+        <div>
+          <div class="text-muted small">{{ 'driftReminted' | t }}</div>
+          <div class="fw-bold fs-5 text-success ltr-num">{{ mintedOutcomes.length }}</div>
+        </div>
+        <div>
+          <div class="text-muted small">{{ 'driftSkipped' | t }}</div>
+          <div class="fw-bold fs-5 ltr-num" [class.text-warning]="skippedOutcomes.length > 0">
+            {{ skippedOutcomes.length }}
+          </div>
+        </div>
+      </div>
+
+      @if (outcomes.length === 0) {
+        <p class="text-muted small mb-0">{{ 'driftNothingToDo' | t }}</p>
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>{{ 'clientCode' | t }}</th>
+                <th>{{ 'machineId' | t }}</th>
+                <th>{{ 'result' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (o of outcomes; track o.licenceId) {
+                <tr>
+                  <td>{{ o.clientCode ?? '—' }}</td>
+                  <td><code dir="ltr" class="small text-muted">{{ truncate(o.machineId) }}…</code></td>
+                  <td>
+                    @if (o.minted) {
+                      <span class="status-pill status-pill--success">{{ 'driftRemintedOne' | t }}</span>
+                    } @else {
+                      <span class="status-pill status-pill--warning">{{ 'driftSkipped' | t }}</span>
+                      <span class="text-muted small ms-2">{{ o.skippedReason }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       DRIFT PREVIEW
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="bg-white rounded shadow-sm p-4 mb-4">
+    @if (loading) {
+      <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+    } @else if (rows.length === 0) {
+      <div class="text-center text-muted py-4">
+        <div class="fs-1 mb-2">✓</div>
+        <div class="fw-semibold mb-1">{{ 'driftNoneTitle' | t }}</div>
+        <div class="small">{{ 'driftNoneBody' | t }}</div>
+      </div>
+    } @else {
+
+      @if (losingRows.length) {
+        <h6 class="text-muted mb-1">{{ 'driftLosingTitle' | t }}</h6>
+        <p class="text-muted small mb-3">{{ 'driftLosingHint' | t }}</p>
+        <div class="d-flex flex-column gap-2 mb-4">
+          @for (row of losingRows; track row.licenceId) {
+            <div class="licence-card licence-card--static">
+              <div class="licence-card-head">
+                <div class="licence-card-title">
+                  <span class="licence-card-label">{{ row.clientCode }}</span>
+                  @if (row.label) { <span class="status-pill">{{ row.label }}</span> }
+                  @switch (kindOf(row)) {
+                    @case ('dev')    { <span class="status-pill">{{ 'kindDev' | t }}</span> }
+                    @case ('hosted') { <span class="status-pill">{{ 'kindHosted' | t }}</span> }
+                  }
+                </div>
+                <code dir="ltr" class="small text-muted">{{ truncate(row.machineId) }}…</code>
+              </div>
+              <div class="licence-card-foot d-block">
+                @for (c of losses(row); track c.key) {
+                  <span class="status-pill status-pill--danger me-1">&minus; {{ featureLabelKey(c.key) | t }}</span>
+                }
+                @for (c of gains(row); track c.key) {
+                  <span class="status-pill status-pill--success me-1">+ {{ featureLabelKey(c.key) | t }}</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (gainingOnlyRows.length) {
+        <h6 class="text-muted mb-1">{{ 'driftGainingTitle' | t }}</h6>
+        <p class="text-muted small mb-3">{{ 'driftGainingHint' | t }}</p>
+        <div class="d-flex flex-column gap-2 mb-4">
+          @for (row of gainingOnlyRows; track row.licenceId) {
+            <div class="licence-card licence-card--static">
+              <div class="licence-card-head">
+                <div class="licence-card-title">
+                  <span class="licence-card-label">{{ row.clientCode }}</span>
+                  @if (row.label) { <span class="status-pill">{{ row.label }}</span> }
+                  @switch (kindOf(row)) {
+                    @case ('dev')    { <span class="status-pill">{{ 'kindDev' | t }}</span> }
+                    @case ('hosted') { <span class="status-pill">{{ 'kindHosted' | t }}</span> }
+                  }
+                </div>
+                <code dir="ltr" class="small text-muted">{{ truncate(row.machineId) }}…</code>
+              </div>
+              <div class="licence-card-foot d-block">
+                @for (c of gains(row); track c.key) {
+                  <span class="status-pill status-pill--success me-1">+ {{ featureLabelKey(c.key) | t }}</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- The confirmation names the actual losses, read from the preview above — never a
+           blanket "are you sure", because this is the one action that can take a working
+           feature away from a running shop. -->
+      @if (!confirming) {
+        <button type="button" class="btn btn-primary" (click)="askReconcile()">
+          {{ 'driftReconcile' | t }}
+        </button>
+      } @else {
+        <div class="drawer-notice drawer-notice--warning mb-2">
+          <div class="fw-semibold">{{ 'driftConfirmTitle' | t }}</div>
+          @if (lossSummary) {
+            <div class="small">{{ 'driftConfirmLoses' | t }} <span dir="ltr">{{ lossSummary }}</span></div>
+          } @else {
+            <div class="small">{{ 'driftConfirmGainsOnly' | t }}</div>
+          }
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-primary" [disabled]="reconciling" (click)="reconcile()">
+            @if (reconciling) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            {{ 'driftReconcile' | t }}
+          </button>
+          <button type="button" class="btn btn-outline-secondary" (click)="cancelReconcile()">
+            {{ 'cancel' | t }}
+          </button>
+        </div>
+      }
+    }
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       ORPHAN LICENCES — a licence whose client row is gone. Skipped by every
+       re-mint and by the drift scan, so this is the only place they appear.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="bg-white rounded shadow-sm p-4 mb-4">
+    <h6 class="text-muted mb-1">{{ 'orphanLicencesTitle' | t }}</h6>
+    <p class="text-muted small mb-3">{{ 'orphanLicencesHint' | t }}</p>
+
+    @if (orphansLoading) {
+      <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+    } @else if (orphans.length === 0) {
+      <p class="text-muted small mb-0">{{ 'orphanLicencesNone' | t }}</p>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>{{ 'clientCode' | t }}</th>
+              <th>{{ 'machineId' | t }}</th>
+              <th>{{ 'status' | t }}</th>
+              <th>{{ 'activatedAt' | t }}</th>
+              <th class="text-end">{{ 'actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (lic of orphans; track lic.id) {
+              <tr>
+                <td><code dir="ltr" class="small">{{ lic.clientCode }}</code></td>
+                <td><code dir="ltr" class="small text-muted">{{ truncate(lic.machineId) }}…</code></td>
+                <td>
+                  @if (lic.status === 'ACTIVE') {
+                    <span class="status-pill status-pill--success">{{ lic.status }}</span>
+                  } @else {
+                    <span class="status-pill status-pill--danger">{{ lic.status }}</span>
+                  }
+                  @switch (kindOfLicence(lic)) {
+                    @case ('dev')    { <span class="status-pill ms-1">{{ 'kindDev' | t }}</span> }
+                    @case ('hosted') { <span class="status-pill ms-1">{{ 'kindHosted' | t }}</span> }
+                  }
+                </td>
+                <td class="text-muted small">{{ lic.activatedAt | date:'dd MMM yyyy' }}</td>
+                <td class="text-end">
+                  @if (lic.status === 'ACTIVE') {
+                    <button type="button" class="btn btn-xs btn-outline-danger" (click)="askRevoke(lic)">
+                      ✕ {{ 'revoke' | t }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+</div>
+
+<!-- ── Revoke confirmation ───────────────────────────────────────────────── -->
+@if (revokeTarget) {
+  <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ 'confirmRevoke' | t }}</h5>
+        </div>
+        <div class="modal-body">
+          <p>{{ 'orphanRevokeWarning' | t }}</p>
+          <code dir="ltr" class="text-muted small d-block">{{ revokeTarget.clientCode }} · {{ truncate(revokeTarget.machineId, 24) }}</code>
+          @if (revokeError) {
+            <div class="alert alert-danger mt-3 mb-0 py-2">{{ revokeError }}</div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" (click)="cancelRevoke()">{{ 'cancel' | t }}</button>
+          <button class="btn btn-danger" [disabled]="revoking" (click)="confirmRevoke()">
+            @if (revoking) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            {{ 'revoke' | t }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+}
