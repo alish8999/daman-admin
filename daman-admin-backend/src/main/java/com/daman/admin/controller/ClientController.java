@@ -29,6 +29,18 @@ public class ClientController {
     private final ClientConfigService service;
     private final BuildService buildService;
     private final DevRunService devRunService;
+    private final com.daman.admin.service.LicenceRemintService remintService;
+
+    /**
+     * What a features save did: the saved client, and what happened to each of its licence keys.
+     *
+     * <p>{@code remintError} is non-null only when re-minting itself failed. The save stands
+     * either way — losing a correct feature save because signing was briefly unavailable would be
+     * the worse outcome, and the next save or renewal picks the keys up.
+     */
+    public record FeatureSaveResponse(ClientConfigDto client,
+                                      List<com.daman.admin.service.LicenceRemintService.RemintOutcome> remintOutcomes,
+                                      String remintError) {}
 
     @GetMapping
     public List<ClientConfigDto> getAll() {
@@ -46,10 +58,48 @@ public class ClientController {
         return service.create(request);
     }
 
+    /**
+     * The whole-client save the existing portal uses, which carries features inside it.
+     *
+     * <p>Re-mints this client's live licence keys when the save actually changed the feature set.
+     * Today's portal has no separate features action, so without this a sold add-on would still
+     * sit in the database until someone happened to renew — which is exactly the drift measured
+     * on the live fleet. A profile-only edit mints nothing.
+     */
     @PutMapping("/{clientCode}")
     public ClientConfigDto update(@PathVariable String clientCode,
                                   @Valid @RequestBody ClientConfigRequest request) {
-        return service.update(clientCode, request);
+        java.util.Map<String, Boolean> before = service.clientFeatures(clientCode);
+        ClientConfigDto saved = service.update(clientCode, request);
+        if (!before.equals(service.clientFeatures(clientCode))) {
+            remintService.remintForClient(clientCode);
+        }
+        return saved;
+    }
+
+    /**
+     * The features-only save, and the endpoint the new portal's confirmed "save features" action
+     * calls.
+     *
+     * <p>Separate from the profile save because it re-mints licence keys: that is a consequence
+     * worth confirming deliberately rather than attaching to a press of "Save changes".
+     *
+     * <p>A re-mint failure does not fail the save — the features are stored, and the response
+     * carries the error so the portal can say the keys have not gone out yet.
+     */
+    @PutMapping("/{clientCode}/features")
+    public ResponseEntity<FeatureSaveResponse> updateFeatures(
+            @PathVariable String clientCode,
+            @RequestBody com.daman.admin.dto.FeaturesRequest features) {
+        ClientConfigDto saved = service.updateFeatures(clientCode, features);
+        try {
+            return ResponseEntity.ok(new FeatureSaveResponse(
+                    saved, remintService.remintForClient(clientCode), null));
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(ClientController.class)
+                    .error("Features saved for {} but re-minting its licence keys failed", clientCode, e);
+            return ResponseEntity.ok(new FeatureSaveResponse(saved, List.of(), e.getMessage()));
+        }
     }
 
     /**

@@ -99,6 +99,38 @@ public class ClientConfigService {
         return toDto(repository.save(entity));
     }
 
+    /**
+     * Change ONLY this client's default feature set, leaving profile, branding and currency alone.
+     *
+     * <p>Exists because {@link #update} applies a whole {@code ClientConfigRequest}, so it cannot
+     * serve a features-only save. The portal's new confirmed "save features" action needs one:
+     * saving features re-mints licence keys, which is not something that should ride along on a
+     * press of "Save changes" for a renamed shop.
+     *
+     * <p>Merge-patch semantics, same as {@link #update}: a null field in {@code patch} leaves that
+     * flag as it was.
+     */
+    public ClientConfigDto updateFeatures(String clientCode, FeaturesRequest patch) {
+        ClientConfig entity = repository.findByClientCode(clientCode)
+                .orElseThrow(() -> new RuntimeException("Client not found: " + clientCode));
+        mergeFeatures(entity, patch);
+        return toDto(repository.save(entity));
+    }
+
+    /**
+     * This client's stored default feature flags.
+     *
+     * <p>Public so a caller can tell whether a save actually changed them — the re-mint is driven
+     * from the controller (see {@code ClientController}), because
+     * {@link LicenceRemintService} already depends on this service to resolve entitlements and the
+     * reverse edge would be a circular bean dependency.
+     */
+    public java.util.Map<String, Boolean> clientFeatures(String clientCode) {
+        ClientConfig c = repository.findByClientCode(clientCode)
+                .orElseThrow(() -> new IllegalArgumentException("Client not found: " + clientCode));
+        return clientDefaultFeatures(c);
+    }
+
     /** Money actually received. PENDING is an invoice nobody has paid, so it blocks nothing. */
     private static final java.util.Set<String> PAID_STATUSES = java.util.Set.of("PAID", "PARTIAL");
 
