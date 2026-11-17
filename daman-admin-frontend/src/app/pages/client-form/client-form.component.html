@@ -110,21 +110,6 @@
             </select>
           </div>
           <div class="col-md-6">
-            <label class="form-label">{{ 'username' | t }}</label>
-            <input formControlName="adminUsername" class="form-control font-monospace" [placeholder]="'usernamePlaceholder' | t">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">{{ 'password' | t }}</label>
-            <div class="input-group">
-              <input formControlName="adminPassword" class="form-control"
-                     [type]="passwordVisible ? 'text' : 'password'" [placeholder]="'passwordPlaceholder' | t">
-              <button type="button" class="btn btn-outline-secondary" (click)="passwordVisible = !passwordVisible">
-                {{ (passwordVisible ? 'hide' : 'show') | t }}
-              </button>
-            </div>
-            <div class="form-text">{{ 'adminCredentialsHint' | t }}</div>
-          </div>
-          <div class="col-md-6">
             <label class="form-label">{{ 'developerName' | t }}</label>
             <input formControlName="footerDeveloper" class="form-control" [placeholder]="'developerNamePlaceholder' | t">
           </div>

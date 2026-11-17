@@ -33,7 +33,6 @@ export class ClientFormComponent implements OnInit {
   saving = false;
   error = '';
   savedMsg = '';
-  passwordVisible = false;
 
   // ── One page, no tabs ────────────────────────────────────────────────────
   // The five tabs (business / branding / features / billing / license) are gone: they hid the
@@ -43,6 +42,14 @@ export class ClientFormComponent implements OnInit {
   // business editing them. Those form controls are kept, unrendered, because the request DTO
   // marks logoDark/colorPrimary/colorSecondary @NotBlank and dashboardHeaderImage is applied
   // unconditionally — dropping them would fail validation or wipe a stored value on every save.
+  //
+  // The first-login credentials went the same way, and for the same reason the owner gave for
+  // branding: the POS already assumes admin/123456 on a fresh install (login.component.ts's
+  // DEFAULT_USERNAME/DEFAULT_PASSWORD prefill exactly that), so the portal was re-typing a
+  // default the app already knows. Their controls are kept unrendered too — ClientConfigRequest
+  // marks both @NotBlank, and six clients have stored something OTHER than the default, which
+  // the v2 payload's `credentials` still carries to seed their first user. Those values must
+  // round-trip untouched; they are simply no longer edited here.
 
   /** The licence whose drawer is open, or null. */
   drawerLicence: License | null = null;
@@ -248,7 +255,6 @@ export class ClientFormComponent implements OnInit {
         googleDriveBackup:    [false]
       })
     });
-    this.passwordVisible = false;
 
     this.clientCode = this.route.snapshot.paramMap.get('clientCode');
     this.isEditMode = !!this.clientCode;
@@ -269,6 +275,10 @@ export class ClientFormComponent implements OnInit {
           logoDark:          client.logoDark           || 'assets/brand/logo.png',
           colorPrimary:      client.colorPrimary       || '#667eea',
           colorSecondary:    client.colorSecondary     || '#764ba2',
+          // Same reason as the three above: no input renders these any more, both are @NotBlank,
+          // and a stored null would disable Save with nothing on screen to explain it.
+          adminUsername:     client.adminUsername      || 'admin',
+          adminPassword:     client.adminPassword      || '123456',
           defaultBuildTarget: client.defaultBuildTarget ?? 'win',
           clientNotes:       client.clientNotes        ?? '',
           features: {
