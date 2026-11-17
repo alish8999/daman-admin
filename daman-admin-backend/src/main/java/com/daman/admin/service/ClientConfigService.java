@@ -56,6 +56,15 @@ public class ClientConfigService {
         ClientConfig entity = new ClientConfig();
         entity.setClientCode(code);
         applyRequest(entity, request);
+        // Features are applied HERE and not in applyRequest(), so that update() — which also
+        // goes through applyRequest — cannot change them. A profile save must never be able to
+        // switch a feature off: the client page's features grid writes into the same FormGroup
+        // the page's generic "Save changes" button submits, so without this, flipping a feature
+        // and pressing the wrong button skipped the confirmation that names what is being taken
+        // away, skipped the per-licence outcome report, and stripped the flag from every live
+        // key with nothing on screen but "Client saved". Changing a feature set is
+        // updateFeatures(), which is the path that re-mints.
+        mergeFeatures(entity, request.getFeatures());
         return toDto(repository.save(entity));
     }
 
@@ -350,7 +359,6 @@ public class ClientConfigService {
         }
         entity.setClientStatus(request.getClientStatus());
         entity.setClientNotes(request.getClientNotes());
-        mergeFeatures(entity, request.getFeatures());
     }
 
     private ClientFeaturesJson parseFeaturesJson(String json) {

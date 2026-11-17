@@ -40,6 +40,10 @@ export class LicenceDrawerComponent {
   @Output() revoke = new EventEmitter<License>();
   @Output() downloadDat = new EventEmitter<License>();
   @Output() revertReissue = new EventEmitter<License>();
+  /** Delete the licence ROW outright. Separate from revoke: revoke leaves an auditable dead
+   *  licence, delete removes the record. Lost when the licence table became cards, which left
+   *  no way to clear a junk row at all. */
+  @Output() deleteLicence = new EventEmitter<License>();
 
   saving = false;
   /** Why the last save did not reach the shop, if it did not. A fixed code from the server. */
@@ -94,7 +98,12 @@ export class LicenceDrawerComponent {
         this.licence = {
           ...this.licence,
           effectiveFeatures: res.effectiveFeatures,
-          featureOverride: res.featureOverride
+          featureOverride: res.featureOverride,
+          // The re-mint REPLACED the key. Without merging it back, the drawer keeps the one it
+          // was opened with, and the footer's "Download .dat" — the normal way to get a key to
+          // a till that is not online — hands the shop a superseded file. It verifies and
+          // installs, so nothing looks wrong; it just does not grant the feature just bought.
+          licenseKey: res.licenseKey ?? this.licence.licenseKey
         };
         // Saved either way; `reminted: false` means the KEY did not go out, which the shop
         // needs to know about separately from the save having worked.

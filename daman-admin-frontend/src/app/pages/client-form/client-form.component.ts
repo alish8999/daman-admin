@@ -11,7 +11,7 @@ import { LicenseService, License, GenerateLicenseResponse, RemintOutcome } from 
 import { BillingService } from '../../services/billing.service';
 import { Billing, BillingRequest } from '../../models/billing.model';
 import { FeatureGridComponent } from '../../components/feature-grid/feature-grid.component';
-import { FEATURE_CATALOG, FEATURE_GROUP_ORDER, FeatureGroup } from '../../models/feature-catalog';
+import { FEATURE_CATALOG } from '../../models/feature-catalog';
 import { FeaturePriceService } from '../../services/feature-price.service';
 import { ClientFeatures } from '../../models/client-config.model';
 import { DevRunButtonComponent } from '../../components/dev-run-button/dev-run-button.component';
@@ -51,6 +51,10 @@ export class ClientFormComponent implements OnInit {
   // the v2 payload's `credentials` still carries to seed their first user. Those values must
   // round-trip untouched; they are simply no longer edited here.
 
+  /** Whether the payments ledger is expanded. Owned by the &lt;details&gt; itself (two-way via its
+   *  toggle event) so that collapsing it by hand and opening it from a button stay in step. */
+  paymentsOpen = false;
+
   /** The licence whose drawer is open, or null. */
   drawerLicence: License | null = null;
 
@@ -68,7 +72,6 @@ export class ClientFormComponent implements OnInit {
   // License management
   clientLicenses: License[] = [];
   licensesLoading = false;
-  licensesLoaded = false;
   showGenerateForm = false;
   generateForm = { machineId: '', label: '', expiresAt: '' };
   generating = false;
@@ -92,7 +95,6 @@ export class ClientFormComponent implements OnInit {
   // Billing management
   clientBillings: Billing[] = [];
   billingsLoading = false;
-  billingsLoaded = false;
   showBillingForm = false;
   billingEditTarget: Billing | null = null;
   billingForm = {
@@ -115,8 +117,6 @@ export class ClientFormComponent implements OnInit {
   readonly paymentStatusValues = ['PAID', 'PENDING', 'PARTIAL'];
 
   // ── Feature catalog (replaces package-tier presets) ─────────────────────
-  readonly featureCatalog = FEATURE_CATALOG;
-  readonly featureGroupOrder = FEATURE_GROUP_ORDER;
 
   /**
    * The feature flags as a plain map, for `<app-feature-grid>`.
@@ -331,7 +331,6 @@ export class ClientFormComponent implements OnInit {
     }
   }
 
-
   // ── Business features — their own save ───────────────────────────────────────
 
   /**
@@ -453,7 +452,17 @@ export class ClientFormComponent implements OnInit {
     this.error = '';
     this.savedMsg = '';
 
-    const data = this.form.getRawValue();
+    // On an EDIT, the features are stripped out. The grid writes into this same FormGroup, so
+    // without this, flipping a feature and pressing "Save changes" instead of the confirmed
+    // "Save features" button beneath it would save the change down the profile path — skipping
+    // the warning that names what is being taken away and the per-licence outcome report. The
+    // backend ignores them on update() too, so this is belt and braces rather than the gate
+    // itself; sending them anyway would still be a lie about what the button does.
+    // On a CREATE there is no separate features action and no licence to re-mint, so the new
+    // client's feature set travels with it.
+    const raw = this.form.getRawValue();
+    const { features, ...profileOnly } = raw;
+    const data = this.isEditMode ? profileOnly : raw;
 
     if (this.isEditMode) {
       this.clientService.update(this.clientCode!, data).subscribe({
@@ -498,9 +507,9 @@ export class ClientFormComponent implements OnInit {
           new Date(b.activatedAt).getTime() - new Date(a.activatedAt).getTime()
         );
         this.licensesLoading = false;
-        this.licensesLoaded = true;
+
       },
-      error: () => { this.licensesLoading = false; this.licensesLoaded = true; }
+      error: () => { this.licensesLoading = false; }
     });
   }
 
@@ -673,13 +682,14 @@ export class ClientFormComponent implements OnInit {
       next: (list) => {
         this.clientBillings = list;
         this.billingsLoading = false;
-        this.billingsLoaded = true;
+
       },
-      error: () => { this.billingsLoading = false; this.billingsLoaded = true; }
+      error: () => { this.billingsLoading = false; }
     });
   }
 
   openAddBillingForm(): void {
+    this.paymentsOpen = true;
     this.billingEditTarget = null;
     this.billingForm = {
       licenseId: null,

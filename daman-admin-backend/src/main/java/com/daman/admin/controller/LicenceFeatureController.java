@@ -51,10 +51,13 @@ public class LicenceFeatureController {
      * <p>The effective set travels back so the licence drawer never has to recompute what the
      * server just decided — and so it cannot disagree with it.
      */
+    /** {@code licenseKey} is the licence's CURRENT key: the re-mint above replaced it, and a
+     *  caller that kept the one it opened with would hand out a superseded key on download. */
     public record FeatureUpdateResponse(Map<String, Boolean> effectiveFeatures,
                                         Map<String, Boolean> featureOverride,
                                         boolean reminted,
-                                        String skippedReason) {}
+                                        String skippedReason,
+                                        String licenseKey) {}
 
     /**
      * Change how this one licence differs from its client's default feature set.
@@ -118,7 +121,8 @@ public class LicenceFeatureController {
                 effective,
                 FeatureOverride.parse(licence.getFeaturesOverrideJson(), objectMapper),
                 outcome.minted(),
-                outcome.skippedReason()));
+                outcome.skippedReason(),
+                licence.getLicenseKey()));
     }
 
     /**

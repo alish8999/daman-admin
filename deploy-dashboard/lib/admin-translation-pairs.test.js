@@ -115,11 +115,15 @@ test('every literal translation key a template asks for exists', () => {
     if (file.endsWith('translation.service.ts')) continue;
     const text = fs.readFileSync(file, 'utf8');
 
-    // `'key' | t` in a template, and `instant('key')` / `instant('key', {…})` in a component.
-    // The negative lookbehind for `+` keeps concatenated keys out.
+    // `'key' | t` and `"key" | t` in a template, and `instant('key')` / `instant("key")` in a
+    // component. BOTH quote styles, because the dashboard template uses double quotes
+    // throughout — 12 keys this guard was blind to on the one page the branch rewrote. The
+    // negative lookbehind for `+` keeps concatenated keys out.
     const patterns = [
       /(?<![+\w])'([A-Za-z_$][\w$.]*)'\s*\|\s*t\b/g,
-      /\.instant\(\s*'([A-Za-z_$][\w$.]*)'/g
+      /(?<![+\w])"([A-Za-z_$][\w$.]*)"\s*\|\s*t\b/g,
+      /\.instant\(\s*'([A-Za-z_$][\w$.]*)'/g,
+      /\.instant\(\s*"([A-Za-z_$][\w$.]*)"/g
     ];
     for (const re of patterns) {
       for (const m of text.matchAll(re)) {

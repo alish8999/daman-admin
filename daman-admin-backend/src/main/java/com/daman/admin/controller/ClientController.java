@@ -59,48 +59,26 @@ public class ClientController {
     }
 
     /**
-     * The whole-client save the existing portal uses, which carries features inside it.
+     * The PROFILE save: name, store type, address, phone, base currency, status, notes.
      *
-     * <p>Re-mints this client's live licence keys when the save actually changed the feature set.
-     * Today's portal has no separate features action, so without this a sold add-on would still
-     * sit in the database until someone happened to renew — which is exactly the drift measured
-     * on the live fleet. A profile-only edit mints nothing.
+     * <p><b>It cannot touch the feature set, and it mints nothing.</b> It used to do both,
+     * because the portal had no separate features action and leaving this path mint-less would
+     * have stranded feature saves until the UI landed. The UI has landed, and leaving the old
+     * behaviour in place turned the new confirmation into a promise rather than a gate: the
+     * client page's features grid writes into the same FormGroup that this page's generic
+     * "Save changes" button submits, so flipping a feature off and pressing that button instead
+     * of the confirmed "Save features" one beneath it skipped the warning naming what was being
+     * taken away, skipped the per-licence outcome report, and stripped the flag from every live
+     * key — with nothing on screen but "Client saved".
+     *
+     * <p>So the gate is structural now, not a frontend convention: {@code service.update()}
+     * ignores {@code request.getFeatures()} entirely, and {@link #updateFeatures} is the only
+     * path that changes a feature set or re-mints a key.
      */
     @PutMapping("/{clientCode}")
     public ClientConfigDto update(@PathVariable String clientCode,
                                   @Valid @RequestBody ClientConfigRequest request) {
-        java.util.Map<String, Boolean> before = service.clientFeatures(clientCode);
-        ClientConfigDto saved = service.update(clientCode, request);
-        remintIfFeaturesChanged(clientCode, before);
-        return saved;
-    }
-
-    /**
-     * Re-mint this client's live keys, passing ONLY the flags this save actually changed as
-     * removable.
-     *
-     * <p>That set is what stops an unrelated toggle stripping a flag a shop is currently running:
-     * a key may have drifted from the client record (measured live on {@code viora} and
-     * {@code c-14}), and taking that flag back is the owner's explicit reconcile, not a side
-     * effect. See {@code LicenceRemintService.featuresToWrite}.
-     *
-     * <p>Never throws. The save has already committed — losing a correct feature save because
-     * signing was briefly unavailable would be the worse outcome, and the next save or renewal
-     * picks the keys up.
-     */
-    private void remintIfFeaturesChanged(String clientCode, java.util.Map<String, Boolean> before) {
-        try {
-            java.util.Map<String, Boolean> after = service.clientFeatures(clientCode);
-            java.util.Set<String> changed = new java.util.TreeSet<>();
-            after.forEach((key, value) -> {
-                if (!value.equals(before.get(key))) changed.add(key);
-            });
-            if (changed.isEmpty()) return;
-            remintService.remintForClient(clientCode, changed);
-        } catch (RuntimeException e) {
-            org.slf4j.LoggerFactory.getLogger(ClientController.class)
-                    .error("Client {} saved but re-minting its licence keys failed", clientCode, e);
-        }
+        return service.update(clientCode, request);
     }
 
     /**

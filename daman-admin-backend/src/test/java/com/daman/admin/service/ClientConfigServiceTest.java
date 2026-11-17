@@ -17,6 +17,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,7 +50,7 @@ class ClientConfigServiceTest {
      * what the v2 licence is built from and therefore what a phone actually obeys.
      */
     @Test
-    void update_persistsMobilePosFromTheFeaturesPatch() {
+    void updateFeatures_persistsMobilePosFromTheFeaturesPatch() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
         ClientConfigService service = newService(repository);
 
@@ -60,20 +61,17 @@ class ClientConfigServiceTest {
         when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
         when(repository.save(any(ClientConfig.class))).thenAnswer(i -> i.getArgument(0));
 
-        ClientConfigRequest request = new ClientConfigRequest();
-        request.setAppName("Acme POS");
         FeaturesRequest patch = new FeaturesRequest();
         patch.setMobilePos(true);
-        request.setFeatures(patch);
 
-        service.update("acme", request);
+        service.updateFeatures("acme", patch);
 
         assertThat(entity.getFeaturesJson()).contains("\"mobilePos\":true");
     }
 
     /** The mirror: an untouched flag is not clobbered by a patch that omits it. */
     @Test
-    void update_leavesMobilePosAloneWhenThePatchOmitsIt() {
+    void updateFeatures_leavesMobilePosAloneWhenThePatchOmitsIt() {
         ClientConfigRepository repository = mock(ClientConfigRepository.class);
         ClientConfigService service = newService(repository);
 
@@ -84,11 +82,8 @@ class ClientConfigServiceTest {
         when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
         when(repository.save(any(ClientConfig.class))).thenAnswer(i -> i.getArgument(0));
 
-        ClientConfigRequest request = new ClientConfigRequest();
-        request.setAppName("Acme POS");
-        request.setFeatures(new FeaturesRequest());
 
-        service.update("acme", request);
+        service.updateFeatures("acme", new FeaturesRequest());
 
         assertThat(entity.getFeaturesJson()).contains("\"mobilePos\":true");
     }
@@ -552,5 +547,62 @@ class ClientConfigServiceTest {
 
         assertThat(service.licenseEntitlementsFor("acme").profile().address())
                 .isEqualTo("Damascus - Baghdad St.");
+    }
+
+    /**
+     * The profile save must NOT change the feature set, whatever a caller sends inside it.
+     *
+     * <p>This closed a real hole. The client page's features grid writes straight back into the
+     * page's FormGroup, and the page's own "Save changes" button submits that whole group — so
+     * flipping a feature off and pressing the generic Save, instead of the confirmed "Save
+     * features" button right beneath it, went down this path. The confirmation that names what
+     * is being taken away, and the per-licence outcome report, were both skipped, and the flag
+     * was stripped from every live key with nothing shown but "Client saved".
+     *
+     * <p>Features are set when the client is CREATED and changed only through
+     * {@link ClientConfigService#updateFeatures}, which is the path that re-mints. Making the
+     * endpoint ignore them is what makes the gate structural rather than a frontend promise.
+     */
+    @Test
+    void update_ignoresFeaturesEntirely() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+
+        ClientConfig entity = new ClientConfig();
+        entity.setClientCode("acme");
+        entity.setAppName("Acme POS");
+        entity.setFeaturesJson("{\"accounting\":true}");
+        when(repository.findByClientCode("acme")).thenReturn(Optional.of(entity));
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Acme POS Renamed");
+        FeaturesRequest sneaky = new FeaturesRequest();
+        sneaky.setAccounting(false);
+        request.setFeatures(sneaky);
+
+        service.update("acme", request);
+
+        assertThat(entity.getAppName()).isEqualTo("Acme POS Renamed");
+        assertThat(service.clientFeatures("acme").get("accounting"))
+                .as("a profile save must not be able to switch a feature off")
+                .isTrue();
+    }
+
+    /** Creating a client still takes its feature set from the form — only update ignores it. */
+    @Test
+    void create_stillAppliesTheFeaturesItIsGiven() {
+        ClientConfigRepository repository = mock(ClientConfigRepository.class);
+        ClientConfigService service = newService(repository);
+        when(repository.existsByClientCode(anyString())).thenReturn(false);
+        when(repository.save(any(ClientConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Acme POS");
+        FeaturesRequest features = new FeaturesRequest();
+        features.setAccounting(true);
+        request.setFeatures(features);
+
+        assertThat(service.create(request).getFeatures().isAccounting()).isTrue();
     }
 }

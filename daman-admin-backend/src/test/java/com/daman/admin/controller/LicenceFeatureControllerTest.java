@@ -181,4 +181,45 @@ class LicenceFeatureControllerTest {
 
         assertThat(controller.reconcileFeaturesDrift()).containsExactly(outcome);
     }
+
+    /**
+     * The response must carry the licence's CURRENT key, because the re-mint replaced it.
+     *
+     * <p>Without it the drawer keeps the key it was opened with: it merges only the two feature
+     * maps out of this response, so `licence.licenseKey` stays at the pre-toggle value. The
+     * owner then turns a feature on for one machine and presses "Download .dat" to email the
+     * shop — which is the normal flow for a till that is not online — and the file is the
+     * SUPERSEDED key. It verifies and installs, so nothing looks wrong, but it does not grant
+     * the feature just paid for, and the admin database now holds a different key than the shop.
+     */
+    @Test
+    void theResponseCarriesTheRemintedKeySoADownloadIsNotStale() {
+        License l = licence(9, null);
+        l.setLicenseKey("OLD-KEY");
+        when(remint.remintLicence(anyLong(), org.mockito.ArgumentMatchers.<java.util.Set<String>>any()))
+                .thenAnswer(inv -> {
+                    l.setLicenseKey("NEW-KEY");
+                    return new LicenceRemintService.RemintOutcome(9L, "c-1", "m-9", true, null);
+                });
+
+        var response = (LicenceFeatureController.FeatureUpdateResponse)
+                controller.setFeatures(9L, Map.of("consignment", true)).getBody();
+
+        assertThat(response.licenseKey()).isEqualTo("NEW-KEY");
+    }
+
+    /** A skipped re-mint leaves the key alone, and the response says so rather than inventing one. */
+    @Test
+    void aSkippedRemintReturnsTheUnchangedKey() {
+        License l = licence(10, null);
+        l.setLicenseKey("OLD-KEY");
+        when(remint.remintLicence(anyLong(), org.mockito.ArgumentMatchers.<java.util.Set<String>>any()))
+                .thenReturn(new LicenceRemintService.RemintOutcome(10L, "c-1", "m-10", false, "expired"));
+
+        var response = (LicenceFeatureController.FeatureUpdateResponse)
+                controller.setFeatures(10L, Map.of("consignment", true)).getBody();
+
+        assertThat(response.reminted()).isFalse();
+        assertThat(response.licenseKey()).isEqualTo("OLD-KEY");
+    }
 }

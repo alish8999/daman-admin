@@ -7,6 +7,7 @@ import { forkJoin, catchError, of } from 'rxjs';
 import { ClientService } from '../../services/client.service';
 import { LicenseService, License } from '../../services/license.service';
 import { BillingService } from '../../services/billing.service';
+import { TranslationService } from '../../services/translation.service';
 import { Billing } from '../../models/billing.model';
 import { ClientConfig } from '../../models/client-config.model';
 import { computeClientStatus } from '../../models/client-status';
@@ -49,7 +50,8 @@ export class DashboardComponent implements OnInit {
   constructor(
     private clientService: ClientService,
     private licenseService: LicenseService,
-    private billingService: BillingService
+    private billingService: BillingService,
+    public translationService: TranslationService
   ) {}
 
   ngOnInit(): void {
@@ -116,7 +118,9 @@ export class DashboardComponent implements OnInit {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       buckets.push({
         key: `${d.getFullYear()}-${d.getMonth()}`,
-        label: d.toLocaleString('en', { month: 'short' }),
+        // The month names are the only words in the chart, and the owner reads this page in
+        // Arabic — a hardcoded 'en' left Jan/Feb/Mar sitting inside an otherwise Arabic card.
+        label: d.toLocaleString(this.translationService.getCurrentLanguage(), { month: 'short' }),
         amount: 0,
         count: 0
       });

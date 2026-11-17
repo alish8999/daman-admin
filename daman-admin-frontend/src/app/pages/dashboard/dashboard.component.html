@@ -84,8 +84,15 @@
             <p class="text-muted small mb-0">{{ 'dashNoPaidBillings' | t }}</p>
           } @else {
             <!-- One series, so no legend: the card's own title names it. -->
+            <!-- direction:ltr on the <svg> is load-bearing, not cosmetic. text-anchor="start|end"
+                 resolves against the INHERITED direction, and TranslationService sets dir="rtl"
+                 on <html> for Arabic — so without it the y-axis labels anchor at x=42 and run
+                 RIGHTWARDS into the plot, across the gridlines and the curve, with the $
+                 bidi-reordered too. A numeric plot reads LTR in both languages; only the
+                 surrounding card flips. -->
             <svg [attr.viewBox]="'0 0 ' + chartW + ' ' + chartH" width="100%" height="200"
-                 role="img" [attr.aria-label]="'dashRevenueChart' | t" style="display:block">
+                 role="img" [attr.aria-label]="'dashRevenueChart' | t"
+                 style="display:block; direction:ltr">
               <defs>
                 <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stop-color="var(--admin-accent)" stop-opacity="0.22"/>

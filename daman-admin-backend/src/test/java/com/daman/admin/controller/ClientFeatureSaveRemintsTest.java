@@ -59,36 +59,32 @@ class ClientFeatureSaveRemintsTest {
         when(service.clientFeatures("c-1")).thenReturn(before, after);
     }
 
-    @Test
-    void savingAChangedFeatureBlobRemintsThatClientsLicences() {
-        featuresGoFromTo(Map.of("accounting", false), Map.of("accounting", true));
-
-        controller.update("c-1", new ClientConfigRequest());
-
-        verify(remint).remintForClient("c-1", java.util.Set.of("accounting"));
-    }
-
     /**
-     * Only the flags this save actually changed may be removed from a key. Without that, the
-     * first unrelated toggle on a client whose key has drifted would strip the drifted flag from
-     * a live shop — which the spec forbids outside the owner-run reconcile.
+     * <b>The profile save mints nothing, ever.</b>
+     *
+     * <p>It used to re-mint whenever the saved feature set differed, because the portal carried
+     * features inside the profile payload and had no separate action. That is what made the new
+     * confirmed "Save features" button a promise rather than a gate: the client page's features
+     * grid writes into the same FormGroup the page's generic "Save changes" button submits, so
+     * flipping a feature off and pressing the wrong button went down THIS path — no warning
+     * naming the loss, no per-licence outcome report, and the flag stripped from every live key
+     * with nothing on screen but "Client saved".
+     *
+     * <p>The gate is structural now: {@code ClientConfigService.update()} ignores the features
+     * in the request entirely (see {@code ClientConfigServiceTest.update_ignoresFeaturesEntirely}),
+     * so there is nothing left for this endpoint to detect or mint.
      */
     @Test
-    void onlyTheFlagsThisSaveChangedArePassedAsRemovable() {
-        featuresGoFromTo(
-                Map.of("accounting", false, "consignment", true, "shifts", false),
-                Map.of("accounting", true, "consignment", true, "shifts", true));
+    void theProfileSaveNeverReminits() {
+        featuresGoFromTo(Map.of("accounting", false), Map.of("accounting", true));
 
-        controller.update("c-1", new ClientConfigRequest());
+        ClientConfigRequest request = new ClientConfigRequest();
+        request.setAppName("Renamed Shop");
+        FeaturesRequest sneaky = new FeaturesRequest();
+        sneaky.setAccounting(true);
+        request.setFeatures(sneaky);
 
-        verify(remint).remintForClient("c-1", java.util.Set.of("accounting", "shifts"));
-    }
-
-    @Test
-    void savingWithNoFeatureChangeMintsNothing() {
-        featuresGoFromTo(Map.of("accounting", true), Map.of("accounting", true));
-
-        controller.update("c-1", new ClientConfigRequest());
+        controller.update("c-1", request);
 
         verify(remint, never()).remintForClient(anyString(), any());
     }
@@ -104,16 +100,6 @@ class ClientFeatureSaveRemintsTest {
 
         verify(remint, never()).remintForClient(anyString(), any());
     }
-
-    /** The profile save must not 500 after a successful save just because minting failed. */
-    @Test
-    void aRemintFailureOnTheProfileSaveDoesNotFailTheSave() {
-        featuresGoFromTo(Map.of("accounting", false), Map.of("accounting", true));
-        when(remint.remintForClient(anyString(), any())).thenThrow(new RuntimeException("signing unavailable"));
-
-        assertThat(controller.update("c-1", new ClientConfigRequest()).getClientCode()).isEqualTo("c-1");
-    }
-
     @Test
     void theDedicatedFeaturesEndpointSavesAndRemints() {
         when(remint.remintForClient(anyString(), any())).thenReturn(List.of(

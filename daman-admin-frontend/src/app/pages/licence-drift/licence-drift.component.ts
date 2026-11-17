@@ -147,9 +147,22 @@ export class LicenceDriftComponent implements OnInit {
 
   // ── Reconcile ────────────────────────────────────────────────────────────────
 
+  /**
+   * Re-reads the preview before asking. The confirmation sentence is the entire safety
+   * mechanism for the one action that can take a feature away from a running shop, and the
+   * reconcile re-scans server-side — so a drift created AFTER this page loaded (the owner saving
+   * another client's features in another tab, say, which `ClientController` deliberately leaves
+   * drifting rather than stripping) would be removed by the reconcile while `lossSummary` never
+   * named it. Confirming from stale rows is confirming the wrong thing.
+   */
   askReconcile(): void {
-    this.confirming = true;
     this.error = '';
+    this.licenseService.featuresDrift().subscribe({
+      next: (rows) => { this.rows = rows; this.confirming = true; },
+      error: (err) => {
+        this.error = err?.error?.error || this.translationService.instant('driftLoadFailed');
+      }
+    });
   }
 
   cancelReconcile(): void {

@@ -66,6 +66,9 @@ export interface LicenceFeatureUpdate {
   effectiveFeatures: Record<string, boolean>;
   featureOverride: Record<string, boolean>;
   reminted: boolean;
+  /** The licence's CURRENT key — the re-mint replaced it. Merge it, or a later "Download
+   *  .dat" hands the shop the superseded key. */
+  licenseKey: string;
   skippedReason: string | null;
 }
 

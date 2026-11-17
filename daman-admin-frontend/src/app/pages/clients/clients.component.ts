@@ -343,10 +343,14 @@ export class ClientsComponent implements OnInit, OnDestroy {
    */
   private sharedMachines: Set<string> = new Set();
 
+  /**
+   * The status badge's text. These three were English literals on a page the owner reads in
+   * Arabic — the only untranslated words in the row.
+   */
   clientStatusLabel(status: string): string {
-    if (status === 'ACTIVE') return 'Active';
-    if (status === 'TRIAL') return 'Trial';
-    return 'Dummy';
+    if (status === 'ACTIVE') return this.translationService.instant('statusActive');
+    if (status === 'TRIAL') return this.translationService.instant('statusTrial');
+    return this.translationService.instant('statusDummy');
   }
 
   // Generic delete confirmation modal

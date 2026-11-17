@@ -92,9 +92,13 @@
 
   <!-- Actions stay owned by the client page, which already has their confirmation flows. -->
   <footer class="drawer-foot">
-    <button type="button" class="btn btn-sm btn-outline-primary" (click)="renew.emit(licence)">
-      {{ 'renew' | t }}
-    </button>
+    <!-- A revoked licence cannot be renewed and cannot be revoked again; offering either is a
+         button that can only fail. Download and delete still make sense on a dead row. -->
+    @if (licence.status === 'ACTIVE') {
+      <button type="button" class="btn btn-sm btn-outline-primary" (click)="renew.emit(licence)">
+        {{ 'renew' | t }}
+      </button>
+    }
     <button type="button" class="btn btn-sm btn-outline-secondary" (click)="downloadDat.emit(licence)">
       {{ 'downloadDat' | t }}
     </button>
@@ -104,8 +108,13 @@
       </button>
     }
     <span class="flex-grow-1"></span>
-    <button type="button" class="btn btn-sm btn-outline-danger" (click)="revoke.emit(licence)">
-      {{ 'revoke' | t }}
+    <button type="button" class="btn btn-sm btn-outline-danger" (click)="deleteLicence.emit(licence)">
+      {{ 'delete' | t }}
     </button>
+    @if (licence.status === 'ACTIVE') {
+      <button type="button" class="btn btn-sm btn-outline-danger" (click)="revoke.emit(licence)">
+        {{ 'revoke' | t }}
+      </button>
+    }
   </footer>
 </aside>
