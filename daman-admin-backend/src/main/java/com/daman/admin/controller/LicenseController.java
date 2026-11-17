@@ -29,6 +29,14 @@ public class LicenseController {
     private final com.daman.admin.service.LicenseBundleZipper licenseBundleZipper;
     private final com.daman.admin.repository.TrialRegistrationRepository trialRegistrationRepository;
 
+    /**
+     * Constructed rather than injected, following {@code LicenseKeyService}'s precedent: it is
+     * used only to parse a stored override blob, and adding it to the constructor would change
+     * the signature three test classes build this controller with, for no behavioural gain.
+     * Jackson 3 — {@code tools.jackson}, never {@code com.fasterxml.jackson.databind}.
+     */
+    private final tools.jackson.databind.ObjectMapper objectMapper = new tools.jackson.databind.ObjectMapper();
+
     // ── Generate ──────────────────────────────────────────────────────────────
 
     @PostMapping("/generate")
@@ -204,11 +212,36 @@ public class LicenseController {
                 .toList();
     }
 
+    /**
+     * One client's licences, WITH each one's effective feature set and its override.
+     *
+     * <p>Unlike {@link #getAll()}, which leaves both maps null. That is not an inconsistency: the
+     * fleet listing renders 105 rows and resolving entitlements per row would be a client lookup
+     * per licence on a page that shows them all. A single client has a handful, and the portal's
+     * licence drawer needs the effective set the moment it opens — phase 1 returned it only as
+     * the response to a write, which left the drawer with nothing to open with.
+     *
+     * <p>An orphan licence (no client row — six exist) resolves to null maps rather than failing
+     * the listing.
+     */
     @GetMapping("/client/{clientCode}")
     public java.util.List<com.daman.admin.dto.LicenseDto> getByClient(@PathVariable String clientCode) {
         return licenseRepository.findByClientCodeOrderByActivatedAtDesc(clientCode).stream()
-                .map(l -> com.daman.admin.dto.LicenseDto.of(l, licenseKeyService.payloadVersion(l.getLicenseKey()), previousVersionOf(l)))
+                .map(this::withResolvedFeatures)
                 .toList();
+    }
+
+    /** A licence as a DTO carrying its effective set + override, or null maps if unresolvable. */
+    private com.daman.admin.dto.LicenseDto withResolvedFeatures(License l) {
+        int version = licenseKeyService.payloadVersion(l.getLicenseKey());
+        try {
+            return com.daman.admin.dto.LicenseDto.of(l, version, previousVersionOf(l),
+                    clientConfigService.licenseEntitlementsFor(l).features(),
+                    com.daman.admin.service.FeatureOverride.parse(l.getFeaturesOverrideJson(), objectMapper));
+        } catch (IllegalArgumentException e) {
+            // Orphan: no client row to resolve against. It still belongs in the list.
+            return com.daman.admin.dto.LicenseDto.of(l, version, previousVersionOf(l));
+        }
     }
 
     // ── Revoke ───────────────────────────────────────────────────────────────

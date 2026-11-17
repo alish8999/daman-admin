@@ -19,6 +19,54 @@ export interface License {
   payloadVersion?: number;
   /** True iff this row was v1→v2 re-issued and still has a stored previous key (can be reverted). */
   reissued?: boolean;
+  /**
+   * ACTIVE **and** not past its expiry — not the same as `status === 'ACTIVE'`. On the live
+   * fleet 43 of the 101 ACTIVE licences are expired, so this is what "active licences" counts.
+   */
+  live?: boolean;
+  /**
+   * What this licence actually grants, and which flags deviate from the client's default.
+   *
+   * <p><b>Null on the whole-fleet listing</b> (`getAll`), which would otherwise resolve
+   * entitlements once per row across 105 licences. Populated by `getByClient`. Null means
+   * "not loaded", **never** "no features" — treating it as empty would show a fully-licensed
+   * shop as having nothing.
+   */
+  effectiveFeatures?: Record<string, boolean> | null;
+  featureOverride?: Record<string, boolean> | null;
+}
+
+/** One flag whose stored key disagrees with what the licence should grant. */
+export interface FlagChange {
+  key: string;
+  inKey: boolean;
+  resolved: boolean;
+}
+
+/** One licence whose signed key is out of step with its client's features. */
+export interface DriftRow {
+  licenceId: number;
+  clientCode: string;
+  label: string | null;
+  machineId: string;
+  changes: FlagChange[];
+}
+
+/** What happened to one licence during a re-mint. `skippedReason` is null iff `minted`. */
+export interface RemintOutcome {
+  licenceId: number;
+  clientCode: string | null;
+  machineId: string | null;
+  minted: boolean;
+  skippedReason: string | null;
+}
+
+/** The response to changing one licence's feature override. */
+export interface LicenceFeatureUpdate {
+  effectiveFeatures: Record<string, boolean>;
+  featureOverride: Record<string, boolean>;
+  reminted: boolean;
+  skippedReason: string | null;
 }
 
 export interface GenerateLicenseRequest {
@@ -87,6 +135,34 @@ export class LicenseService {
 
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+
+  /**
+   * Change how ONE licence differs from its client's default feature set.
+   *
+   * <p>A merge patch: `true`/`false` starts or changes an override, `null` stops overriding that
+   * key, and `{}` clears the override entirely (back to "inherit everything"). Saves, then
+   * re-mints that licence's key — `reminted: false` with a `skippedReason` means the override was
+   * stored but the key did not go out (expired, revoked, a v1 key, or a drift that needs the
+   * reconcile first).
+   */
+  setFeatures(id: number, patch: Record<string, boolean | null>): Observable<LicenceFeatureUpdate> {
+    return this.http.put<LicenceFeatureUpdate>(`${this.apiUrl}/${id}/features`, patch);
+  }
+
+  /** Every live licence whose stored key disagrees with its client's features. Reads only. */
+  featuresDrift(): Observable<DriftRow[]> {
+    return this.http.get<DriftRow[]>(`${this.apiUrl}/features-drift`);
+  }
+
+  /**
+   * Correct the drift: re-mint exactly the rows the preview lists.
+   *
+   * <p>**The only call that may take a feature away from a shop currently running it.** Always
+   * show the preview first.
+   */
+  reconcileFeaturesDrift(): Observable<RemintOutcome[]> {
+    return this.http.post<RemintOutcome[]>(`${this.apiUrl}/features-drift/reconcile`, {});
   }
 
   getPublicKey(): Observable<{ publicKey: string }> {

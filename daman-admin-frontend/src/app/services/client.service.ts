@@ -2,7 +2,15 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ClientConfig, ClientConfigExport, BuildStatus, BuildLogEntry } from '../models/client-config.model';
+import { ClientConfig, ClientFeatures, ClientConfigExport, BuildStatus, BuildLogEntry } from '../models/client-config.model';
+import { RemintOutcome } from './license.service';
+
+/** What a features-only save did: the saved client, and what happened to each licence key. */
+export interface FeatureSaveResponse {
+  client: ClientConfig;
+  remintOutcomes: RemintOutcome[];
+  remintError: string | null;
+}
 
 export interface DevRunResult {
   clientCode: string;
@@ -40,6 +48,21 @@ export class ClientService {
 
   update(clientCode: string, data: ClientConfig): Observable<ClientConfig> {
     return this.http.put<ClientConfig>(`${this.apiUrl}/${clientCode}`, data);
+  }
+
+  /**
+   * Save ONLY this client's default feature set, and re-mint its live licence keys.
+   *
+   * <p>Separate from {@link update} because saving features re-signs licence keys — a
+   * consequence worth confirming deliberately rather than attaching to "Save changes" for a
+   * renamed shop. Only the flags this save actually changed may be switched off in a key, so an
+   * unrelated toggle cannot strip a flag a shop is currently running; taking one back is the
+   * owner-run reconcile.
+   *
+   * <p>`remintError` is non-null only when minting itself failed. The save stands either way.
+   */
+  updateFeatures(clientCode: string, features: Partial<ClientFeatures>): Observable<FeatureSaveResponse> {
+    return this.http.put<FeatureSaveResponse>(`${this.apiUrl}/${clientCode}/features`, features);
   }
 
   delete(clientCode: string): Observable<void> {
