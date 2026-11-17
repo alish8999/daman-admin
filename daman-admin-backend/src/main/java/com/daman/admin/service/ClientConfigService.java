@@ -6,6 +6,7 @@ import com.daman.admin.dto.ClientConfigRequest;
 import com.daman.admin.dto.ClientFeaturesJson;
 import com.daman.admin.dto.FeaturesRequest;
 import com.daman.admin.entity.ClientConfig;
+import com.daman.admin.entity.License;
 import com.daman.admin.repository.ClientConfigRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -151,22 +152,62 @@ public class ClientConfigService {
                                       LicenseProfile profile) {}
 
     /**
-     * Builds the {@code baseCurrency} + {@code features} that go into a v2 license
-     * payload for {@code clientCode}, straight from that client's stored config —
-     * the same source {@code client.config.json} is generated from, so the two can
-     * never disagree about which flags exist.
+     * The CLIENT DEFAULT entitlements for {@code clientCode} — <b>deliberately not
+     * licence-resolved</b>.
+     *
+     * <p>Only one caller may use this: {@code BuildService}, writing the bundled
+     * {@code client.config.json}. A build is not a licence, and for a generic build that file is
+     * all-{@code false} anyway — the signed licence is what actually grants a feature at runtime.
+     *
+     * <p><b>Every mint path must call {@link #licenseEntitlementsFor(License)} instead.</b> Using
+     * this overload where a licence is in hand silently ignores that licence's own feature
+     * override, which is exactly the silent-divergence failure the override exists to prevent.
      */
     public LicenseEntitlements licenseEntitlementsFor(String clientCode) {
         ClientConfig c = repository.findByClientCode(clientCode)
                 .orElseThrow(() -> new IllegalArgumentException("Client not found: " + clientCode));
+        return entitlements(c, clientDefaultFeatures(c));
+    }
+
+    /**
+     * The entitlements that go into THIS licence's v2 payload: its client's default feature set
+     * with the licence's own sparse override applied (see {@link FeatureOverride}).
+     *
+     * <p>A null or blank override means inherit everything, which is what every licence row
+     * carries until one is deliberately customised. The override touches features only —
+     * base currency, brand colours, seeded credentials and the business profile always come from
+     * the client, because they describe the business rather than the installation.
+     *
+     * <p>Throws {@link IllegalArgumentException} for an orphan licence (one whose client row was
+     * deleted; there are six such rows in production). Callers that iterate many licences must
+     * catch that per row rather than let one orphan abort the batch.
+     */
+    public LicenseEntitlements licenseEntitlementsFor(License licence) {
+        ClientConfig c = repository.findByClientCode(licence.getClientCode())
+                .orElseThrow(() -> new IllegalArgumentException("Client not found: " + licence.getClientCode()));
+        java.util.Map<String, Boolean> resolved = FeatureOverride.merge(
+                clientDefaultFeatures(c),
+                FeatureOverride.parse(licence.getFeaturesOverrideJson(), objectMapper));
+        return entitlements(c, resolved);
+    }
+
+    /**
+     * The client's stored flags as a plain map.
+     *
+     * <p>Goes through {@code exportFeatures()} → {@code FeaturesDto} and flattens with the same
+     * {@code ObjectMapper} (Jackson 3), so this map and {@code client.config.json} can never
+     * disagree about which flags exist — the DTO's property names ARE the camelCase config names.
+     */
+    private java.util.Map<String, Boolean> clientDefaultFeatures(ClientConfig c) {
+        ClientConfigExportDto.FeaturesDto dto = exportFeatures(c.getFeaturesJson());
+        return objectMapper.convertValue(
+                dto, new tools.jackson.core.type.TypeReference<java.util.Map<String, Boolean>>() {});
+    }
+
+    /** Everything in a v2 payload except the feature map, which the caller has already decided. */
+    private LicenseEntitlements entitlements(ClientConfig c, java.util.Map<String, Boolean> features) {
         String baseCurrency = (c.getBaseCurrency() == null || c.getBaseCurrency().isBlank())
                 ? "USD" : c.getBaseCurrency();
-        // Reuse exportFeatures() → FeaturesDto, then flatten to a plain Map<String,Boolean>
-        // via the same ObjectMapper (Jackson 3). The DTO's property names ARE the
-        // client.config.json camelCase names.
-        ClientConfigExportDto.FeaturesDto dto = exportFeatures(c.getFeaturesJson());
-        java.util.Map<String, Boolean> features = objectMapper.convertValue(
-                dto, new tools.jackson.core.type.TypeReference<java.util.Map<String, Boolean>>() {});
         return new LicenseEntitlements(baseCurrency, features,
                 c.getColorPrimary(), c.getColorSecondary(),
                 c.getAdminUsername(), c.getAdminPassword(),
