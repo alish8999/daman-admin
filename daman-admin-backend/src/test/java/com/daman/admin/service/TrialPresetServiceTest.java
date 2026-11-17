@@ -26,8 +26,10 @@ class TrialPresetServiceTest {
     }
 
     @Test
-    void cafeWithTablesGetsTableOrders() {
-        assertThat(presets.featuresFor("cafe", true)).containsEntry("tableOrders", true);
+    void cafeWithTablesStillDoesNotGetTableOrders() {
+        // Table Orders is a $29 add-on. Owner, 2026-11-17: the paid modules must not be on
+        // by default in a trial. A trial shows the product; it does not give it away.
+        assertThat(presets.featuresFor("cafe", true)).containsEntry("tableOrders", false);
     }
 
     @Test
@@ -38,9 +40,11 @@ class TrialPresetServiceTest {
     }
 
     @Test
-    void restaurantWithoutTablesStillGetsKitchenPrinter() {
-        assertThat(presets.featuresFor("restaurant", false))
-                .containsEntry("kitchenPrinter", true)
+    void restaurantGetsNeitherTheKitchenPrinterNorRecipes() {
+        // $10 and $25 respectively - both named by the owner.
+        assertThat(presets.featuresFor("restaurant", true))
+                .containsEntry("kitchenPrinter", false)
+                .containsEntry("productRecipes", false)
                 .containsEntry("tableOrders", false);
     }
 
@@ -76,9 +80,10 @@ class TrialPresetServiceTest {
 
     @Test
     void validOverrideIsLayeredOnBase() {
-        given("{\"general\":{\"accounting\":true}}");
+        // A FREE flag: an override still shapes a trial, it just cannot sell.
+        given("{\"general\":{\"cafeMode\":true}}");
         assertThat(presets.featuresFor("general", false))
-                .containsEntry("accounting", true)
+                .containsEntry("cafeMode", true)
                 .containsEntry("reports", true);
         // a type the override does not mention keeps its built-in preset
         assertThat(presets.featuresFor("cafe", true)).containsEntry("cafeMode", true);
@@ -94,6 +99,45 @@ class TrialPresetServiceTest {
     void quickPickCardsIsNotInAnyPreset() {
         assertThat(presets.featuresFor("cafe", true)).doesNotContainKey("quickPickCards");
         assertThat(TrialPresetService.BASE_FEATURES).doesNotContainKey("quickPickCards");
+    }
+
+    // ── No paid add-on is ever unlocked by a trial ──────────────────────────
+    // Owner, 2026-11-17: "طابعة المطبخ، والصيانة، والمحاسبة والوصفات والتصنيع ما لازم
+    // يكونو مفعلين بشكل افتراضي". The rule is taken from FeatureCatalog rather than from a
+    // hand-written list, so a new add-on priced there is excluded from trials the day it is
+    // priced - and a free feature (price 0) is unaffected.
+
+    @Test
+    void noPaidAddOnIsUnlockedForAnyShopType() {
+        for (String type : TrialPresetService.KNOWN_STORE_TYPES) {
+            Map<String, Boolean> f = presets.featuresFor(type, true);
+            for (com.daman.admin.catalog.FeatureCatalog.Entry e : com.daman.admin.catalog.FeatureCatalog.ENTRIES) {
+                boolean free = e.priceUsd() != null && e.priceUsd() == 0;
+                if (free || !f.containsKey(e.key())) continue;
+                assertThat(f.get(e.key()))
+                        .as("%s trial must not include the paid %s", type, e.key())
+                        .isFalse();
+            }
+        }
+    }
+
+    @Test
+    void anOverrideCannotGiveAwayAPaidAddOn() {
+        // The override is an admin setting, not a sale. This is also the only way a trial
+        // could have been handing out Accounting, which no built-in preset grants.
+        given("{\"cafe\":{\"accounting\":true,\"kitchenPrinter\":true,\"manufacturing\":true}}");
+        assertThat(presets.featuresFor("cafe", true))
+                .containsEntry("accounting", false)
+                .containsEntry("kitchenPrinter", false)
+                .containsEntry("manufacturing", false);
+    }
+
+    @Test
+    void theFreeFeaturesAShopTypeImpliesAreStillGranted() {
+        // The presets still exist and still do their job - cafeMode is free ($0 in the
+        // catalog) and scale barcodes are an unpriced visibility switch.
+        assertThat(presets.featuresFor("cafe", true)).containsEntry("cafeMode", true);
+        assertThat(presets.featuresFor("supermarket", false)).containsEntry("scaleBarcodes", true);
     }
 
     @Test

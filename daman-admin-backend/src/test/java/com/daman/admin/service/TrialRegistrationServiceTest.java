@@ -135,7 +135,9 @@ class TrialRegistrationServiceTest {
                 mock(com.daman.admin.repository.TrialRegistrationRepository.class))
                 .licenseEntitlementsFor("c-1").features();
 
-        assertThat(later).containsEntry("cafeMode", true).containsEntry("tableOrders", true);
+        // cafeMode is free and still part of a cafe trial; Table Orders is a $29 add-on and
+        // since 2026-11-17 no trial carries a paid one (TrialPresetService.PAID_ADD_ONS).
+        assertThat(later).containsEntry("cafeMode", true).containsEntry("tableOrders", false);
         // The preset map may omit flags that are false; every flag it does name must survive unchanged.
         assertThat(later).containsAllEntriesOf(minted.getValue());
     }

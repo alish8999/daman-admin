@@ -1,5 +1,6 @@
 package com.daman.admin.service;
 
+import com.daman.admin.catalog.FeatureCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Decides which licence feature flags a trial unlocks, from the shop type the visitor picked.
@@ -28,6 +31,27 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class TrialPresetService {
+
+    /**
+     * Every feature that is for sale: a trial never turns one on, whatever the shop type is
+     * and whatever an override says.
+     *
+     * <p>Owner, 2026-11-17 - the kitchen printer, device repair, accounting, recipes and
+     * manufacturing were arriving switched on in a trial. A trial exists to show the product
+     * and let a shop find out which add-ons it wants; handing them over unasked both gives away
+     * the thing being sold and makes the first invoice after the trial read as a takeaway.
+     *
+     * <p>Read from {@link FeatureCatalog} rather than listed here, so an add-on priced there
+     * leaves trials the same day it is priced. A {@code 0} price is free and included (cafeMode,
+     * invoiceSettings, autoBackup, fixedAssets, simulatePosMode) and is NOT excluded; a flag the
+     * catalog does not mention at all is an unpriced visibility switch (reports, scaleBarcodes,
+     * itemLedger ...) and is not excluded either. {@code newBranch} is in the catalog but is not
+     * a feature flag, so it never matches a key here.
+     */
+    private static final Set<String> PAID_ADD_ONS = FeatureCatalog.ENTRIES.stream()
+            .filter(e -> e.priceUsd() == null || e.priceUsd() > 0)
+            .map(FeatureCatalog.Entry::key)
+            .collect(Collectors.toUnmodifiableSet());
 
     /** Flags excluded from every map, whatever an override says. */
     private static final String QUICK_PICK_CARDS = "quickPickCards";
@@ -84,6 +108,8 @@ public class TrialPresetService {
             out.put("tableOrders", false);
         }
         out.remove(QUICK_PICK_CARDS);
+        // Last, so it covers the built-in presets AND an override: neither can sell.
+        PAID_ADD_ONS.forEach(flag -> out.computeIfPresent(flag, (k, v) -> false));
         return Collections.unmodifiableMap(out);
     }
 
