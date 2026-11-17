@@ -1,0 +1,41 @@
+<button type="button" class="licence-card" [class.licence-card--dim]="!live" (click)="open.emit(licence)">
+
+  <div class="licence-card-head">
+    <div class="licence-card-title">
+      <span class="licence-card-label">{{ licence.label || ('licenceUnlabelled' | t) }}</span>
+
+      <!-- Three of the four kinds are not a branch. Marked, never hidden: the owner needs to
+           see them, just not to count them as shops. -->
+      @switch (kind) {
+        @case ('dev')     { <span class="status-pill">{{ 'kindDev' | t }}</span> }
+        @case ('hosted')  { <span class="status-pill">{{ 'kindHosted' | t }}</span> }
+        @case ('revoked') { <span class="status-pill status-pill--danger">{{ 'kindRevoked' | t }}</span> }
+      }
+    </div>
+
+    <span [ngClass]="expiryTone">
+      @if (daysLeft === null) {
+        {{ 'perpetual' | t }}
+      } @else if (daysLeft < 0) {
+        {{ 'expired' | t }}
+      } @else {
+        {{ daysLeft }} {{ 'daysLeftSuffix' | t }}
+      }
+    </span>
+  </div>
+
+  <div class="licence-card-meta" dir="ltr">
+    <code>{{ shortMachineId }}…</code>
+    @if (licence.expiresAt) {
+      <span class="licence-card-dot">·</span>
+      <span>{{ licence.expiresAt | date:'dd MMM yyyy' }}</span>
+    }
+  </div>
+
+  <div class="licence-card-foot">
+    <span class="licence-card-features">{{ featuresSummary }}</span>
+    @if (paidTotal > 0) {
+      <span class="licence-card-paid ltr-num">${{ paidTotal | number:'1.0-2' }}</span>
+    }
+  </div>
+</button>
