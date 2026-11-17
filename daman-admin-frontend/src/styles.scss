@@ -408,6 +408,14 @@ html[dir="rtl"] body {
   gap: 6px;
 }
 
+// Demoted on the dashboard: the hero carries the headline, so these six are context.
+// At 1.7rem each they read as six headlines, and the page had no first thing to look at.
+.stat-tile-row {
+  .stat-tile { padding: 12px 14px; }
+  .stat-tile-value { font-size: 1.25rem; }
+  .stat-tile-label { font-size: 0.68rem; }
+}
+
 .stat-tile-value {
   font-size: 1.7rem;
   font-weight: 800;

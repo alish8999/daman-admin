@@ -18,6 +18,15 @@ interface MonthBar {
   heightPct: number;
 }
 
+/** One month plotted in the revenue chart's viewBox coordinates. */
+export interface ChartPoint {
+  x: number;
+  y: number;
+  label: string;
+  amount: number;
+  count: number;
+}
+
 interface ExpiringItem {
   clientCode: string;
   appName: string;
@@ -135,6 +144,105 @@ export class DashboardComponent implements OnInit {
   }
 
   // ── Expiring licenses (next 30 days) ────────────────────────────────────
+
+  // ── Revenue chart ────────────────────────────────────────────────────────
+  //
+  // Inline SVG, no chart library — the portal ships no dependency for this.
+  //
+  // Colour: the brand accent, one series. `validate_palette.js` marks #0a4d68 as
+  // outside the categorical lightness/chroma bands, but its own scope note says those
+  // checks are for CATEGORICAL palettes — sets of hues that must stay distinguishable
+  // from each other. A lone series has no adjacent pair to separate from; the check
+  // that applies is contrast against the surface, which PASSES (>= 3:1). Do not
+  // "fix" that FAIL by recolouring the chart: the accent is the portal's identity and
+  // is pinned by admin-tokens.test.js.
+
+  /** viewBox geometry. Fixed so the path maths is readable; the SVG scales with CSS. */
+  readonly chartW = 600;
+  readonly chartH = 200;
+  private readonly padL = 48;
+  private readonly padR = 14;
+  private readonly padT = 16;
+  private readonly padB = 30;
+
+  /** The highest month, rounded up to something an axis label can say plainly. */
+  get chartMax(): number {
+    const peak = Math.max(0, ...this.revenueByMonth.map(m => m.amount));
+    if (peak <= 0) return 0;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(peak)));
+    return Math.ceil(peak / magnitude) * magnitude;
+  }
+
+  /** Three gridlines: zero, middle, top. More would be clutter at this size. */
+  axisTicks(max: number): number[] {
+    if (max <= 0) return [0];
+    return [0, max / 2, max];
+  }
+
+  yOf(amount: number): number {
+    const max = this.chartMax;
+    const usable = this.chartH - this.padT - this.padB;
+    if (max <= 0) return this.chartH - this.padB;
+    return this.padT + usable * (1 - amount / max);
+  }
+
+  get chartPoints(): ChartPoint[] {
+    const months = this.revenueByMonth;
+    const span = this.chartW - this.padL - this.padR;
+    const step = months.length > 1 ? span / (months.length - 1) : 0;
+    return months.map((m, i) => ({
+      x: this.padL + step * i,
+      y: this.yOf(m.amount),
+      label: m.label,
+      amount: m.amount,
+      count: m.count
+    }));
+  }
+
+  /**
+   * A smooth curve through the points, as cubic segments whose control points sit at the
+   * SAME HEIGHT as the endpoints they belong to.
+   *
+   * <p>That shape is monotone in y by construction, so the curve can never dip below a
+   * month's value on its way between two months — which for revenue would draw money that
+   * was never taken, and below zero at that. A Catmull-Rom spline reads slightly smoother
+   * and does exactly that on a sharp drop, which is why it is not used here.
+   */
+  get linePath(): string {
+    const pts = this.chartPoints;
+    if (pts.length === 0) return '';
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) {
+      const prev = pts[i - 1];
+      const cur = pts[i];
+      const mid = (prev.x + cur.x) / 2;
+      d += ` C ${mid} ${prev.y}, ${mid} ${cur.y}, ${cur.x} ${cur.y}`;
+    }
+    return d;
+  }
+
+  /** The same curve, closed down to the baseline, for the fill. */
+  get areaPath(): string {
+    const pts = this.chartPoints;
+    if (pts.length === 0) return '';
+    const baseline = this.chartH - this.padB;
+    return `${this.linePath} L ${pts[pts.length - 1].x} ${baseline} L ${pts[0].x} ${baseline} Z`;
+  }
+
+  /**
+   * The months worth labelling on the plot: the peak and the most recent.
+   *
+   * <p>A number on every point is the commonest chart mistake — six labels compete with
+   * each other and with the axis, and the reader ends up reading none of them. The peak
+   * and "now" are the two a person actually looks for.
+   */
+  get labelledPoints(): ChartPoint[] {
+    const pts = this.chartPoints;
+    if (pts.length === 0) return [];
+    const peak = pts.reduce((a, b) => (b.amount > a.amount ? b : a), pts[0]);
+    const last = pts[pts.length - 1];
+    return peak === last || peak.amount <= 0 ? [last] : [peak, last];
+  }
 
   get expiringLicenses(): ExpiringItem[] {
     const items: ExpiringItem[] = [];
