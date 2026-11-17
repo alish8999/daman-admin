@@ -499,7 +499,7 @@ public class HostedStoreProvisioningService {
      * pair is refreshed in place rather than duplicated — generating a second one is exactly what
      * {@code POST /api/licenses/generate} refuses with a 409 (see {@code DevRunService}).
      */
-    private void licence(HostedInstance i, LocalDate expiresAt) {
+    void licence(HostedInstance i, LocalDate expiresAt) {
         String machineId = ops.probeMachineId(i.getPort())
                 .map(String::trim)
                 .filter(id -> !id.isEmpty())
@@ -508,16 +508,12 @@ public class HostedStoreProvisioningService {
 
         ClientConfig config = clientConfigRepository.findByClientCode(i.getClientCode())
                 .orElseThrow(() -> new IllegalStateException("Client not found: " + i.getClientCode()));
-        ClientConfigService.LicenseEntitlements entitlements =
-                clientConfigService.licenseEntitlementsFor(i.getClientCode());
 
-        String licenseKey = licenseKeyService.generateLicense(
-                machineId, config.getAppName(), i.getClientCode(),
-                expiresAt == null ? null : expiresAt.toString(),
-                entitlements.baseCurrency(), entitlements.features(),
-                entitlements.colorPrimary(), entitlements.colorSecondary(),
-                entitlements.adminUsername(), entitlements.adminPassword(), entitlements.profile());
-
+        // The ROW FIRST, then its entitlements. For an existing store the row — and therefore its
+        // feature override — is already in hand, so resolving from the client code instead would
+        // quietly re-provision a customised store with a key that ignores its own customisation.
+        // A first provision has no row, and a fresh one overrides nothing, so it resolves to the
+        // client default, which is correct.
         License licence = licenseRepository
                 .findByMachineIdAndClientCodeAndStatus(machineId, i.getClientCode(), LICENCE_ACTIVE)
                 .orElseGet(() -> {
@@ -528,6 +524,16 @@ public class HostedStoreProvisioningService {
                     fresh.setLabel(LICENCE_LABEL);
                     return fresh;
                 });
+        ClientConfigService.LicenseEntitlements entitlements =
+                clientConfigService.licenseEntitlementsFor(licence);
+
+        String licenseKey = licenseKeyService.generateLicense(
+                machineId, config.getAppName(), i.getClientCode(),
+                expiresAt == null ? null : expiresAt.toString(),
+                entitlements.baseCurrency(), entitlements.features(),
+                entitlements.colorPrimary(), entitlements.colorSecondary(),
+                entitlements.adminUsername(), entitlements.adminPassword(), entitlements.profile());
+
         licence.setLicenseKey(licenseKey);
         licence.setClientName(config.getAppName());
         licence.setExpiresAt(expiresAt);

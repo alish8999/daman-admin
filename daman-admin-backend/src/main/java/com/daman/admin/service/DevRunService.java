@@ -219,30 +219,8 @@ public class DevRunService {
 
         String machineId = resolveDevMachineId();
 
-        // Always regenerate from the client's CURRENT admin config and refresh the
-        // dev-run licence row in place. Reusing a stored key verbatim meant any
-        // later change to the client's features / base currency / brand colours /
-        // app name stayed invisible until the licence was manually revoked — e.g.
-        // a dev-run licence minted before v2 payloads carried `colors` never
-        // delivered the client's primary/secondary, so a generic build fell back
-        // to the neutral palette. Same row is reused (no 409, activatedAt/label
-        // preserved); only the key + name are refreshed.
-        var ent = clientConfigService.licenseEntitlementsFor(clientCode);
-        String key = licenseKeyService.generateLicense(
-                machineId, cfg.getAppName(), clientCode, null, ent.baseCurrency(), ent.features(),
-                ent.colorPrimary(), ent.colorSecondary(), ent.adminUsername(), ent.adminPassword(), ent.profile());
-        License l = licenseRepository
-                .findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE")
-                .orElseGet(() -> {
-                    License n = new License();
-                    n.setClientCode(clientCode);
-                    n.setMachineId(machineId);
-                    n.setStatus("ACTIVE");
-                    n.setLabel("dev-run");
-                    return n;
-                });
-        l.setLicenseKey(key);
-        l.setClientName(cfg.getAppName());
+        License l = mintDevLicence(clientCode, machineId, cfg.getAppName());
+        String key = l.getLicenseKey();
         licenseRepository.save(l);
 
         Path home = damanHome();
@@ -342,6 +320,41 @@ public class DevRunService {
      * differs), else the last value stored in {@code app_settings}, else a hard
      * error telling the developer how to set it.
      */
+    /**
+     * Find-or-create this machine's dev-run licence row, then mint its key from <b>that row's</b>
+     * resolved entitlements. Returns the row, unsaved.
+     *
+     * <p>Always regenerated rather than reused: a stored key kept any later change to the
+     * client's features, base currency, brand colours or app name invisible until the licence was
+     * manually revoked — a dev-run licence minted before v2 payloads carried {@code colors} never
+     * delivered the client's palette, so a generic build fell back to the neutral one. The same
+     * row is reused (no 409, {@code activatedAt} and {@code label} preserved); only the key and
+     * name are refreshed.
+     *
+     * <p>Resolved from the ROW, not the client code, so a dev-run licence that has been given a
+     * feature override honours it. A first run has no row yet, so a fresh one resolves to the
+     * client default — which is correct, since a brand-new licence overrides nothing.
+     */
+    License mintDevLicence(String clientCode, String machineId, String appName) {
+        License l = licenseRepository
+                .findByMachineIdAndClientCodeAndStatus(machineId, clientCode, "ACTIVE")
+                .orElseGet(() -> {
+                    License n = new License();
+                    n.setClientCode(clientCode);
+                    n.setMachineId(machineId);
+                    n.setStatus("ACTIVE");
+                    n.setLabel("dev-run");
+                    return n;
+                });
+        var ent = clientConfigService.licenseEntitlementsFor(l);
+        l.setLicenseKey(licenseKeyService.generateLicense(
+                machineId, appName, clientCode, null, ent.baseCurrency(), ent.features(),
+                ent.colorPrimary(), ent.colorSecondary(), ent.adminUsername(), ent.adminPassword(),
+                ent.profile()));
+        l.setClientName(appName);
+        return l;
+    }
+
     String resolveDevMachineId() {
         String probed = probeLocalMachineId().orElse(null);
         if (probed != null && !probed.isBlank()) {

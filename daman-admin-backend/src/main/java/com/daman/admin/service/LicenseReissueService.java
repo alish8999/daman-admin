@@ -85,7 +85,8 @@ public class LicenseReissueService {
             String clientName = l.getClientName() != null ? l.getClientName() : cfgOpt.get().getAppName();
             String expiresAt = l.getExpiresAt() != null ? l.getExpiresAt().toString() : null;
 
-            var ent = clientConfigService.licenseEntitlementsFor(l.getClientCode());
+            // Resolved from the row, so a batch re-issue preserves each licence's own override.
+            var ent = clientConfigService.licenseEntitlementsFor(l);
             String newKey = licenseKeyService.generateLicense(
                     l.getMachineId(), clientName, l.getClientCode(), expiresAt,
                     ent.baseCurrency(), ent.features(),

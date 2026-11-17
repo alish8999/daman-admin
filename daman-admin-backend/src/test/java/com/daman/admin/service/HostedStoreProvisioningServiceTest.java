@@ -110,10 +110,13 @@ class HostedStoreProvisioningServiceTest {
         });
 
         ClientConfigService clientConfigService = mock(ClientConfigService.class);
-        when(clientConfigService.licenseEntitlementsFor(anyString())).thenAnswer(i ->
+        // Resolved from the LICENCE row, which for an existing store is already in hand — so a
+        // re-provision cannot mint a key that ignores that store's own feature override.
+        when(clientConfigService.licenseEntitlementsFor(any(com.daman.admin.entity.License.class))).thenAnswer(i ->
                 new ClientConfigService.LicenseEntitlements("SYP", Map.of("accounting", true),
                         "#111111", "#222222", "owner", "pw",
-                        new LicenseProfile(i.getArgument(0) + " Store", null, null, "mobile", false)));
+                        new LicenseProfile(((com.daman.admin.entity.License) i.getArgument(0)).getClientCode()
+                                + " Store", null, null, "mobile", false)));
 
         licenseKeyService = mock(LicenseKeyService.class);
         when(licenseKeyService.generateLicense(anyString(), any(), anyString(), any(), any(), any(),

@@ -39,7 +39,9 @@ class LicenseControllerTrialConversionTest {
         ClientConfig cc = new ClientConfig();
         cc.setAppName("Shop");
         when(clients.findByClientCode(anyString())).thenReturn(Optional.of(cc));
-        when(clientConfigService.licenseEntitlementsFor(anyString())).thenReturn(
+        // Every mint path resolves from the LICENCE now, so a licence's own feature override is
+        // honoured. The String overload is the client default and belongs to BuildService alone.
+        when(clientConfigService.licenseEntitlementsFor(any(com.daman.admin.entity.License.class))).thenReturn(
                 new ClientConfigService.LicenseEntitlements("USD", Map.of(), null, null, null, null, null));
         when(keys.generateLicense(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn("KEY");
@@ -172,7 +174,7 @@ class LicenseControllerTrialConversionTest {
     @Test
     void bothConversionPathsPassTheEntitlementsProfileToTheMint() {
         var profile = new com.daman.admin.service.LicenseProfile("Shop", "0999", "Main St", "cafe", true);
-        when(clientConfigService.licenseEntitlementsFor(anyString())).thenReturn(
+        when(clientConfigService.licenseEntitlementsFor(any(com.daman.admin.entity.License.class))).thenReturn(
                 new ClientConfigService.LicenseEntitlements("USD", Map.of(), null, null, null, null, profile));
         when(trials.findAllByClientCode(anyString())).thenReturn(List.of());
 

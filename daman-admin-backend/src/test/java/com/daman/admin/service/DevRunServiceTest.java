@@ -129,7 +129,9 @@ class DevRunServiceTest {
         cfg.setClientCode(code);
         cfg.setAppName(code.toUpperCase() + " POS");
         when(clientConfigRepository.findByClientCode(code)).thenReturn(Optional.of(cfg));
-        when(clientConfigService.licenseEntitlementsFor(code)).thenReturn(
+        // Resolved from the dev-run LICENCE row now, so a dev licence with a feature override
+        // honours it (and a first run, which has no row yet, gets the client default).
+        lenient().when(clientConfigService.licenseEntitlementsFor(any(com.daman.admin.entity.License.class))).thenReturn(
                 new ClientConfigService.LicenseEntitlements("USD", java.util.Map.of("barcode", true), null, null, null, null, null));
         // devRun() now always regenerates the dev-run key from current entitlements
         // (reuse-verbatim hid later admin-config changes); default it so tests that

@@ -37,8 +37,9 @@ class LicenseReissueServiceTest {
         service = new LicenseReissueService(
                 licenseRepository, clientConfigRepository, clientConfigService, licenseKeyService);
 
-        // Default: every clientCode resolves to some entitlements unless a test overrides.
-        when(clientConfigService.licenseEntitlementsFor(anyString()))
+        // Default: every licence resolves to some entitlements unless a test overrides. Resolved
+        // from the row now, so a batch re-issue preserves each licence's own feature override.
+        when(clientConfigService.licenseEntitlementsFor(any(com.daman.admin.entity.License.class)))
                 .thenReturn(new ClientConfigService.LicenseEntitlements("USD", Map.of("barcode", true), null, null, null, null, null));
     }
 

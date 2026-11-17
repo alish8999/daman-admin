@@ -55,14 +55,19 @@ public class LicenseController {
         }
 
         String clientName = clientConfig.getAppName();
-        var ent = clientConfigService.licenseEntitlementsFor(clientCode);
+
+        // The row first, then its entitlements — the same order every mint path uses. A brand-new
+        // licence overrides nothing, so this resolves to the client default; building the row
+        // first is what keeps the five mint paths identical rather than one of them special.
+        License license = new License();
+        license.setClientCode(clientCode);
+        license.setMachineId(machineId);
+
+        var ent = clientConfigService.licenseEntitlementsFor(license);
         String licenseKey = licenseKeyService.generateLicense(
                 machineId, clientName, clientCode, expiresAt, ent.baseCurrency(), ent.features(),
                 ent.colorPrimary(), ent.colorSecondary(), ent.adminUsername(), ent.adminPassword(), ent.profile());
 
-        License license = new License();
-        license.setClientCode(clientCode);
-        license.setMachineId(machineId);
         license.setLicenseKey(licenseKey);
         license.setClientName(clientName);
         license.setStatus("ACTIVE");
@@ -258,7 +263,8 @@ public class LicenseController {
         }
 
         String newExpiresAt = (expiresAt != null && !expiresAt.isBlank()) ? expiresAt : null;
-        var ent = clientConfigService.licenseEntitlementsFor(license.getClientCode());
+        // Resolved from the licence, so a renewal keeps whatever feature override it carries.
+        var ent = clientConfigService.licenseEntitlementsFor(license);
         String newKey = licenseKeyService.generateLicense(
                 license.getMachineId(), license.getClientName(), license.getClientCode(),
                 newExpiresAt, ent.baseCurrency(), ent.features(),
