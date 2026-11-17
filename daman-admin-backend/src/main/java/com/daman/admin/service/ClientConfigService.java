@@ -192,6 +192,19 @@ public class ClientConfigService {
     }
 
     /**
+     * Every feature flag the system knows about, by name.
+     *
+     * <p>Derived from the same {@code FeaturesDto} conversion the entitlements use, so the set a
+     * caller is validated against can never drift from the set that actually ships in a licence
+     * payload. Used by the per-licence override endpoint to reject an unknown key instead of
+     * storing it, which is what stops a stale UI or a typo becoming a permanently inert override.
+     */
+    public java.util.Set<String> knownFeatureKeys() {
+        return objectMapper.convertValue(exportFeatures(null),
+                new tools.jackson.core.type.TypeReference<java.util.Map<String, Boolean>>() {}).keySet();
+    }
+
+    /**
      * The client's stored flags as a plain map.
      *
      * <p>Goes through {@code exportFeatures()} → {@code FeaturesDto} and flattens with the same

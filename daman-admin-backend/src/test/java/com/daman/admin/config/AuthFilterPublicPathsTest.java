@@ -98,7 +98,15 @@ class AuthFilterPublicPathsTest {
             "/api/hosted-stores/acme",
             // The session-gated twin of /api/public/feature-catalog. Same body today, but keeping
             // it protected is what stops the public path quietly acquiring an admin-only field.
-            "/api/feature-catalog"
+            "/api/feature-catalog",
+            // Per-licence feature overrides and the drift reconcile. These WRITE licence keys —
+            // and the reconcile can take a feature away from a shop that is currently running it —
+            // so they are the last routes in this backend that should ever be anonymous.
+            "/api/licenses/7/features",
+            "/api/licenses/features-drift",
+            "/api/licenses/features-drift/reconcile",
+            // A client feature save also re-mints that client's live keys.
+            "/api/clients/acme/features"
     );
 
     SessionService sessionService;
