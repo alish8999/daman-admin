@@ -471,8 +471,8 @@ export class ClientsComponent implements OnInit, OnDestroy {
     if (days === 0) return 'today';
     if (days === 1) return 'yesterday';
     if (days < 7) return `${days} days ago`;
-    if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-    return `${Math.floor(days / 30)} months ago`;
+    if (days < 30) { const w = Math.floor(days / 7); return w === 1 ? "1 week ago" : `${w} weeks ago`; }
+    const m = Math.floor(days / 30); return m === 1 ? "1 month ago" : `${m} months ago`;
   }
 
   lastSeenClass(iso: string | null): string {
@@ -493,17 +493,31 @@ export class ClientsComponent implements OnInit, OnDestroy {
   // "Never reported" is the biggest group by far, and it is a different fact from "behind".
 
   /**
-   * Newest published release, by SEMVER rather than by list order or release date.
+   * Every version this portal knows about: published releases UNION what shops actually report.
    *
-   * <p>`versions` arrives ordered by release_date — and six 1.5.x rows share 2026-11-17, so
-   * `versions[0]` is whichever the database happened to return first. Comparing numerically is
-   * the only thing that makes "behind" mean anything.
+   * <p><b>The union is load-bearing.</b> Comparing against `app_versions` alone is correct on a
+   * development machine and silently wrong on the live server: releases are composed on the PC
+   * that runs the build, so the LIVE table stopped in September with 3 rows, newest 1.0.3 — see
+   * CLAUDE.md's per-table authority split. Every shop reporting 1.3.7 or later then had zero
+   * published releases newer than itself and was painted green, including one four releases
+   * behind. A fleet view that says "up to date" because its yardstick is empty is worse than no
+   * column at all.
+   *
+   * <p>Sorted newest first, deduplicated.
    */
+  private get knownVersions(): string[] {
+    const set = new Set<string>();
+    for (const v of this.versions) if (v.versionNumber) set.add(v.versionNumber);
+    for (const c of this.clients) {
+      const r = this.heartbeatFor(c.clientCode)?.appVersion;
+      if (r) set.add(r);
+    }
+    return [...set].sort((a, b) => ClientsComponent.cmpVersion(b, a));
+  }
+
+  /** The highest version known anywhere — published or merely seen in the field. */
   get newestVersionNumber(): string {
-    return this.versions
-      .map(v => v.versionNumber)
-      .filter(v => !!v)
-      .sort((a, b) => ClientsComponent.cmpVersion(b, a))[0] ?? '';
+    return this.knownVersions[0] ?? '';
   }
 
   /** Numeric part-by-part compare. A non-numeric part sorts as 0 rather than throwing. */
@@ -518,7 +532,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * How many published releases are newer than the one this shop reports.
+   * How many known versions are newer than the one this shop reports.
    *
    * <p>Null means it has never reported — which is not the same as being up to date, and not
    * the same as being behind. The badge says so in words rather than guessing.
@@ -526,8 +540,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
   releasesBehind(clientCode: string): number | null {
     const reported = this.heartbeatFor(clientCode)?.appVersion;
     if (!reported) return null;
-    return this.versions.filter(v => v.versionNumber
-      && ClientsComponent.cmpVersion(v.versionNumber, reported) > 0).length;
+    return this.knownVersions.filter(v => ClientsComponent.cmpVersion(v, reported) > 0).length;
   }
 
   versionLabel(clientCode: string): string {
