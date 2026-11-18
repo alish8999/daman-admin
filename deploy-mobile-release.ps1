@@ -25,7 +25,7 @@
 
 .PARAMETER Version
     The version string exactly as it appears in the built filename, e.g. "1.5.1"
-    (matches Daman-Accounting_1.5.1_generic.apk).
+    (matches Daman_1.5.1_generic.apk).
 
 .PARAMETER SkipWebsite
     Upload and verify, but leave index.html alone and push nothing. For putting a
@@ -49,7 +49,7 @@ $WebsiteIndex = "D:\Daman\src\daman-website\index.html"
 $Bucket       = "daman-installers"
 $DownloadHost = "dl.damansoft.com"
 
-$ApkName = "Daman-Accounting_${Version}_generic.apk"
+$ApkName = "Daman_${Version}_generic.apk"
 $ApkPath = Join-Path $BuildDir $ApkName
 
 if (-not (Test-Path $ApkPath)) {

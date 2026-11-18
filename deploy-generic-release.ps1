@@ -29,7 +29,7 @@
 
 .PARAMETER Version
     The version string exactly as it appears in the built filenames, e.g. "1.0.4"
-    (matches Daman-Accounting_1.0.4_generic.exe / 32-Daman-Accounting_1.0.4_generic.exe).
+    (matches Daman_1.0.4_generic.exe / 32-Daman_1.0.4_generic.exe).
 
 .EXAMPLE
     .\deploy-generic-release.ps1 -Version 1.0.4
@@ -47,13 +47,14 @@ $WebsiteIndex = "D:\Daman\src\daman-website\index.html"
 $Bucket       = "daman-installers"
 $DownloadHost = "dl.damansoft.com"
 
-# Renamed from Daman_ on 2026-11-17. The REPLACE patterns below still match the
-# old name as well, because that is what is on the live page until the first
-# release under the new one - a pattern that only knew the new name would find
-# nothing, change nothing, and report "already up to date" on a page still
-# pointing at the previous version.
-$File64 = "Daman-Accounting_${Version}_generic.exe"
-$File32 = "32-Daman-Accounting_${Version}_generic.exe"
+# Named Daman-Accounting_ between 2026-11-17 and 1.6.0; back to Daman_ from
+# 1.6.1 on, matching BuildService.relocateArtifact(). The REPLACE patterns below
+# deliberately match BOTH spellings: the live page still points at a
+# Daman-Accounting_ build until this script rewrites it, and a pattern that knew
+# only one name would find nothing, change nothing, and report "already up to
+# date" on a page still offering the previous version.
+$File64 = "Daman_${Version}_generic.exe"
+$File32 = "32-Daman_${Version}_generic.exe"
 $Path64 = Join-Path $BuildDir $File64
 $Path32 = Join-Path $BuildDir $File32
 
