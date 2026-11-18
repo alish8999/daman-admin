@@ -80,7 +80,11 @@ Write-Host "==> [3/3] Restarting service and verifying (SSH key auth)..." -Foreg
 $remoteScript = @'
 systemctl restart daman-admin-backend
 CODE=000
-for i in 1 2 3 4 5 6; do
+# 15 x 3s = 45s. Was 6 x 3s = 18s, which the Anthropic SDK's weight pushed the boot past:
+# startup went 14.85s -> 16.84s and the process was ready at 18.21s, so the check started
+# failing on a deploy that had in fact succeeded. Measured on the server 2026-11-18. This is
+# a margin, not a guess — the loop exists to notice a jar that does not come up at all.
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   sleep 3
   CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8083/api/licenses/public-key)
   if [ "$CODE" = "200" ]; then break; fi
