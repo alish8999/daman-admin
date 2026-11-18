@@ -75,6 +75,14 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- The official Anthropic SDK, same version AdsBot runs. Used for announcement drafts:
+             structured outputs give a typed record back instead of JSON this code would have to parse. -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>3.2.0</version>
+        </dependency>
     </dependencies>
 
     <build>

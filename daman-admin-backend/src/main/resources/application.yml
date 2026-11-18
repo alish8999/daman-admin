@@ -32,6 +32,21 @@ daman:
     # directly (bcrypt) instead.
     seed-username: ${DAMAN_ADMIN_USERNAME:admin}
     seed-password: ${DAMAN_ADMIN_PASSWORD:ChangeMe123!}
+  # AI announcement drafting. Keys come ONLY from the environment — never a committed file.
+  # A missing key does not stop the portal booting: everything else here has nothing to do with
+  # AI, and the first draft fails with a 401 that says so. See AnthropicConfig.
+  ai:
+    text-model: ${DAMAN_AI_TEXT_MODEL:claude-opus-5-5}
+    image-model: ${DAMAN_AI_IMAGE_MODEL:gemini-2.5-flash-image}
+    # A brake on a runaway loop, not an accounting record: counted in memory, reset at midnight
+    # and on restart. A picture costs many times a paragraph, so they are capped separately.
+    text-per-day: ${DAMAN_AI_TEXT_PER_DAY:60}
+    images-per-day: ${DAMAN_AI_IMAGES_PER_DAY:20}
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      base-url: ${DAMAN_AI_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
   # Cloudflare (online-store provisioning). Token comes ONLY from the CLOUDFLARE_API_TOKEN env var.
   cloudflare:
     account-id: ${CLOUDFLARE_ACCOUNT_ID:}

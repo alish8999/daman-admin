@@ -55,6 +55,7 @@ export class AnnouncementsComponent implements OnInit {
   ngOnInit(): void {
     this.featurePrices.load();
     this.load();
+    this.loadAiBudget();
   }
 
   load(): void {
@@ -64,6 +65,82 @@ export class AnnouncementsComponent implements OnInit {
       error: (err) => {
         this.error = err?.error?.error || this.translationService.instant('announcementsLoadFailed');
         this.loading = false;
+      }
+    });
+  }
+
+  // ── AI ───────────────────────────────────────────────────────────────────────
+  // Two buttons that spend money. What is left today is shown before either is pressed,
+  // rather than a 429 being explained after the fact.
+
+  aiBudget: { text: number; images: number; textPerDay: number; imagesPerDay: number } | null = null;
+  aiIntent = '';
+  aiDrafting = false;
+  aiError = '';
+
+  aiImageFor: number | null = null;
+  aiImageBrief = '';
+  aiDrawing = false;
+
+  private loadAiBudget(): void {
+    this.service.aiBudget().subscribe({
+      next: (b) => this.aiBudget = b,
+      error: () => this.aiBudget = null
+    });
+  }
+
+  /**
+   * Fills the open draft's four text fields. It never saves and never publishes — the owner
+   * edits what comes back and presses Save like any other draft, which is what makes a
+   * mediocre answer cheap rather than dangerous.
+   */
+  writeWithAi(): void {
+    if (!this.draft || this.aiDrafting || !this.aiIntent.trim()) return;
+    this.aiDrafting = true;
+    this.aiError = '';
+    this.service.aiDraft(this.aiIntent.trim(), this.draft.featureKey).subscribe({
+      next: (d) => {
+        this.aiDrafting = false;
+        if (!this.draft) return;
+        this.draft.titleEn = d.titleEn;
+        this.draft.titleAr = d.titleAr;
+        this.draft.bodyEn = d.bodyEn;
+        this.draft.bodyAr = d.bodyAr;
+        this.loadAiBudget();
+      },
+      error: (err) => {
+        this.aiDrafting = false;
+        this.aiError = err?.error?.error || this.translationService.instant('aiFailed');
+        this.loadAiBudget();
+      }
+    });
+  }
+
+  openAiImage(a: Announcement): void {
+    this.aiImageFor = a.id;
+    this.aiImageBrief = '';
+    this.aiError = '';
+  }
+
+  cancelAiImage(): void {
+    this.aiImageFor = null;
+  }
+
+  drawWithAi(): void {
+    if (this.aiImageFor === null || this.aiDrawing || !this.aiImageBrief.trim()) return;
+    this.aiDrawing = true;
+    this.aiError = '';
+    this.service.aiImage(this.aiImageFor, this.aiImageBrief.trim()).subscribe({
+      next: () => {
+        this.aiDrawing = false;
+        this.aiImageFor = null;
+        this.loadAiBudget();
+        this.load();
+      },
+      error: (err) => {
+        this.aiDrawing = false;
+        this.aiError = err?.error?.error || this.translationService.instant('aiFailed');
+        this.loadAiBudget();
       }
     });
   }

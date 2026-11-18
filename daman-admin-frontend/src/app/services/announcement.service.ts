@@ -69,6 +69,33 @@ export class AnnouncementService {
     return this.http.delete<Announcement>(`${this.apiUrl}/${id}/image`);
   }
 
+  // ── AI ──────────────────────────────────────────────────────────────────────
+  // These two cost money each time. The portal shows what is left before either button is
+  // pressed, rather than explaining a 429 afterwards.
+
+  aiBudget(): Observable<{ text: number; images: number; textPerDay: number; imagesPerDay: number }> {
+    return this.http.get<{ text: number; images: number; textPerDay: number; imagesPerDay: number }>(
+      `${this.apiUrl}/ai/budget`);
+  }
+
+  /** A DRAFT for the form. Nothing is saved and nothing is published by this call. */
+  aiDraft(intent: string, featureKey: string | null): Observable<{
+    titleEn: string; titleAr: string; bodyEn: string; bodyAr: string;
+  }> {
+    return this.http.post<{ titleEn: string; titleAr: string; bodyEn: string; bodyAr: string }>(
+      `${this.apiUrl}/ai/draft`, { intent, featureKey });
+  }
+
+  /**
+   * Draws a picture and attaches it to an announcement that already exists.
+   *
+   * <p>Attached server-side rather than returned, because the alternative is shipping a
+   * megabyte of base64 to the browser so it can post the same bytes straight back.
+   */
+  aiImage(id: number, brief: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.apiUrl}/ai/${id}/image`, { brief });
+  }
+
   /**
    * Where the picture is served from. The PUBLIC path, because that is the one the shops use —
    * previewing exactly what they will see is the point of the preview.

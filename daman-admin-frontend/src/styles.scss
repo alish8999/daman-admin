@@ -1373,3 +1373,12 @@ html[dir="rtl"] {
 @media (max-width: 575.98px) {
   .announcement-thumb { width: 100%; height: 140px; }
 }
+
+/* The AI panel in the announcement editor. Tinted so it reads as a tool rather than another
+   field — pressing its button spends money, and it should not look like typing in a box. */
+.ai-panel {
+  border: 1px solid #bfe6f5;
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-accent-soft);
+  padding: .85rem 1rem;
+}

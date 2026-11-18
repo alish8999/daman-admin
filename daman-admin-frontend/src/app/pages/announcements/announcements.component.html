@@ -28,6 +28,35 @@
         {{ (editingId === null ? 'announcementNew' : 'announcementEdit') | t }}
       </h6>
 
+      <!-- ── Write it with AI ──────────────────────────────────────────────
+           Fills the four text fields below and stops. It never saves and never
+           publishes — the owner edits what comes back and presses Save like any
+           other draft, which is what makes a mediocre answer cheap. -->
+      <div class="ai-panel mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <span class="fw-semibold">{{ 'aiWriteTitle' | t }}</span>
+          @if (aiBudget) {
+            <span class="text-muted small ltr-num">{{ aiBudget.text }}/{{ aiBudget.textPerDay }}
+              <span>{{ 'aiLeftToday' | t }}</span>
+            </span>
+          }
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <input class="form-control" style="flex:1 1 320px" [(ngModel)]="aiIntent"
+                 [placeholder]="'aiWritePlaceholder' | t"
+                 [disabled]="aiDrafting">
+          <button type="button" class="btn btn-outline-primary"
+                  [disabled]="aiDrafting || !aiIntent.trim()" (click)="writeWithAi()">
+            @if (aiDrafting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            {{ 'aiWriteButton' | t }}
+          </button>
+        </div>
+        <div class="form-text">{{ 'aiWriteHint' | t }}</div>
+        @if (aiError) {
+          <div class="alert alert-warning py-2 mt-2 mb-0">{{ aiError }}</div>
+        }
+      </div>
+
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label fw-semibold">{{ 'announcementSlug' | t }}</label>
@@ -172,6 +201,10 @@
                   </button>
                 }
 
+                <button type="button" class="btn btn-xs btn-outline-primary" (click)="openAiImage(a)">
+                  {{ 'aiDrawButton' | t }}
+                </button>
+
                 <button type="button" class="btn btn-xs btn-outline-danger" (click)="askDelete(a)">
                   {{ 'delete' | t }}
                 </button>
@@ -212,4 +245,40 @@
   </div>
 }
 
+
+<!-- ── Draw a picture with AI ────────────────────────────────────────────── -->
+@if (aiImageFor !== null) {
+  <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ 'aiDrawTitle' | t }}</h5>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">{{ 'aiDrawBrief' | t }}</label>
+          <textarea class="form-control" rows="3" [(ngModel)]="aiImageBrief"
+                    [placeholder]="'aiDrawPlaceholder' | t" [disabled]="aiDrawing"></textarea>
+          <!-- Said here because it is the one thing the owner would otherwise ask for and not
+               get: the model cannot draw the real logo, so it is told to draw none at all. -->
+          <div class="form-text">{{ 'aiDrawNoLogoHint' | t }}</div>
+          @if (aiBudget) {
+            <div class="form-text ltr-num">{{ aiBudget.images }}/{{ aiBudget.imagesPerDay }}
+              <span>{{ 'aiLeftToday' | t }}</span>
+            </div>
+          }
+          @if (aiError) {
+            <div class="alert alert-warning py-2 mt-2 mb-0">{{ aiError }}</div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" (click)="cancelAiImage()">{{ 'cancel' | t }}</button>
+          <button class="btn btn-primary" [disabled]="aiDrawing || !aiImageBrief.trim()" (click)="drawWithAi()">
+            @if (aiDrawing) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            {{ 'aiDrawButton' | t }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
 }
