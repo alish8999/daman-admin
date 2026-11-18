@@ -4,6 +4,7 @@ import com.daman.admin.ai.AiBudgetGuard;
 import com.daman.admin.ai.AnnouncementDraft;
 import com.daman.admin.ai.AnnouncementDraftService;
 import com.daman.admin.ai.AnnouncementImageService;
+import com.daman.admin.ai.Picture;
 import com.daman.admin.entity.Announcement;
 import com.daman.admin.service.AnnouncementService;
 import lombok.Data;
@@ -80,7 +81,7 @@ public class AnnouncementAiController {
         Optional<Announcement> existing = announcements.byId(id);
         if (existing.isEmpty()) return ResponseEntity.notFound().build();
         try {
-            AnnouncementImageService.Picture picture = images.draw(body.getBrief());
+            Picture picture = images.draw(body.getBrief());
             Announcement a = existing.get();
             a.setImage(picture.bytes());
             a.setImageType(picture.contentType());

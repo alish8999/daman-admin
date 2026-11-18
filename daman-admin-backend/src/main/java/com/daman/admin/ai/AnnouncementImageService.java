@@ -72,9 +72,6 @@ public class AnnouncementImageService {
         this.model = model;
     }
 
-    /** PNG or JPEG bytes and the type they came back as. */
-    public record Picture(byte[] bytes, String contentType) {}
-
     /**
      * One picture for the given brief.
      *
@@ -126,10 +123,14 @@ public class AnnouncementImageService {
                             .asText(inline.path("mime_type").asText("image/png"))
                             .toLowerCase(Locale.ROOT);
                     byte[] bytes = Base64.getDecoder().decode(inline.get("data").asText());
+                    // The model returns whatever size it liked and this call is already billed,
+                    // so an oversized picture is re-encoded to fit rather than thrown away.
+                    Picture picture = AnnouncementImageFitter.fit(
+                            bytes, mime, AnnouncementService.IMAGE_MAX_BYTES);
                     // The same gate every other picture passes through, so an AI image cannot
                     // enter by a side door that skips the size and type rules.
-                    announcements.validateImage(bytes, mime);
-                    return new Picture(bytes, mime);
+                    announcements.validateImage(picture.bytes(), picture.contentType());
+                    return picture;
                 }
             }
             String why = root.path("candidates").path(0).path("finishReason").asText("");

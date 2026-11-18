@@ -116,9 +116,23 @@ export class AnnouncementsComponent implements OnInit {
     });
   }
 
+  /**
+   * Opens the drawing modal with the announcement's own words already in the brief.
+   *
+   * <p>Typing the announcement out a second time is the obvious thing to ask of whoever presses
+   * this button, and it is the wrong thing: the picture is FOR this announcement, so its text is
+   * the brief until the owner decides otherwise. It stays fully editable — nothing is sent until
+   * the draw button is pressed.
+   *
+   * <p>English is preferred because that is what the drawing model reads best, with the Arabic
+   * as the fallback rather than nothing at all.
+   */
   openAiImage(a: Announcement): void {
     this.aiImageFor = a.id;
-    this.aiImageBrief = '';
+    this.aiImageBrief = [a.titleEn || a.titleAr, a.bodyEn || a.bodyAr]
+      .map(s => (s || '').trim())
+      .filter(s => s.length > 0)
+      .join('\n');
     this.aiError = '';
   }
 
