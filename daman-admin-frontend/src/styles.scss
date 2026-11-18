@@ -1328,3 +1328,23 @@ html[dir="rtl"] {
     overflow-wrap: anywhere;
   }
 }
+
+/* The one-line fleet summary above the Clients table. Quiet by design — it is context for the
+   rows beneath it, not a headline. */
+.fleet-version-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .5rem;
+  margin-bottom: .75rem;
+  padding: .5rem .85rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-surface);
+  font-size: .82rem;
+
+  code {
+    font-size: .78rem;
+    color: var(--admin-text);
+  }
+}

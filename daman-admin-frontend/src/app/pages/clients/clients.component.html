@@ -108,6 +108,24 @@
         </button>
       </div>
     } @else {
+      <!-- What the fleet is actually running, stated before the table rather than deduced from
+           it. The gap between "clients" and "reporting" is the real finding — most shops are
+           not behind, they are silent — so it is the number shown first. -->
+      <div class="fleet-version-bar">
+        <span>
+          <strong class="ltr-num">{{ reportingCount }}</strong><span class="text-muted">/</span><strong class="ltr-num">{{ clients.length }}</strong>
+          {{ 'fleetReporting' | t }}
+        </span>
+        @if (newestVersionNumber) {
+          <span class="text-muted">·</span>
+          <span>{{ 'fleetNewest' | t }} <code dir="ltr">v{{ newestVersionNumber }}</code></span>
+        }
+        @if (oldestReportedVersion) {
+          <span class="text-muted">·</span>
+          <span>{{ 'fleetOldest' | t }} <code dir="ltr">v{{ oldestReportedVersion }}</code></span>
+        }
+      </div>
+
       <div class="table-responsive clients-table-wrap">
         <table class="table clients-table align-middle mb-0">
           <thead>
@@ -195,24 +213,29 @@
                      wrong for weeks, so the column states the fact and leaves the reading to
                      whoever is looking. -->
                 <td data-label="Last seen">
-                  @if (heartbeatFor(client.clientCode); as hb) {
-                    <div class="d-flex flex-column">
+                  <div class="d-flex flex-column gap-1">
+                    <!-- Version first: it is the thing the owner came to find out, and it is a
+                         different fact from "has it reported". A shop that has never reported
+                         shows grey and says so — not "up to date", which would be a guess. -->
+                    <span class="badge align-self-start" [ngClass]="versionClass(client.clientCode)"
+                          style="font-size:0.68rem" [title]="versionTitle(client.clientCode)">
+                      {{ versionLabel(client.clientCode) }}
+                    </span>
+                    @if (heartbeatFor(client.clientCode); as hb) {
                       <span class="badge align-self-start" [ngClass]="lastSeenClass(hb.lastSeenAt)"
-                            style="font-size:0.68rem"
-                            [title]="'Reported ' + hb.lastSeenAt + (hb.appVersion ? ' · v' + hb.appVersion : '')">
+                            style="font-size:0.68rem" [title]="'Reported ' + hb.lastSeenAt">
                         {{ lastSeenLabel(hb.lastSeenAt) }}
                       </span>
                       <small class="text-muted" style="font-size:0.68rem"
                              [title]="'The day this till last rang up a sale'">
                         {{ hb.lastSaleOn ? ('sold ' + lastSeenLabel(hb.lastSaleOn)) : 'no sales yet' }}
                       </small>
-                    </div>
-                  } @else {
-                    <span class="badge bg-light text-muted" style="font-size:0.68rem"
-                          title="This client has never reported. Most likely it has not updated to a build that does.">
-                      Never
-                    </span>
-                  }
+                    } @else {
+                      <small class="text-muted" style="font-size:0.68rem">
+                        {{ 'versionNeverReportedShort' | t }}
+                      </small>
+                    }
+                  </div>
                 </td>
 
                 <!-- Contact -->

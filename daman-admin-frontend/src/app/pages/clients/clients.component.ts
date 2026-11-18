@@ -484,6 +484,85 @@ export class ClientsComponent implements OnInit, OnDestroy {
     return 'bg-danger';
   }
 
+
+  // ── Which version is each shop actually running ──────────────────────────────
+  //
+  // The heartbeat has carried appVersion all along; it was only ever in a tooltip, so nobody
+  // saw it. Measured on the live fleet 2026-11-18: of 66 clients, 15 have ever reported and 13
+  // did in the last week — the oldest still running 1.3.7 while 1.5.4 is the newest anyone has.
+  // "Never reported" is the biggest group by far, and it is a different fact from "behind".
+
+  /**
+   * Newest published release, by SEMVER rather than by list order or release date.
+   *
+   * <p>`versions` arrives ordered by release_date — and six 1.5.x rows share 2026-11-17, so
+   * `versions[0]` is whichever the database happened to return first. Comparing numerically is
+   * the only thing that makes "behind" mean anything.
+   */
+  get newestVersionNumber(): string {
+    return this.versions
+      .map(v => v.versionNumber)
+      .filter(v => !!v)
+      .sort((a, b) => ClientsComponent.cmpVersion(b, a))[0] ?? '';
+  }
+
+  /** Numeric part-by-part compare. A non-numeric part sorts as 0 rather than throwing. */
+  private static cmpVersion(a: string, b: string): number {
+    const pa = a.split('.').map(n => parseInt(n, 10) || 0);
+    const pb = b.split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+      if (d !== 0) return d;
+    }
+    return 0;
+  }
+
+  /**
+   * How many published releases are newer than the one this shop reports.
+   *
+   * <p>Null means it has never reported — which is not the same as being up to date, and not
+   * the same as being behind. The badge says so in words rather than guessing.
+   */
+  releasesBehind(clientCode: string): number | null {
+    const reported = this.heartbeatFor(clientCode)?.appVersion;
+    if (!reported) return null;
+    return this.versions.filter(v => v.versionNumber
+      && ClientsComponent.cmpVersion(v.versionNumber, reported) > 0).length;
+  }
+
+  versionLabel(clientCode: string): string {
+    const reported = this.heartbeatFor(clientCode)?.appVersion;
+    return reported ? 'v' + reported : this.translationService.instant('versionUnknown');
+  }
+
+  versionClass(clientCode: string): string {
+    const behind = this.releasesBehind(clientCode);
+    if (behind === null) return 'bg-light text-muted';
+    if (behind === 0) return 'bg-success';
+    if (behind <= 2) return 'bg-warning text-dark';
+    return 'bg-danger';
+  }
+
+  versionTitle(clientCode: string): string {
+    const behind = this.releasesBehind(clientCode);
+    if (behind === null) return this.translationService.instant('versionNeverReported');
+    if (behind === 0) return this.translationService.instant('versionUpToDate');
+    return this.translationService.instant('versionBehind', { n: String(behind) });
+  }
+
+  /** Fleet-wide: how many clients report at all, and the oldest version anyone is running. */
+  get reportingCount(): number {
+    return this.clients.filter(c => this.heartbeats.has(c.clientCode)).length;
+  }
+
+  get oldestReportedVersion(): string {
+    const reported = this.clients
+      .map(c => this.heartbeatFor(c.clientCode)?.appVersion)
+      .filter((v): v is string => !!v);
+    if (reported.length === 0) return '';
+    return reported.sort((a, b) => ClientsComponent.cmpVersion(a, b))[0];
+  }
+
   loadBillings(): void {
     this.billingService.getAll().subscribe(data => this.billings = data);
   }
