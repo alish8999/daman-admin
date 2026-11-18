@@ -1348,3 +1348,28 @@ html[dir="rtl"] {
     color: var(--admin-text);
   }
 }
+
+/* The announcement preview on the portal's list. Fixed box so a tall banner and a wide one
+   produce the same row height — the list is for scanning, not for admiring the artwork. */
+.announcement-thumb {
+  flex: 0 0 auto;
+  width: 160px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-bg);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .announcement-thumb { width: 100%; height: 140px; }
+}
