@@ -356,14 +356,22 @@ public class BuildService {
         int dotIdx = originalName.lastIndexOf('.');
         String ext = dotIdx >= 0 ? originalName.substring(dotIdx) : "";
 
-        // Renamed from "Daman_" on 2026-11-17, owner's call: the product is
-        // "ضمان للمحاسبة", and a download called Daman_ said less than it could.
-        // Latin rather than the Arabic name itself, also the owner's call - the
-        // filename becomes a public URL, and Arabic there is percent-encoded into
-        // something unreadable that some Android browsers then mangle on save.
+        // "Daman-Accounting_" from 2026-11-17, back to "Daman_" on 2026-11-19,
+        // both the owner's call. Latin rather than the Arabic name itself stands:
+        // the filename becomes a public URL, and Arabic there is percent-encoded
+        // into something unreadable that some Android browsers then mangle on save.
         // The POS variant keeps DamanPOS_: it is a different product with its own
         // appId, not this one under another name.
-        String prefix = platform.equalsIgnoreCase("pos") ? "DamanPOS_" : "Daman-Accounting_";
+        //
+        // This string has to agree with daman-frontend's build.nsis.artifactName,
+        // which names the file electron-builder actually writes. When the two
+        // disagree the build still succeeds and still looks right - the installer
+        // is simply copied under this name while latest.yml, written by
+        // electron-builder, goes on naming the other one. Publishing that gives
+        // every client a 404 on update. It happened on 2026-11-19, which is why
+        // copyUpdateMetadataIfPresent now retargets the metadata rather than
+        // trusting the two to stay in step.
+        String prefix = platform.equalsIgnoreCase("pos") ? "DamanPOS_" : "Daman_";
         // winx86 (32-bit) shares every other platform's filename otherwise —
         // e.g. building generic as 32-bit after already building it as regular
         // 64-bit win produces the identical "Daman-Accounting_<ver>_generic.exe" in the
@@ -387,7 +395,7 @@ public class BuildService {
         Files.copy(src, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         addLog(status, "Artifact saved to: " + dest);
 
-        copyUpdateMetadataIfPresent(src, outDir, platform, versionNumber, status);
+        copyUpdateMetadataIfPresent(src, newName, outDir, platform, versionNumber, status);
         writeChangelog(outDir, versionNumber, status);
         return dest.toString();
     }
@@ -416,22 +424,61 @@ public class BuildService {
      * other's channel file on disk, in clients-build/, before either ever
      * reaches R2.
      */
-    private void copyUpdateMetadataIfPresent(Path installerSrc, Path outDir, String platform, String versionNumber, BuildStatusDto status) throws IOException {
+    private void copyUpdateMetadataIfPresent(Path installerSrc, String finalName, Path outDir,
+                                             String platform, String versionNumber, BuildStatusDto status) throws IOException {
         Path distDir = installerSrc.getParent();
-        Path blockmapSrc = distDir.resolve(installerSrc.getFileName().toString() + ".blockmap");
+        String originalName = installerSrc.getFileName().toString();
+        Path blockmapSrc = distDir.resolve(originalName + ".blockmap");
         Path latestYmlSrc = distDir.resolve("latest.yml");
         String channelFileName = platform.equalsIgnoreCase("winx86") ? "latest-x86.yml" : "latest.yml";
 
+        // Both of these describe the installer BY NAME, and relocateArtifact has just
+        // renamed it. Copying them unchanged publishes a feed that points at a file
+        // nobody will ever serve. Retarget instead of assuming the names agree.
         if (Files.exists(blockmapSrc)) {
-            Path blockmapDest = outDir.resolve(blockmapSrc.getFileName().toString());
+            Path blockmapDest = outDir.resolve(finalName + ".blockmap");
             Files.copy(blockmapSrc, blockmapDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             addLog(status, "Update metadata saved to: " + blockmapDest);
         }
         if (Files.exists(latestYmlSrc)) {
             Path latestYmlDest = outDir.resolve(channelFileName);
             Files.copy(latestYmlSrc, latestYmlDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            retargetChannelFile(latestYmlDest, originalName, finalName, status);
             appendReleaseNotes(latestYmlDest, versionNumber, status);
             addLog(status, "Update metadata saved to: " + latestYmlDest);
+        }
+    }
+
+    /**
+     * electron-builder writes the installer's own filename into latest.yml twice,
+     * as {@code url:} and as {@code path:}. electron-updater downloads whatever
+     * those name, resolved against the folder the feed came from - so once the
+     * installer has been renamed on its way to clients-build/, a feed still naming
+     * the old file hands every client a 404 and an update that can never complete.
+     *
+     * <p>Nothing else in the file may change: the sha512 and size describe bytes
+     * that the rename did not touch, and rewriting those would be a lie. Only the
+     * two name references move.
+     *
+     * <p>A no-op when the names already agree, which is the normal case.
+     */
+    private void retargetChannelFile(Path channelFile, String originalName, String finalName, BuildStatusDto status) {
+        if (originalName.equals(finalName)) {
+            return;
+        }
+        try {
+            String yml = Files.readString(channelFile, java.nio.charset.StandardCharsets.UTF_8);
+            String retargeted = yml.replace(originalName, finalName);
+            if (!retargeted.equals(yml)) {
+                Files.writeString(channelFile, retargeted, java.nio.charset.StandardCharsets.UTF_8);
+                addLog(status, "Update feed retargeted: " + originalName + " -> " + finalName);
+            }
+        } catch (IOException e) {
+            // Loud, not fatal: the installer itself is fine, but this feed must not
+            // be published as it stands.
+            log.error("Could not retarget {} from {} to {} - DO NOT PUBLISH this feed",
+                    channelFile, originalName, finalName, e);
+            addLog(status, "WARNING: could not retarget the update feed - do not publish it");
         }
     }
 

@@ -164,7 +164,7 @@ class BuildServiceGenericBranchTest {
                 rawInstaller.toString(), "generic", "Daman", "1.0.0", tempDir, "win", status);
 
         Path resultPath = Path.of(result);
-        assertThat(resultPath.getFileName().toString()).isEqualTo("Daman-Accounting_1.0.0_generic.exe");
+        assertThat(resultPath.getFileName().toString()).isEqualTo("Daman_1.0.0_generic.exe");
         assertThat(resultPath.getParent()).isEqualTo(tempDir.resolve("clients-build").resolve("generic"));
     }
 
@@ -201,5 +201,54 @@ class BuildServiceGenericBranchTest {
         assertThat(latestYml).contains("  - Fixed a bug");
         assertThat(latestYml).contains("  [AR]");
         assertThat(latestYml).contains("  - تم إصلاح خطأ");
+    }
+
+    /**
+     * electron-builder names the installer from build.nsis.artifactName; relocateArtifact
+     * renames it again on the way to clients-build/. When those two disagree the build
+     * still succeeds and the log still reads clean - the installer is simply copied under
+     * one name while latest.yml, which electron-builder wrote, goes on naming the other.
+     * Publishing that hands every client a 404 on update and an upgrade that can never
+     * complete. It was produced exactly that way on 2026-11-19 and caught before release.
+     */
+    @Test
+    void relocateArtifact_pointsTheFeedAndTheBlockmapAtTheRenamedInstaller() throws Exception {
+        Path distDir = tempDir.resolve("daman-frontend").resolve("dist-electron");
+        Files.createDirectories(distDir);
+        Path rawInstaller = distDir.resolve("Whatever_1.4.0_generic.exe");
+        Files.writeString(rawInstaller, "fake");
+        Files.writeString(distDir.resolve("Whatever_1.4.0_generic.exe.blockmap"), "blocks");
+        Files.writeString(distDir.resolve("latest.yml"),
+                "version: 1.4.0\n"
+                        + "files:\n"
+                        + "  - url: Whatever_1.4.0_generic.exe\n"
+                        + "    sha512: untouched-bytes\n"
+                        + "    size: 4\n"
+                        + "path: Whatever_1.4.0_generic.exe\n"
+                        + "sha512: untouched-bytes\n");
+
+        BuildStatusDto status = BuildStatusDto.builder()
+                .clientCode("generic")
+                .logs(Collections.synchronizedList(new ArrayList<>()))
+                .build();
+
+        invokePrivate("relocateArtifact",
+                new Class<?>[]{String.class, String.class, String.class, String.class, Path.class, String.class, BuildStatusDto.class},
+                rawInstaller.toString(), "generic", "Daman", "1.4.0", tempDir, "win", status);
+
+        Path outDir = tempDir.resolve("clients-build").resolve("generic");
+        String feed = Files.readString(outDir.resolve("latest.yml"));
+
+        assertThat(feed)
+                .as("a feed naming a file nobody will serve is worse than no feed")
+                .doesNotContain("Whatever_1.4.0_generic.exe");
+        assertThat(feed).contains("url: Daman_1.4.0_generic.exe");
+        assertThat(feed).contains("path: Daman_1.4.0_generic.exe");
+        assertThat(feed)
+                .as("the rename moved no bytes, so the checksum must not be rewritten")
+                .contains("sha512: untouched-bytes");
+
+        assertThat(outDir.resolve("Daman_1.4.0_generic.exe.blockmap")).exists();
+        assertThat(outDir.resolve("Whatever_1.4.0_generic.exe.blockmap")).doesNotExist();
     }
 }
