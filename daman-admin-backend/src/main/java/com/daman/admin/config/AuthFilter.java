@@ -80,8 +80,36 @@ public class AuthFilter implements Filter {
             // licenseKey match an ACTIVE row. It mints nothing, reads nothing back, and answers
             // 200 to everything — so it is not an oracle for which client codes exist.
             // See ClientHeartbeatController.
-            "/api/public/client-heartbeat"
+            "/api/public/client-heartbeat",
+            // Announcements the owner publishes for every shop's features page (added
+            // 2026-11-18). Reads published rows only, answers the same thing to everybody, mints
+            // nothing and writes nothing — so it discloses no client and is an oracle for
+            // nothing. See PublicAnnouncementController.
+            "/api/public/announcements"
     );
+
+    /**
+     * The one PREFIX rule, and the reason it exists.
+     *
+     * <p>Every other entry above is matched exactly, which is what keeps the set auditable: the
+     * list IS the anonymous surface. An announcement's picture cannot work that way — its path
+     * carries the slug — so it needs a prefix, and the prefix is scoped to this single branch
+     * rather than to {@code /api/public/} as a whole, so that adding a future endpoint under
+     * {@code /api/public/} does not silently become anonymous by inheritance.
+     *
+     * <p>The trailing slash is load-bearing: without it {@code /api/public/announcementsX} would
+     * match too.
+     */
+    private static final String PUBLIC_PREFIX = "/api/public/announcements/";
+
+    /**
+     * Whether this exact request path may be served with no credential. Package-visible and
+     * static so the rule can be tested directly rather than through a servlet.
+     */
+    public static boolean isPublicPath(String uri) {
+        if (uri == null) return false;
+        return PUBLIC_PATHS.contains(uri) || uri.startsWith(PUBLIC_PREFIX);
+    }
 
     // Mirrors CorsConfig's allowedOrigins. This filter runs before Spring MVC's
     // CORS handling (order 1, ahead of the DispatcherServlet), so a 401 it
@@ -114,7 +142,7 @@ public class AuthFilter implements Filter {
         HttpServletRequest req = (HttpServletRequest) request;
         HttpServletResponse res = (HttpServletResponse) response;
 
-        if ("OPTIONS".equalsIgnoreCase(req.getMethod()) || PUBLIC_PATHS.contains(req.getRequestURI())) {
+        if ("OPTIONS".equalsIgnoreCase(req.getMethod()) || isPublicPath(req.getRequestURI())) {
             chain.doFilter(request, response);
             return;
         }
