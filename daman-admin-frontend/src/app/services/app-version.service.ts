@@ -33,6 +33,17 @@ export class AppVersionService {
     return this.http.get<AppVersion[]>(this.apiUrl);
   }
 
+  /**
+   * The newest version that actually EXISTS for download, from the update feed the shops poll.
+   *
+   * <p>Read through our own backend rather than straight from the download host: that host
+   * sends no CORS header, so a browser on admin.damansoft.com cannot fetch it. `version` is
+   * null when the feed could not be read — the caller must fall back, never assume "up to date".
+   */
+  publishedLatest(): Observable<{ version: string | null }> {
+    return this.http.get<{ version: string | null }>(`${this.apiUrl}/published`);
+  }
+
   create(req: AppVersionRequest): Observable<AppVersion> {
     return this.http.post<AppVersion>(this.apiUrl, req);
   }

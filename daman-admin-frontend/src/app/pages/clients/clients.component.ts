@@ -424,6 +424,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.loadLicenses();
     this.loadBillings();
     this.loadVersions();
+    this.loadPublishedLatest();
     this.loadDevCurrent();
     this.loadHeartbeats();
   }
@@ -495,6 +496,9 @@ export class ClientsComponent implements OnInit, OnDestroy {
   /**
    * Every version this portal knows about: published releases UNION what shops actually report.
    *
+   * <p>Three sources, best first: the update FEED (what is downloadable right now), then
+   * `app_versions`, then what shops report.
+   *
    * <p><b>The union is load-bearing.</b> Comparing against `app_versions` alone is correct on a
    * development machine and silently wrong on the live server: releases are composed on the PC
    * that runs the build, so the LIVE table stopped in September with 3 rows, newest 1.0.3 — see
@@ -507,6 +511,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
    */
   private get knownVersions(): string[] {
     const set = new Set<string>();
+    if (this.publishedLatest) set.add(this.publishedLatest);
     for (const v of this.versions) if (v.versionNumber) set.add(v.versionNumber);
     for (const c of this.clients) {
       const r = this.heartbeatFor(c.clientCode)?.appVersion;
@@ -600,6 +605,23 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.licenseService.getAll().subscribe(licenses => {
       this.licenses = licenses;
       this.sharedMachines = sharedMachineIds(licenses);
+    });
+  }
+
+  /**
+   * What is actually downloadable right now, from the update feed the shops themselves poll.
+   *
+   * <p>This is the authoritative answer and the other two sources are fallbacks: `app_versions`
+   * is only maintained where the build runs, and the fleet's own highest report can only ever
+   * name a release somebody already installed. A null leaves both fallbacks in place rather
+   * than blanking the column.
+   */
+  publishedLatest: string | null = null;
+
+  loadPublishedLatest(): void {
+    this.appVersionService.publishedLatest().subscribe({
+      next: (r) => this.publishedLatest = r.version,
+      error: () => this.publishedLatest = null
     });
   }
 
