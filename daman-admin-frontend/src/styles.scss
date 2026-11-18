@@ -1301,3 +1301,30 @@ html[dir="rtl"] {
 
 [dir="rtl"] .admin-details > summary::before { transform: scaleX(-1); }
 [dir="rtl"] .admin-details[open] > summary::before { transform: scaleX(-1) rotate(90deg); }
+
+/* ── The drawer is a narrow container, and Bootstrap is not ────────────────
+   Two things break inside a 560px panel on a wide screen, and neither is
+   visible in a build:
+
+   1. `.row` carries a NEGATIVE gutter margin that a `.container` normally
+      cancels. There is no container here, so every row sat ~24px wider than
+      the panel and produced a horizontal scrollbar under the whole body.
+   2. A flex child defaults to `min-width: auto`, so a long word or an
+      unbroken machine id widens its column instead of wrapping in it.
+
+   (The third — col-lg-4 reading the viewport rather than this container, which
+   gave three ~150px columns and one word per line — is fixed in the grid's own
+   template, where the mode is known.) */
+.drawer-panel {
+  .row {
+    margin-inline: 0;
+  }
+
+  .feature-card {
+    > span { min-width: 0; }
+  }
+
+  code {
+    overflow-wrap: anywhere;
+  }
+}
