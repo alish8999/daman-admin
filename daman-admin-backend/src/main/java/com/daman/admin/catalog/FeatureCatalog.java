@@ -13,10 +13,13 @@ import java.util.List;
  * list, and every point where it disagreed with the POS modal it was *lower*, so adopting it never
  * raises a price a shop owner has already been quoted.
  *
- * <p><b>Changing a price</b> means editing this file and redeploying this backend. The owner
- * accepted that in place of an admin CRUD screen, so there is deliberately no database table here
- * and no migration. Shipped POS installs pick the change up on their next catalog fetch — they do
- * not need a new build.
+ * <p><b>This list is now the SEED, not the live prices.</b> Since 2026-11-19 the figures live in
+ * the admin database's {@code feature_prices} table and are edited from the portal's "Add-on
+ * prices" screen; {@code FeaturePriceService} creates a row from each entry here the first time
+ * it sees one, and never touches it again. What this file still decides is what is SELLABLE AT
+ * ALL — a key that is not here cannot be priced, served, or put on a card — and what a brand-new
+ * installation's prices start at. Shipped POS installs pick a change up on their next catalog
+ * fetch, within six hours; they do not need a new build.
  *
  * <p><b>What is NOT here.</b> The fifteen {@code price: null} rows of {@code feature-catalog.ts}
  * (reports, accountStatement, itemLedger, batchStocktake, barcode, bulkPriceUpdate, multiLanguage,
@@ -86,6 +89,13 @@ public final class FeatureCatalog {
             Entry.priced("consignment", 29),
             Entry.priced("posTerminals", 75),
             Entry.priced("mobilePos", 25),
+
+            // Hosting the shop's Daman in the cloud instead of on its own PC: reachable from
+            // anywhere, from as many devices as the owner likes. Like newBranch it is NOT a
+            // ClientFeatures flag — nothing in the app switches on because of it; it is a
+            // service the shop buys, and it is listed here so its price is set in the same
+            // place as every other price and reaches the website from the same fetch.
+            Entry.priced("cloudHosting", 100),
 
             // Not a ClientFeatures flag — there is no `newBranch` boolean anywhere. It exists here
             // because the POS features page has a real New Branch card that opens the modal, and

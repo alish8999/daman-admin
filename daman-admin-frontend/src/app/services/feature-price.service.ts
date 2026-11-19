@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-interface CatalogFeature {
+export interface CatalogFeature {
   key: string;
   price: number | null;
   contactUs: boolean;
@@ -59,6 +59,30 @@ export class FeaturePriceService {
   }
 
   get isLoaded(): boolean { return this.loaded; }
+
+  /**
+   * Every priced add-on, in catalogue order — for the screen that edits them.
+   *
+   * <p>Always refetched. The cached map above exists so a hundred client cards can ask for a
+   * price without a hundred requests; an editing screen is the one place that must be looking
+   * at what is actually stored, including a change made from another browser.
+   */
+  listForEditing(): Observable<CatalogResponse> {
+    return this.http.get<CatalogResponse>(`${environment.apiUrl}/api/feature-catalog`);
+  }
+
+  /**
+   * Sets one add-on's price.
+   *
+   * <p>The local cache is dropped rather than patched, so the next read comes from the server —
+   * the server is what decides, and it clears a figure when contactUs is set.
+   */
+  setPrice(key: string, price: number | null, contactUs: boolean, bundledWith: string | null): Observable<CatalogFeature> {
+    this.loaded = false;
+    return this.http.put<CatalogFeature>(
+      `${environment.apiUrl}/api/feature-catalog/${encodeURIComponent(key)}`,
+      { price, contactUs, bundledWith });
+  }
 
   /** USD price, or null when unknown, not yet loaded, or priced on enquiry. */
   priceOf(key: string): number | null {

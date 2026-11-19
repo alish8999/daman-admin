@@ -9,6 +9,7 @@ import { authGuard } from './guards/auth.guard';
 import { FleetComponent } from './pages/fleet/fleet.component';
 import { LicenceDriftComponent } from './pages/licence-drift/licence-drift.component';
 import { AnnouncementsComponent } from './pages/announcements/announcements.component';
+import { FeaturePricesComponent } from './pages/feature-prices/feature-prices.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -21,6 +22,7 @@ export const routes: Routes = [
   { path: 'trials', component: TrialsComponent, canActivate: [authGuard] },
   { path: 'licence-drift', component: LicenceDriftComponent, canActivate: [authGuard] },
   { path: 'announcements', component: AnnouncementsComponent, canActivate: [authGuard] },
+  { path: 'feature-prices', component: FeaturePricesComponent, canActivate: [authGuard] },
   // The fleet page is static assets; authGuard cannot protect a bare file, so it is mounted
   // behind this component instead. See FleetComponent.
   // Every route here MUST be ONE flat segment (no '/', no trailing slash): the component iframes

@@ -45,7 +45,12 @@ class FeatureCatalogTest {
             Map.entry("tableOrders", 29),
             Map.entry("consignment", 29),
             Map.entry("posTerminals", 75),
-            Map.entry("mobilePos", 25));
+            Map.entry("mobilePos", 25),
+            // Not a feature flag: hosting the shop's Daman for them instead of it living on one
+            // PC. Listed so its price is set on the same screen as every other price and
+            // reaches the website from the same fetch. $100 is the figure the owner gave on
+            // 2026-11-19; it is the SEED, and the live figure is the portal's to change.
+            Map.entry("cloudHosting", 100));
 
     /**
      * The {@code price: null} rows in feature-catalog.ts. The owner hides these per client; they
