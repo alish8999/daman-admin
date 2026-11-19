@@ -54,6 +54,19 @@ export class AnnouncementService {
     return this.http.put<Announcement>(`${this.apiUrl}/${id}`, body);
   }
 
+  /**
+   * Publish or unpublish, on its own.
+   *
+   * <p>Separate from {@link update} because publishing is not an edit: it is a button on the
+   * list, pressed on a row nobody has open, and reusing PUT would mean round-tripping every
+   * field — slug, both titles, both bodies — to flip one flag, with every one of them able to
+   * arrive stale. The server treats a flag that already matches as a no-op, so a second press
+   * does not move the row's timestamp and re-ring every till.
+   */
+  setPublished(id: number, published: boolean): Observable<Announcement> {
+    return this.http.patch<Announcement>(`${this.apiUrl}/${id}/published`, { published });
+  }
+
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }

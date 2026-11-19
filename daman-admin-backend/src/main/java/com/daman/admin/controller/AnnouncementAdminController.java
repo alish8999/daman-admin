@@ -46,6 +46,12 @@ public class AnnouncementAdminController {
         private Boolean published;
     }
 
+    /** Just the flag. Publishing is one button, not a form. */
+    @Data
+    public static class PublishRequest {
+        private Boolean published;
+    }
+
     /** The row as the portal sees it — everything except the bytes. */
     public record AnnouncementDto(Long id, String slug, String titleEn, String titleAr,
                                   String bodyEn, String bodyAr, String featureKey,
@@ -87,6 +93,33 @@ public class AnnouncementAdminController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    /**
+     * Publish or unpublish, without touching anything else.
+     *
+     * <p><b>Why not the checkbox it replaced.</b> Publishing was a field inside the editor, so
+     * putting an announcement in front of the shops meant opening the form, ticking a box and
+     * pressing Save — three steps, two of which are about editing text nobody was editing. It
+     * is a state the row is in, and it belongs on the row, beside Edit and Delete.
+     *
+     * <p><b>A no-op when the flag already matches.</b> Every save moves {@code updatedAt}
+     * (see the entity's {@code @PreUpdate}), and that timestamp is what raises the "new" dot on
+     * every till and brings a dismissed band back on every dashboard. So a second press — a
+     * double-click, or a button pressed against a list another tab has already changed —
+     * answers OK and writes nothing, rather than re-announcing the same thing to the fleet.
+     */
+    @PatchMapping("/{id}/published")
+    public ResponseEntity<?> setPublished(@PathVariable Long id, @RequestBody PublishRequest body) {
+        if (body == null || body.getPublished() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "published is required"));
+        }
+        Optional<Announcement> existing = service.byId(id);
+        if (existing.isEmpty()) return ResponseEntity.notFound().build();
+        Announcement a = existing.get();
+        if (a.isPublished() == body.getPublished()) return ResponseEntity.ok(toDto(a));
+        a.setPublished(body.getPublished());
+        return ResponseEntity.ok(toDto(service.save(a)));
     }
 
     /** The picture lives in the row, so deleting the row takes it with it. */

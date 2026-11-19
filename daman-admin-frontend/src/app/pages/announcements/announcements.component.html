@@ -97,18 +97,6 @@
           <textarea class="form-control" rows="3" dir="rtl" [(ngModel)]="draft.bodyAr"></textarea>
         </div>
 
-        <!-- The one consequence that is invisible from this page, so it is written next to the
-             control that causes it rather than left to be discovered on a shop's screen. -->
-        <div class="col-12">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="announcementPublished"
-                   [(ngModel)]="draft.published">
-            <label class="form-check-label fw-semibold" for="announcementPublished">
-              {{ 'announcementPublished' | t }}
-            </label>
-          </div>
-          <div class="form-text">{{ 'announcementPublishedHint' | t }}</div>
-        </div>
       </div>
 
       <div class="d-flex gap-2 mt-4">
@@ -118,6 +106,13 @@
         </button>
         <button type="button" class="btn btn-outline-secondary" (click)="cancelEdit()">{{ 'cancel' | t }}</button>
       </div>
+
+      <!-- The one consequence of pressing Save that is invisible from this page. Publishing is
+           no longer a field in this form, so the warning belongs to the button that now does
+           the damage — and only when the row being saved is already in front of the shops. -->
+      @if (editingId !== null && editingRowIsPublished) {
+        <div class="form-text mt-2">{{ 'announcementPublishedHint' | t }}</div>
+      }
 
       @if (editingId === null) {
         <div class="form-text mt-2">{{ 'announcementImageAfterSave' | t }}</div>
@@ -184,6 +179,21 @@
               }
 
               <div class="d-flex gap-2 flex-wrap mt-2">
+                <!-- First, because it is the one button on this row that changes what the
+                     shops see. Its label is the action, not the state — the pill above says
+                     the state. -->
+                <button type="button"
+                        class="btn btn-xs"
+                        [class.btn-success]="!a.published"
+                        [class.btn-outline-secondary]="a.published"
+                        [disabled]="publishingFor !== null"
+                        (click)="togglePublish(a)">
+                  @if (publishingFor === a.id) {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                  }
+                  {{ (a.published ? 'announcementUnpublish' : 'announcementPublish') | t }}
+                </button>
+
                 <button type="button" class="btn btn-xs btn-outline-secondary" (click)="edit(a)">
                   {{ 'edit' | t }}
                 </button>

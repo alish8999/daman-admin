@@ -44,6 +44,9 @@ export class AnnouncementsComponent implements OnInit, OnDestroy {
   uploadingFor: number | null = null;
   uploadError = '';
 
+  /** The row whose publish button is mid-flight, so only that one button shows a spinner. */
+  publishingFor: number | null = null;
+
   /** Stated in the UI rather than discovered by a rejected upload. */
   readonly imageMaxKb = 512;
   readonly featureCatalog = FEATURE_CATALOG;
@@ -208,9 +211,54 @@ export class AnnouncementsComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Whether the row currently open in the editor is already in front of the shops — which is
+   * what decides if Save carries the "this re-rings every till" warning.
+   */
+  get editingRowIsPublished(): boolean {
+    return this.editingId !== null
+        && this.announcements.some(a => a.id === this.editingId && a.published);
+  }
+
   /** True once the draft has the one field that cannot be blank. */
   get draftIsSavable(): boolean {
     return !!this.draft && !!this.draft.slug.trim();
+  }
+
+  // ── Publish ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Flips one row between draft and published, from the list.
+   *
+   * <p>This used to be a checkbox inside the editor, which made putting an announcement in
+   * front of the shops a three-step job — open the form, tick, save — two steps of which are
+   * about editing text nobody wanted to edit. It is a state the row is in, so it sits on the
+   * row next to Edit and Delete.
+   *
+   * <p>No confirmation dialog. The button says which way it goes, the pill next to it says
+   * where the row ended up, and the opposite button is right there — a thing you can undo by
+   * pressing the same place twice does not need to be asked about.
+   */
+  togglePublish(a: Announcement): void {
+    if (this.publishingFor !== null) return;
+    this.publishingFor = a.id;
+    this.error = '';
+    this.service.setPublished(a.id, !a.published).subscribe({
+      next: (saved) => {
+        this.publishingFor = null;
+        // Patched in place rather than reloading the list: a reload rebuilds every preview
+        // blob, so the pictures would blink on a press that changed one flag.
+        a.published = saved.published;
+        a.updatedAt = saved.updatedAt;
+        this.savedMsg = this.translationService.instant(
+          saved.published ? 'announcementPublishedMsg' : 'announcementUnpublishedMsg');
+        setTimeout(() => this.savedMsg = '', 3000);
+      },
+      error: (err) => {
+        this.publishingFor = null;
+        this.error = err?.error?.error || this.translationService.instant('saveFailed');
+      }
+    });
   }
 
   // ── Picture ──────────────────────────────────────────────────────────────────

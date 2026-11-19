@@ -21,7 +21,10 @@ public class CorsConfig implements WebMvcConfigurer {
                         "http://127.0.0.1:5500",
                         "https://admin.damansoft.com"
                 )
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                // PATCH added 2026-11-19 with the announcements publish button. A method missing
+                // from this list fails at the browser's preflight, so the call never reaches the
+                // controller and the only symptom is a CORS error with no server log line.
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
     }
 }

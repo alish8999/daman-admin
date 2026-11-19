@@ -171,4 +171,80 @@ class AnnouncementAdminControllerTest {
 
         assertThat(controller.image(9L).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
+    // ── Publish / unpublish ──────────────────────────────────────────────────────
+    // Its own endpoint rather than a field on the full update, because publishing is not an
+    // edit: it is one button on the list, pressed on a row nobody is editing, and routing it
+    // through PUT would mean sending back every field just to flip one flag.
+
+    @Test
+    void publishingADraftFlipsTheFlag() {
+        Announcement a = stored(1);
+        a.setPublished(false);
+        when(service.byId(1L)).thenReturn(Optional.of(a));
+        when(service.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = controller.setPublished(1L, publishBody(true));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(a.isPublished()).isTrue();
+        verify(service).save(a);
+    }
+
+    @Test
+    void unpublishingFlipsItBack() {
+        Announcement a = stored(1);
+        a.setPublished(true);
+        when(service.byId(1L)).thenReturn(Optional.of(a));
+        when(service.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        controller.setPublished(1L, publishBody(false));
+
+        assertThat(a.isPublished()).isFalse();
+        verify(service).save(a);
+    }
+
+    /**
+     * Pressing publish on a row that is already published must not write.
+     *
+     * <p>Every save moves {@code updatedAt} (the entity's {@code @PreUpdate}), and that
+     * timestamp is what raises the "new" dot on every till and un-dismisses the band on every
+     * dashboard. A double-click, or a button pressed against a list another tab already
+     * changed, would otherwise re-announce the same thing to the whole fleet.
+     */
+    @Test
+    void publishingAnAlreadyPublishedRowWritesNothing() {
+        Announcement a = stored(1);
+        a.setPublished(true);
+        when(service.byId(1L)).thenReturn(Optional.of(a));
+
+        var response = controller.setPublished(1L, publishBody(true));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(service, never()).save(any());
+    }
+
+    @Test
+    void publishingARowThatIsNotThereIs404() {
+        when(service.byId(9L)).thenReturn(Optional.empty());
+
+        assertThat(controller.setPublished(9L, publishBody(true)).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /** A body with no flag says nothing, so it changes nothing rather than guessing. */
+    @Test
+    void aBodyWithNoFlagIsRejected() {
+        Announcement a = stored(1);
+        when(service.byId(1L)).thenReturn(Optional.of(a));
+
+        assertThat(controller.setPublished(1L, publishBody(null)).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(service, never()).save(any());
+    }
+
+    private static AnnouncementAdminController.PublishRequest publishBody(Boolean published) {
+        var r = new AnnouncementAdminController.PublishRequest();
+        r.setPublished(published);
+        return r;
+    }
 }
