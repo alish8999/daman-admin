@@ -1,5 +1,7 @@
 package com.daman.admin.controller;
 
+import com.daman.admin.ai.AnnouncementImageFitter;
+import com.daman.admin.ai.Picture;
 import com.daman.admin.catalog.FeatureCatalog;
 import com.daman.admin.entity.Announcement;
 import com.daman.admin.service.AnnouncementService;
@@ -161,12 +163,19 @@ public class AnnouncementAdminController {
         if (existing.isEmpty()) return ResponseEntity.notFound().build();
         try {
             byte[] bytes = file.getBytes();
+            // Squeezed first, exactly as a drawing from the model is. Until 2026-11-19 an upload
+            // went straight to validateImage, so the SAME picture was accepted when the model
+            // drew it and refused when the owner picked it off their own disk — leaving them to
+            // resize it by hand in some other program. A picture already under the cap is
+            // returned untouched by fit(), so nothing is re-encoded for no reason.
+            Picture picture = AnnouncementImageFitter.fit(bytes, file.getContentType(),
+                    AnnouncementService.IMAGE_MAX_BYTES);
             // The service is the single gate on size and type; the controller's job is only to
             // turn its refusal into a 400 rather than letting it surface as a 500.
-            service.validateImage(bytes, file.getContentType());
+            service.validateImage(picture.bytes(), picture.contentType());
             Announcement a = existing.get();
-            a.setImage(bytes);
-            a.setImageType(file.getContentType());
+            a.setImage(picture.bytes());
+            a.setImageType(picture.contentType());
             return ResponseEntity.ok(toDto(service.save(a)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

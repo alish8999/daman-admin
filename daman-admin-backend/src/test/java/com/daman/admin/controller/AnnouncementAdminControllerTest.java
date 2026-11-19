@@ -247,4 +247,72 @@ class AnnouncementAdminControllerTest {
         r.setPublished(published);
         return r;
     }
+    // ── A picture the owner uploads is squeezed, not refused ─────────────────────
+    // The AI path has run every drawing through AnnouncementImageFitter since 2026-11-19; an
+    // upload went straight to validateImage and was rejected. So the SAME picture was accepted
+    // when the model drew it and refused when the owner picked it off their disk, and the owner
+    // was left to resize it by hand in some other program. Direct instruction, 2026-11-19:
+    // "المهم ما اضطر يدويا انا اضغطها".
+
+    /** A real PNG of the given size — the fitter decodes it, so random bytes will not do. */
+    private static byte[] png(int width, int height) throws java.io.IOException {
+        var image = new java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        var g = image.createGraphics();
+        for (int x = 0; x < width; x++) {
+            // A gradient, not noise: noise does not compress, and what is on trial here is the
+            // controller's routing, not how hard the squeeze ladder can push.
+            g.setColor(new java.awt.Color(x * 255 / Math.max(1, width - 1), 128, 200));
+            g.fillRect(x, 0, 1, height);
+        }
+        g.dispose();
+        var out = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "png", out);
+        return out.toByteArray();
+    }
+
+    @Test
+    void anOversizePictureIsSqueezedAndStoredRatherThanRefused() throws Exception {
+        Announcement row = stored(1);
+        when(service.byId(1L)).thenReturn(Optional.of(row));
+        when(service.save(any())).thenAnswer(i -> i.getArgument(0));
+        byte[] big = png(2200, 1600);
+        assertThat(big.length).as("the fixture must actually be over the cap")
+                .isGreaterThan(AnnouncementService.IMAGE_MAX_BYTES);
+
+        var response = controller.uploadImage(1L, new MockMultipartFile("file", "banner.png", "image/png", big));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(row.getImage()).isNotNull();
+        assertThat(row.getImage().length).isLessThanOrEqualTo(AnnouncementService.IMAGE_MAX_BYTES);
+        assertThat(row.getImageType()).isEqualTo("image/jpeg");
+        verify(service).save(row);
+    }
+
+    /** A picture already under the cap is stored byte for byte, in the format it arrived in. */
+    @Test
+    void aPictureThatAlreadyFitsIsStoredUntouched() throws Exception {
+        Announcement row = stored(1);
+        when(service.byId(1L)).thenReturn(Optional.of(row));
+        when(service.save(any())).thenAnswer(i -> i.getArgument(0));
+        byte[] small = png(80, 60);
+        assertThat(small.length).isLessThanOrEqualTo(AnnouncementService.IMAGE_MAX_BYTES);
+
+        controller.uploadImage(1L, new MockMultipartFile("file", "small.png", "image/png", small));
+
+        assertThat(row.getImage()).isEqualTo(small);
+        assertThat(row.getImageType()).as("no needless re-encode").isEqualTo("image/png");
+    }
+
+    /** Something that is not an image at all is still a 400, not a 500. */
+    @Test
+    void bytesThatAreNotAPictureAreStillRejected() {
+        when(service.byId(1L)).thenReturn(Optional.of(stored(1)));
+        byte[] junk = new byte[AnnouncementService.IMAGE_MAX_BYTES + 1];
+
+        var response = controller.uploadImage(1L,
+                new MockMultipartFile("file", "banner.png", "image/png", junk));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(service, never()).save(any());
+    }
 }

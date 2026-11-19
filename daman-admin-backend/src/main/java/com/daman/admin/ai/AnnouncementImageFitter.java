@@ -5,12 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
 import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -92,18 +96,65 @@ public final class AnnouncementImageFitter {
                         + maxBytes);
     }
 
+    /**
+     * Widest edge we are willing to hold in memory, before any scaling.
+     *
+     * <p>A phone camera hands over 4000×3000 and up, and {@code ImageIO.read} would decode every
+     * pixel into an ARGB buffer — 48 MB for a 12-megapixel photo, on a backend tuned to a few
+     * hundred MB of heap. Nothing above {@link #WIDTHS}' largest entry survives the squeeze
+     * anyway, so decoding more than twice that is work thrown away AND the thing most likely to
+     * take the server down. Twice, not exactly: subsampling is a crude nearest-neighbour drop,
+     * and leaving headroom lets the proper scaler below do the quality-sensitive step.
+     */
+    private static final int DECODE_MAX_EDGE = 3200;
+
+    /**
+     * Decodes the picture, subsampling anything enormous as it reads.
+     *
+     * <p>{@code setSourceSubsampling} makes the decoder skip pixels while reading rather than
+     * after, so memory is bounded by the OUTPUT size whatever arrives — which is what makes it
+     * safe to accept a photo straight off a phone.
+     */
     private static BufferedImage read(byte[] bytes) {
-        BufferedImage img;
-        try {
-            img = ImageIO.read(new ByteArrayInputStream(bytes));
+        try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (in == null) throw new IllegalArgumentException("the picture could not be read");
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
+            if (!readers.hasNext()) {
+                // ImageIO offers no reader rather than throwing when nothing recognises the bytes.
+                throw new IllegalArgumentException("the picture could not be read");
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(in, true, true);
+                int step = subsamplingFor(reader.getWidth(0), reader.getHeight(0));
+                ImageReadParam param = reader.getDefaultReadParam();
+                if (step > 1) {
+                    param.setSourceSubsampling(step, step, 0, 0);
+                    log.debug("Decoding a {}x{} picture at every {}th pixel",
+                            reader.getWidth(0), reader.getHeight(0), step);
+                }
+                BufferedImage img = reader.read(0, param);
+                if (img == null) throw new IllegalArgumentException("the picture could not be read");
+                return img;
+            } finally {
+                reader.dispose();
+            }
         } catch (IOException e) {
             throw new IllegalArgumentException("the picture could not be read", e);
         }
-        if (img == null) {
-            // ImageIO returns null rather than throwing when no reader recognises the bytes.
-            throw new IllegalArgumentException("the picture could not be read");
-        }
-        return img;
+    }
+
+    /**
+     * How many pixels to step while decoding: 1 for anything reasonable, then powers of two.
+     *
+     * <p>Powers of two because that is what decoders handle cleanly, and because halving twice
+     * is a predictable amount of work rather than an arbitrary ratio.
+     */
+    static int subsamplingFor(int width, int height) {
+        int longest = Math.max(width, height);
+        int step = 1;
+        while (longest / step > DECODE_MAX_EDGE) step *= 2;
+        return step;
     }
 
     /**

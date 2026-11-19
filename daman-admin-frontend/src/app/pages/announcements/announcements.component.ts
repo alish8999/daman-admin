@@ -47,8 +47,16 @@ export class AnnouncementsComponent implements OnInit, OnDestroy {
   /** The row whose publish button is mid-flight, so only that one button shows a spinner. */
   publishingFor: number | null = null;
 
-  /** Stated in the UI rather than discovered by a rejected upload. */
-  readonly imageMaxKb = 512;
+  /**
+   * The biggest file worth sending, NOT the size it is stored at.
+   *
+   * <p>The server squeezes a picture down to 512 KB itself, so the old 512 KB check here was
+   * rejecting files the server would have happily accepted — and leaving the owner to resize
+   * them by hand in some other program. What is left is a ceiling on the upload itself: past
+   * this the wait is long enough to look broken on a slow line, and the servlet's own limit
+   * (10 MB, see application.yml) would refuse it anyway.
+   */
+  readonly uploadMaxMb = 10;
   readonly featureCatalog = FEATURE_CATALOG;
 
   constructor(private service: AnnouncementService,
@@ -268,11 +276,12 @@ export class AnnouncementsComponent implements OnInit, OnDestroy {
     const file = input.files?.[0];
     if (!file) return;
     this.uploadError = '';
-    // Checked here as well as on the server: a rejected 512 KB upload is a wasted round trip on
-    // a connection that may not be fast, and the message is clearer before it is sent.
-    if (file.size > this.imageMaxKb * 1024) {
+    // Only the outright-too-large case is caught here. Anything between this and the stored
+    // cap is the server's job now, and stopping it in the browser is what made the owner do
+    // the squeezing themselves.
+    if (file.size > this.uploadMaxMb * 1024 * 1024) {
       this.uploadError = this.translationService.instant('announcementImageTooBig',
-        { kb: String(Math.round(file.size / 1024)), max: String(this.imageMaxKb) });
+        { mb: String(Math.round(file.size / (1024 * 1024))), max: String(this.uploadMaxMb) });
       input.value = '';
       return;
     }

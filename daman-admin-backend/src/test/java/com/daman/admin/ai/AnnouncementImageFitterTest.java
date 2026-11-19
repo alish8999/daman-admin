@@ -160,4 +160,34 @@ class AnnouncementImageFitterTest {
         assertThat(AnnouncementImageFitter.fit(null, "image/png", CAP).bytes()).isNull();
         assertThat(AnnouncementImageFitter.fit(new byte[0], "image/png", CAP).bytes()).isEmpty();
     }
+    // ── Decoding something enormous ──────────────────────────────────────────────
+    // A phone hands over 4000x3000 and up. ImageIO.read decodes every pixel into an ARGB
+    // buffer — 48 MB for a 12-megapixel photo, on a backend tuned to a few hundred MB of heap.
+    // Nothing above the widest entry in WIDTHS survives the squeeze anyway, so the decoder is
+    // told to skip pixels as it reads rather than after.
+
+    @Test
+    void anOrdinaryPictureIsDecodedWholeAndNotSubsampled() {
+        assertThat(AnnouncementImageFitter.subsamplingFor(1024, 1024)).isEqualTo(1);
+        assertThat(AnnouncementImageFitter.subsamplingFor(3200, 1800)).isEqualTo(1);
+    }
+
+    @Test
+    void aPhonePhotoIsDecodedAtEverySecondPixel() {
+        assertThat(AnnouncementImageFitter.subsamplingFor(4032, 3024)).isEqualTo(2);
+    }
+
+    /** Whichever edge is longer decides; a tall picture is no different from a wide one. */
+    @Test
+    void theLongestEdgeDecides() {
+        assertThat(AnnouncementImageFitter.subsamplingFor(3024, 4032))
+                .isEqualTo(AnnouncementImageFitter.subsamplingFor(4032, 3024));
+    }
+
+    @Test
+    void aVeryLargePictureStepsOutInPowersOfTwo() {
+        assertThat(AnnouncementImageFitter.subsamplingFor(13000, 9000)).isEqualTo(8);
+        // Whatever the step, what survives is bounded — that is the whole point.
+        assertThat(13000 / AnnouncementImageFitter.subsamplingFor(13000, 9000)).isLessThanOrEqualTo(3200);
+    }
 }
