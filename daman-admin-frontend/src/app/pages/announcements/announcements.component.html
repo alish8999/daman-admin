@@ -149,11 +149,13 @@
         <div class="bg-white rounded shadow-sm p-3">
           <div class="d-flex gap-3 flex-wrap">
 
-            <!-- Preview, from the PUBLIC path: previewing anything else would not be
-                 previewing what the shops actually get. -->
+            <!-- Fetched through HttpClient as a blob, not pointed at a URL: the admin image
+                 path needs the bearer token and an <img> tag sends no headers. The public path
+                 would need none, but it serves published rows only, so every draft previewed
+                 as a broken image. -->
             <div class="announcement-thumb">
-              @if (a.hasImage) {
-                <img [src]="imageUrl(a)" [alt]="a.titleEn || a.slug">
+              @if (a.hasImage && previewUrls[a.id]) {
+                <img [src]="previewUrls[a.id]" [alt]="a.titleEn || a.slug">
               } @else {
                 <span class="text-muted small">{{ 'announcementNoImage' | t }}</span>
               }
@@ -195,6 +197,8 @@
                          (change)="onImagePicked(a, $event)">
                 </label>
 
+                <!-- hasImage alone, NOT the preview: a picture whose preview failed to load
+                     is still a picture on the row, and removing it is how the owner fixes it. -->
                 @if (a.hasImage) {
                   <button type="button" class="btn btn-xs btn-outline-secondary" (click)="removeImage(a)">
                     {{ 'announcementRemoveImage' | t }}

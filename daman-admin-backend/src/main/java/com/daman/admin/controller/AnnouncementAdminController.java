@@ -5,7 +5,9 @@ import com.daman.admin.entity.Announcement;
 import com.daman.admin.service.AnnouncementService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -93,6 +95,31 @@ public class AnnouncementAdminController {
         if (service.byId(id).isEmpty()) return ResponseEntity.notFound().build();
         service.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * The picture, for the owner looking at the row they are writing.
+     *
+     * <p><b>Why this exists alongside the public path.</b> The portal previewed through
+     * {@code /api/public/announcements/{slug}/image}, on the reasoning that previewing anything
+     * else is not previewing what the shops get. True about the bytes, wrong about reach: the
+     * public path serves PUBLISHED rows only, so a draft with a picture rendered a broken image
+     * in the portal — and a draft is exactly when the owner needs to see it. The bytes are the
+     * same bytes; only the gate differs, and this one is the admin token.
+     *
+     * <p>Not cached, unlike the public path. The owner replaces a picture and looks straight at
+     * it, and a cached copy of the previous one reads as an upload that failed.
+     */
+    @GetMapping("/{id}/image")
+    public ResponseEntity<byte[]> image(@PathVariable Long id) {
+        return service.byId(id)
+                .filter(a -> a.getImage() != null && a.getImage().length > 0)
+                .<ResponseEntity<byte[]>>map(a -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(
+                                a.getImageType() == null ? "image/png" : a.getImageType()))
+                        .cacheControl(CacheControl.noStore())
+                        .body(a.getImage()))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{id}/image")

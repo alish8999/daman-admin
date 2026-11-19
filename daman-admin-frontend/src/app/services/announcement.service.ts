@@ -97,10 +97,26 @@ export class AnnouncementService {
   }
 
   /**
-   * Where the picture is served from. The PUBLIC path, because that is the one the shops use —
-   * previewing exactly what they will see is the point of the preview.
+   * The picture bytes, for the portal's own preview.
+   *
+   * <p>Fetched rather than handed to an `<img src>` because the admin path needs the bearer
+   * token and an `<img>` tag carries no headers — only HttpClient passes through the auth
+   * interceptor. The caller turns the blob into an object URL and is responsible for revoking
+   * it, which is why this returns the blob and not a URL.
+   *
+   * <p>It used to be the PUBLIC path, on the reasoning that previewing anything else is not
+   * previewing what the shops get. The bytes are identical; the public path just refuses an
+   * unpublished row, so every draft with a picture previewed as a broken image.
    */
-  imageUrl(slug: string, cacheBust?: string | null): string {
+  imageBlob(id: number): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/${id}/image`, { responseType: 'blob' });
+  }
+
+  /**
+   * Where the shops fetch the picture. Not used for the portal's preview — see
+   * {@link imageBlob} — but it is what the till builds, and the one place that URL is spelled.
+   */
+  publicImageUrl(slug: string, cacheBust?: string | null): string {
     const base = `${environment.apiUrl}/api/public/announcements/${encodeURIComponent(slug)}/image`;
     return cacheBust ? `${base}?v=${encodeURIComponent(cacheBust)}` : base;
   }

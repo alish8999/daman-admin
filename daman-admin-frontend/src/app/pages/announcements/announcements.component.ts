@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -26,7 +26,7 @@ import { TranslationService } from '../../services/translation.service';
   imports: [CommonModule, FormsModule, RouterLink, TranslatePipe],
   templateUrl: './announcements.component.html'
 })
-export class AnnouncementsComponent implements OnInit {
+export class AnnouncementsComponent implements OnInit, OnDestroy {
 
   announcements: Announcement[] = [];
   loading = true;
@@ -61,7 +61,7 @@ export class AnnouncementsComponent implements OnInit {
   load(): void {
     this.loading = true;
     this.service.getAll().subscribe({
-      next: (rows) => { this.announcements = rows; this.loading = false; },
+      next: (rows) => { this.announcements = rows; this.loading = false; this.loadPreviews(rows); },
       error: (err) => {
         this.error = err?.error?.error || this.translationService.instant('announcementsLoadFailed');
         this.loading = false;
@@ -243,9 +243,37 @@ export class AnnouncementsComponent implements OnInit {
     this.service.removeImage(a.id).subscribe({ next: () => this.load() });
   }
 
-  /** Cache-busted on updatedAt so a replaced picture is not served from the browser's cache. */
-  imageUrl(a: Announcement): string {
-    return this.service.imageUrl(a.slug, a.updatedAt);
+  /**
+   * One object URL per row that has a picture, rebuilt on every load.
+   *
+   * <p>The admin image path needs the bearer token, and an `<img src>` sends no headers — so
+   * the bytes come through HttpClient and become a blob URL. Which also settles the cache
+   * question the old `?v=updatedAt` was there to answer: a fresh blob every load is, by
+   * construction, never a stale one.
+   */
+  previewUrls: Record<number, string> = {};
+
+  private loadPreviews(rows: Announcement[]): void {
+    this.revokePreviews();
+    for (const a of rows) {
+      if (!a.hasImage) continue;
+      this.service.imageBlob(a.id).subscribe({
+        next: (blob) => this.previewUrls[a.id] = URL.createObjectURL(blob),
+        // A preview that will not load is not worth an error banner over the whole page; the
+        // card simply shows no picture, which is what a missing one looks like anyway.
+        error: () => delete this.previewUrls[a.id]
+      });
+    }
+  }
+
+  /** Object URLs pin their blob in memory until revoked, so every replaced one is released. */
+  private revokePreviews(): void {
+    for (const url of Object.values(this.previewUrls)) URL.revokeObjectURL(url);
+    this.previewUrls = {};
+  }
+
+  ngOnDestroy(): void {
+    this.revokePreviews();
   }
 
   // ── Delete ───────────────────────────────────────────────────────────────────

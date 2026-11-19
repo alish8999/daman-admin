@@ -4,6 +4,7 @@ import com.daman.admin.entity.Announcement;
 import com.daman.admin.service.AnnouncementService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Optional;
@@ -119,5 +120,55 @@ class AnnouncementAdminControllerTest {
 
         assertThat(controller.create(request("accounting")).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+// ── Previewing a picture the shops cannot see yet ────────────────────────────
+
+    /**
+     * The portal used to preview a picture through the PUBLIC path, which is right about the
+     * bytes and wrong about reach: that path serves PUBLISHED rows only, so every draft with a
+     * picture rendered a broken image in the portal. The owner is looking at a row they are
+     * still writing — the one case the public path is built to refuse.
+     */
+    @Test
+    void aPictureOnAnUnpublishedRowIsStillShownToThePortal() {
+        Announcement a = stored(1);
+        a.setPublished(false);
+        a.setImage(new byte[]{1, 2, 3});
+        a.setImageType("image/jpeg");
+        when(service.byId(1L)).thenReturn(Optional.of(a));
+
+        ResponseEntity<byte[]> response = controller.image(1L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).containsExactly(1, 2, 3);
+        assertThat(response.getHeaders().getContentType()).hasToString("image/jpeg");
+    }
+
+    /**
+     * No caching header on this one, unlike the public path. The owner replaces a picture and
+     * looks straight at it; a cached preview of the previous one reads as a failed upload.
+     */
+    @Test
+    void thePreviewIsNotCached() {
+        Announcement a = stored(1);
+        a.setImage(new byte[]{1});
+        a.setImageType("image/png");
+        when(service.byId(1L)).thenReturn(Optional.of(a));
+
+        assertThat(controller.image(1L).getHeaders().getCacheControl()).contains("no-store");
+    }
+
+    @Test
+    void aRowWithNoPictureHasNothingToPreview() {
+        when(service.byId(1L)).thenReturn(Optional.of(stored(1)));
+
+        assertThat(controller.image(1L).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void aRowThatIsNotThereHasNothingToPreview() {
+        when(service.byId(9L)).thenReturn(Optional.empty());
+
+        assertThat(controller.image(9L).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }
