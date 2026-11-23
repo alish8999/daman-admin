@@ -451,6 +451,51 @@ export class ClientsComponent implements OnInit, OnDestroy {
     return this.heartbeats.get(clientCode);
   }
 
+  /**
+   * Backup age in plain words. `null` here is NOT missing data — the shop reported and has no
+   * backup file at all, which is the single most important thing this column can say. Auto-backup
+   * silently never ran on any shipped build until 2026-10-26 and nothing on the server could see
+   * it; this is that blind spot closed.
+   *
+   * Older clients that have not updated yet report nothing for this field, and they are the one
+   * case where null really is "unknown" — so they say so rather than accusing a shop of being
+   * unprotected. `baseCurrency` is the tell: every client that sends a backup date sends one.
+   */
+  backupLabel(hb: LatestHeartbeat): string {
+    if (!hb.baseCurrency && !hb.lastBackupOn) return 'backup: unknown';
+    if (!hb.lastBackupOn) return 'NO BACKUP';
+    return 'backed up ' + this.lastSeenLabel(hb.lastBackupOn);
+  }
+
+  backupClass(hb: LatestHeartbeat): string {
+    if (!hb.baseCurrency && !hb.lastBackupOn) return 'bg-light text-muted border';
+    const days = this.daysSince(hb.lastBackupOn);
+    if (days === null) return 'bg-danger';
+    if (days <= 2) return 'bg-success';
+    if (days <= 14) return 'bg-warning text-dark';
+    return 'bg-danger';
+  }
+
+  backupTitle(hb: LatestHeartbeat): string {
+    if (!hb.baseCurrency && !hb.lastBackupOn) return 'This client has not updated to a version that reports its backups yet';
+    return hb.lastBackupOn
+      ? 'Newest backup file on that machine: ' + hb.lastBackupOn
+      : 'This shop reported, and has no backup file at all';
+  }
+
+  /** Base currency, boot time and database size on one muted line — context, not an alarm. */
+  healthLabel(hb: LatestHeartbeat): string {
+    const parts: string[] = [];
+    if (hb.baseCurrency) parts.push(hb.baseCurrency);
+    if (hb.bootSeconds != null) parts.push(hb.bootSeconds + 's boot');
+    if (hb.dbSizeMb != null) parts.push(hb.dbSizeMb + ' MB');
+    return parts.join(' · ');
+  }
+
+  healthTitle(hb: LatestHeartbeat): string {
+    return 'Locked base currency · seconds from launch to ready · database file size';
+  }
+
   /** Whole days between a reported date/time and now. Negative clamped to 0. */
   private daysSince(iso: string | null): number | null {
     if (!iso) return null;

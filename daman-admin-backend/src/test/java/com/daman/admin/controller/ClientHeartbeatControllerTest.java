@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -138,6 +139,98 @@ class ClientHeartbeatControllerTest {
         // Costs nothing to drop: totalSales is cumulative, so the next accepted report carries
         // the whole picture again. This is why the payload is not a delta.
         verify(heartbeatRepository, never()).save(any());
+    }
+
+    /**
+     * The one event worth seeing promptly was the one the window was most likely to swallow: a
+     * shop reports in the morning, updates at midday, and that restart's report lands hours
+     * later — inside the window — so the portal kept showing the old version until the next day.
+     */
+    @Test
+    @DisplayName("inside the window, a CHANGED app version is kept anyway")
+    void versionChangeInsideWindowIsKept() {
+        licenceLookupReturns(List.of(active));
+        when(heartbeatRepository.existsByClientCodeAndMachineIdAndReceivedAtAfter(
+                anyString(), anyString(), any())).thenReturn(true);
+        ClientHeartbeat previous = new ClientHeartbeat();
+        previous.setAppVersion("1.3.4");                       // request() reports 1.3.5
+        when(heartbeatRepository.findFirstByClientCodeAndMachineIdOrderByReceivedAtDesc(CODE, MACHINE))
+                .thenReturn(Optional.of(previous));
+
+        controller.receive(request(KEY));
+
+        ArgumentCaptor<ClientHeartbeat> saved = ArgumentCaptor.forClass(ClientHeartbeat.class);
+        verify(heartbeatRepository).save(saved.capture());
+        assertThat(saved.getValue().getAppVersion()).isEqualTo("1.3.5");
+    }
+
+    /** Restarting the till repeatedly reports the SAME version, and must stay dropped. */
+    @Test
+    @DisplayName("inside the window, an UNCHANGED app version is still dropped")
+    void sameVersionInsideWindowIsStillDropped() {
+        licenceLookupReturns(List.of(active));
+        when(heartbeatRepository.existsByClientCodeAndMachineIdAndReceivedAtAfter(
+                anyString(), anyString(), any())).thenReturn(true);
+        ClientHeartbeat previous = new ClientHeartbeat();
+        previous.setAppVersion("1.3.5");
+        when(heartbeatRepository.findFirstByClientCodeAndMachineIdOrderByReceivedAtDesc(CODE, MACHINE))
+                .thenReturn(Optional.of(previous));
+
+        controller.receive(request(KEY));
+
+        verify(heartbeatRepository, never()).save(any());
+    }
+
+    /** A client that cannot report a version must not be able to write a row per restart. */
+    @Test
+    @DisplayName("inside the window, a blank app version is dropped rather than treated as a change")
+    void blankVersionInsideWindowIsDropped() {
+        licenceLookupReturns(List.of(active));
+        when(heartbeatRepository.existsByClientCodeAndMachineIdAndReceivedAtAfter(
+                anyString(), anyString(), any())).thenReturn(true);
+        ClientHeartbeatController.HeartbeatRequest r = request(KEY);
+        r.setAppVersion(null);
+
+        controller.receive(r);
+
+        verify(heartbeatRepository, never()).save(any());
+        // Not even looked up: a blank version is rejected before the previous row is read, so a
+        // client that cannot report its version costs no query either.
+        verify(heartbeatRepository, never())
+                .findFirstByClientCodeAndMachineIdOrderByReceivedAtDesc(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("the four fleet-health fields are stored")
+    void fleetHealthFieldsAreStored() {
+        licenceLookupReturns(List.of(active));
+        ClientHeartbeatController.HeartbeatRequest r = request(KEY);
+        r.setLastBackupOn(LocalDate.of(2026, 11, 20));
+        r.setBaseCurrency("SYP");
+        r.setBootSeconds(31);
+        r.setDbSizeMb(42);
+
+        controller.receive(r);
+
+        ArgumentCaptor<ClientHeartbeat> saved = ArgumentCaptor.forClass(ClientHeartbeat.class);
+        verify(heartbeatRepository).save(saved.capture());
+        assertThat(saved.getValue().getLastBackupOn()).isEqualTo(LocalDate.of(2026, 11, 20));
+        assertThat(saved.getValue().getBaseCurrency()).isEqualTo("SYP");
+        assertThat(saved.getValue().getBootSeconds()).isEqualTo(31);
+        assertThat(saved.getValue().getDbSizeMb()).isEqualTo(42);
+    }
+
+    /** A shop that has never backed up reports null, and null is the answer worth seeing. */
+    @Test
+    @DisplayName("a null lastBackupOn is stored as null, not defaulted")
+    void neverBackedUpStoresNull() {
+        licenceLookupReturns(List.of(active));
+
+        controller.receive(request(KEY));                      // request() sets no backup date
+
+        ArgumentCaptor<ClientHeartbeat> saved = ArgumentCaptor.forClass(ClientHeartbeat.class);
+        verify(heartbeatRepository).save(saved.capture());
+        assertThat(saved.getValue().getLastBackupOn()).isNull();
     }
 
     @Test

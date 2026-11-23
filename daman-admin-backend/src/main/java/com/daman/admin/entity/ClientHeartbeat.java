@@ -90,4 +90,40 @@ public class ClientHeartbeat {
 
     /** How many staff accounts the installation has — a rough proxy for the size of the shop. */
     private Integer activeUserCount;
+
+    /**
+     * Date of the newest backup file this installation can see, or null when it has none.
+     *
+     * <p>The field that would have caught the 2026-10-26 incident on its own: auto-backup had
+     * silently never scheduled on ANY generic build (every shop), because a CommandLineRunner
+     * read the setting before licence entitlements applied. It was found by chance, in one
+     * hosted store's log. A date here turns "is anyone actually backed up?" from an
+     * unanswerable question into a column — and a NULL, or a date months old, is the answer
+     * that matters.
+     */
+    private LocalDate lastBackupOn;
+
+    /**
+     * The installation's LOCKED base currency (the {@code app_settings} value, not whatever a
+     * config file claims).
+     *
+     * <p>Reported because base currency is this product's most expensive thing to get wrong:
+     * importing a database into a build with the wrong base rewrote every row's amounts once
+     * already. Knowing centrally what each shop is locked to turns that class of incident from
+     * an investigation into a lookup.
+     */
+    private String baseCurrency;
+
+    /**
+     * Seconds from JVM start to the backend being ready, as the client measured it.
+     *
+     * <p>Not vanity: shops here run old laptops, often on battery, and boot time measured on a
+     * developer machine says nothing about them (same laptop, same build: 8s on mains idle,
+     * 11s on battery idle, 24-60s on battery under load). This is the only way to see the real
+     * distribution instead of guessing from one machine.
+     */
+    private Integer bootSeconds;
+
+    /** Size of the client's database file in whole MB — predicts who will feel performance work first. */
+    private Integer dbSizeMb;
 }

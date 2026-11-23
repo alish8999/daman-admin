@@ -17,6 +17,15 @@ public interface ClientHeartbeatRepository extends JpaRepository<ClientHeartbeat
     List<ClientHeartbeat> findByClientCodeOrderByReceivedAtDesc(String clientCode);
 
     /**
+     * The newest heartbeat from one MACHINE — keyed on the pair, unlike
+     * {@link #findFirstByClientCodeOrderByReceivedAtDesc}, because the min-interval window is
+     * per installation and a client code can cover more than one. Used only to compare the
+     * reported app version against the stored one; see the controller's {@code versionChanged}.
+     */
+    Optional<ClientHeartbeat> findFirstByClientCodeAndMachineIdOrderByReceivedAtDesc(
+            String clientCode, String machineId);
+
+    /**
      * The newest heartbeat per client code, in ONE query.
      *
      * <p>The Clients list needs last-seen for every row. Calling
@@ -24,10 +33,13 @@ public interface ClientHeartbeatRepository extends JpaRepository<ClientHeartbeat
      * is fine at twenty clients and is the kind of thing that quietly becomes the slowest page
      * in the portal at two hundred.
      *
-     * <p>Returns {@code [clientCode, receivedAt, lastSaleOn, appVersion]} rather than entities:
-     * the list shows four fields and has no use for the rest.
+     * <p>Returns a fixed column list rather than entities: the list shows a handful of fields and
+     * has no use for the rest. {@code lastBackupOn} and {@code baseCurrency} are here, not only in
+     * the detail view, because their whole value is being scannable DOWN the column — "which shops
+     * have no backup" is a question about the fleet, not about one client.
      */
-    @Query("SELECT h.clientCode, h.receivedAt, h.lastSaleOn, h.appVersion FROM ClientHeartbeat h "
+    @Query("SELECT h.clientCode, h.receivedAt, h.lastSaleOn, h.appVersion, "
+         + "h.lastBackupOn, h.baseCurrency, h.bootSeconds, h.dbSizeMb FROM ClientHeartbeat h "
          + "WHERE h.receivedAt = ("
          + "    SELECT MAX(h2.receivedAt) FROM ClientHeartbeat h2 WHERE h2.clientCode = h.clientCode"
          + ")")

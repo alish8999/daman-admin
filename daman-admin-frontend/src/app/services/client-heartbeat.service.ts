@@ -11,6 +11,17 @@ export interface LatestHeartbeat {
   /** The day that till last rang up a sale, or null if it never has. */
   lastSaleOn: string | null;
   appVersion: string | null;
+  /**
+   * Newest backup file on that machine. Null from a reporting client means NO BACKUP EXISTS —
+   * the answer, not a gap. Null from a client too old to report it means unknown; `baseCurrency`
+   * is the tell, since the two shipped together.
+   */
+  lastBackupOn: string | null;
+  /** The installation's LOCKED base currency, not what a config file claims. */
+  baseCurrency: string | null;
+  /** Seconds from launch to the backend being ready, as that machine measured it. */
+  bootSeconds: number | null;
+  dbSizeMb: number | null;
 }
 
 /** One stored report, for the client detail view. */

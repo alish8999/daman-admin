@@ -230,6 +230,15 @@
                              [title]="'The day this till last rang up a sale'">
                         {{ hb.lastSaleOn ? ('sold ' + lastSeenLabel(hb.lastSaleOn)) : 'no sales yet' }}
                       </small>
+                      <!-- Backup is its own badge, not muted text: a shop with no backup is the
+                           one thing on this row worth catching the eye. -->
+                      <span class="badge align-self-start" [ngClass]="backupClass(hb)"
+                            style="font-size:0.68rem" [title]="backupTitle(hb)">
+                        {{ backupLabel(hb) }}
+                      </span>
+                      <small class="text-muted" style="font-size:0.68rem" [title]="healthTitle(hb)">
+                        {{ healthLabel(hb) }}
+                      </small>
                     } @else {
                       <small class="text-muted" style="font-size:0.68rem">
                         {{ 'versionNeverReportedShort' | t }}

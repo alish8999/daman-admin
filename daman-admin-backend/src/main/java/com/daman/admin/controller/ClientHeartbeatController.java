@@ -80,7 +80,11 @@ public class ClientHeartbeatController {
                         (String) r[0],
                         (LocalDateTime) r[1],
                         (LocalDate) r[2],
-                        (String) r[3]))
+                        (String) r[3],
+                        (LocalDate) r[4],
+                        (String) r[5],
+                        (Integer) r[6],
+                        (Integer) r[7]))
                 .toList();
     }
 
@@ -94,7 +98,12 @@ public class ClientHeartbeatController {
             String clientCode,
             LocalDateTime lastSeenAt,
             LocalDate lastSaleOn,
-            String appVersion) {}
+            String appVersion,
+            /** Null means the shop reported and has NO backup at all — the answer, not a gap. */
+            LocalDate lastBackupOn,
+            String baseCurrency,
+            Integer bootSeconds,
+            Integer dbSizeMb) {}
 
     @PostMapping("/api/public/client-heartbeat")
     public ResponseEntity<Void> receive(@RequestBody HeartbeatRequest body) {
@@ -135,7 +144,8 @@ public class ClientHeartbeatController {
 
         LocalDateTime now = LocalDateTime.now();
         if (heartbeatRepository.existsByClientCodeAndMachineIdAndReceivedAtAfter(
-                body.getClientCode(), body.getMachineId(), now.minusHours(MIN_HOURS_BETWEEN))) {
+                body.getClientCode(), body.getMachineId(), now.minusHours(MIN_HOURS_BETWEEN))
+                && !versionChanged(body)) {
             return;
         }
 
@@ -149,7 +159,39 @@ public class ClientHeartbeatController {
         row.setLastSaleOn(body.getLastSaleOn());
         row.setTotalSales(nonNegativeLong(body.getTotalSales()));
         row.setActiveUserCount(nonNegative(body.getActiveUserCount()));
+        row.setLastBackupOn(body.getLastBackupOn());
+        row.setBaseCurrency(trimToLength(body.getBaseCurrency(), 8));
+        row.setBootSeconds(nonNegative(body.getBootSeconds()));
+        row.setDbSizeMb(nonNegative(body.getDbSizeMb()));
         heartbeatRepository.save(row);
+    }
+
+    /**
+     * Whether this report carries a different {@code appVersion} than the last one stored for the
+     * same installation — in which case {@link #MIN_HOURS_BETWEEN} is waived and the report is kept.
+     *
+     * <p>Without this, the one event most worth seeing promptly was the one most likely to be
+     * dropped. A shop opens the till in the morning (report stored, old version), updates at
+     * midday and restarts: that restart's report lands ~3 hours later and the window swallows it,
+     * so the portal still shows the old version until the next morning. Updates happen during the
+     * day, which is exactly when the window is closed.
+     *
+     * <p>It cannot reopen the flood the window exists to stop: restarting the app repeatedly
+     * reports the SAME version every time and is still dropped. Only a version change gets through,
+     * and a version can only change by installing one.
+     *
+     * <p>A null/blank version on either side is treated as "no change" — a client that cannot
+     * report its version must not be able to write a row per restart.
+     */
+    private boolean versionChanged(HeartbeatRequest body) {
+        String reported = trimToLength(body.getAppVersion(), 40);
+        if (isBlank(reported)) return false;
+        return heartbeatRepository
+                .findFirstByClientCodeAndMachineIdOrderByReceivedAtDesc(body.getClientCode(), body.getMachineId())
+                .map(ClientHeartbeat::getAppVersion)
+                .filter(previous -> !isBlank(previous))
+                .map(previous -> !reported.equals(previous))
+                .orElse(false);
     }
 
     private static boolean isBlank(String s) { return s == null || s.isBlank(); }
@@ -182,5 +224,10 @@ public class ClientHeartbeatController {
         private LocalDate lastSaleOn;
         private Long totalSales;
         private Integer activeUserCount;
+        /** Date only, like {@link #lastSaleOn} — see ClientHeartbeat.lastBackupOn. */
+        private LocalDate lastBackupOn;
+        private String baseCurrency;
+        private Integer bootSeconds;
+        private Integer dbSizeMb;
     }
 }
