@@ -127,7 +127,13 @@ public class AuthFilter implements Filter {
             // could not read /api/changelog-library.
             "http://localhost:5500",
             "http://127.0.0.1:5500",
-            "https://admin.damansoft.com"
+            "https://admin.damansoft.com",
+            // Added 2026-11-24 with the marketing site's add-on price fetch. The site only ever
+            // reads /api/public/feature-catalog, which this filter lets through before it gets
+            // here, so these two are strictly for keeping the mirror honest — but a mirror that
+            // is already wrong is how the next reader learns the wrong rule.
+            "https://damansoft.com",
+            "https://www.damansoft.com"
     );
 
     private final SessionService sessionService;
